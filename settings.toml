@@ -1,0 +1,12 @@
+# SETTINGS FILE
+
+# Internet Credentials
+CIRCUITPY_WIFI_SSID = "o==[]:::::::::::::::::::::::::>"
+CIRCUITPY_WIFI_PASSWORD = "YOUR_WIFI_PASSWORD"
+
+# Adafruit IO
+ADAFRUIT_AIOS_USERNAME = "dcelayeta"
+ADAFRUIT_AIO_KEY = "YOUR_ADAFRUIT_AIO_KEY"
+
+# Timezone names from http://worldtimeapi.org/timezones
+TIMEZONE="America/Chicago"
