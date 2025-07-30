@@ -9,4 +9,4 @@ ADAFRUIT_AIOS_USERNAME = "dcelayeta"
 ADAFRUIT_AIO_KEY = "YOUR_ADAFRUIT_AIO_KEY"
 
 # Timezone names from http://worldtimeapi.org/timezones
-TIMEZONE="America/Chicago"
+TIMEZONE = "America/Chicago"
