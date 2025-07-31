@@ -78,14 +78,15 @@ for attempt in range(10):
 else:
 	supervisor.reload()
 
-# ping_ip = ipaddress.IPv4Address("8.8.8.8")
-# ping = wifi.radio.ping(ip=ping_ip)
-# 
-# if ping is None:
-# 	ping = wifi.radio.ping(ip=ping_ip)
-# 
-# if ping is None:
-# 	print("Couldn't ping 'google.com' successfully")
-# else:
-# 	# convert s to ms
-# 	print(f"Pinging 'google.com' took: {ping * 1000} ms")
+## INITIALIZE WIFI ##
+pool = socketpool.SocketPool(wifi.radio)
+
+# ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== #
+
+### UPDATE REAL TIME CLOCK ###
+ntp = adafruit_ntp.NTP(pool, tz_offset=-5, cache_seconds=3600)
+
+rtc.datetime = time.struct_time(ntp.datetime)
+chicago_time = rtc.datetime
+
+print('The current time is: {}/{}/{} {:02}:{:02}:{:02}'.format(chicago_time.tm_mon, chicago_time.tm_mday, chicago_time.tm_year, chicago_time.tm_hour, chicago_time.tm_min, chicago_time.tm_sec))
