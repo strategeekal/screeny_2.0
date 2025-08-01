@@ -6,6 +6,7 @@
 import board # Portal Matrix S3 main board library
 import os # OS functions. used to read setting file
 import supervisor # Soft restart board
+import gc
 
 # Network Libraries
 import wifi # Provides necessary low-level functionality for managing wifi connections
@@ -18,6 +19,8 @@ import adafruit_requests # Requests-like library for web interfacing
 import adafruit_ds3231 # RTC board library
 import time # Time and timing related functions
 import adafruit_ntp # Network Time Protocol (NTP) helper for CircuitPython
+
+gc.collect() # Clear up memory after imports
 
 # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== #
 
@@ -48,14 +51,9 @@ else:
 
 ssid = os.getenv("CIRCUITPY_WIFI_SSID")
 password = os.getenv("CIRCUITPY_WIFI_PASSWORD")
-aio_username = os.getenv("ADAFRUIT_AIOS_USERNAME")
-aio_key = os.getenv("ADAFRUIT_AIO_KEY")
-timezone = os.getenv("TIMEZONE")
-TIME_URL = f"https://io.adafruit.com/api/v2/{aio_username}/integrations/time/strftime?x-aio-key={aio_key}&tz={timezone}"
-TIME_URL += "&fmt=%25Y-%25m-%25d+%25H%3A%25M%3A%25S.%25L+%25j+%25u+%25z+%25Z"
 
 ## CHECK CREDENTIALS
-if any(var is None for var in (ssid, password, aio_username, aio_key, timezone)):
+if any(var is None for var in (ssid, password)):
 	recurr_message = "WiFI Key"
 else:
 	recurr_message = "Keys Imported"
@@ -83,10 +81,133 @@ pool = socketpool.SocketPool(wifi.radio)
 
 # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== #
 
-### UPDATE REAL TIME CLOCK ###
-ntp = adafruit_ntp.NTP(pool, tz_offset=-5, cache_seconds=3600)
+### SET REAL TIME CLOCK ###
 
-rtc.datetime = time.struct_time(ntp.datetime)
-chicago_time = rtc.datetime
+## DAYLIGHT SAVINGS TIME ADJUST FUNCTIONS ##
 
-print('The current time is: {}/{}/{} {:02}:{:02}:{:02}'.format(chicago_time.tm_mon, chicago_time.tm_mday, chicago_time.tm_year, chicago_time.tm_hour, chicago_time.tm_min, chicago_time.tm_sec))
+def is_dst_us_central(dt):
+	"""
+	Determine if a given UTC datetime falls within US Central Daylight Time.
+	
+	DST Rules for US Central Time:
+	- Starts: 2nd Sunday in March at 2:00 AM local time (becomes 3:00 AM)
+	- Ends: 1st Sunday in November at 2:00 AM local time (becomes 1:00 AM)
+	
+	Args:
+		dt: time struct from time.localtime() or similar (UTC time)
+	
+	Returns:
+		bool: True if DST is active, False otherwise
+	"""
+	year = dt.tm_year
+	month = dt.tm_mon
+	day = dt.tm_mday
+	hour = dt.tm_hour
+	
+	# Find the 2nd Sunday in March
+	march_1st_weekday = (dt.tm_wday - (day - 1)) % 7
+	first_sunday_march = 7 - march_1st_weekday if march_1st_weekday != 6 else 0
+	if first_sunday_march == 0:
+		first_sunday_march = 7
+	second_sunday_march = first_sunday_march + 7
+	
+	# Find the 1st Sunday in November
+	# Create a time struct for November 1st of the same year
+	nov_1st = time.struct_time((year, 11, 1, 0, 0, 0, 0, 0, 0))
+	nov_1st_weekday = time.localtime(time.mktime(nov_1st)).tm_wday
+	first_sunday_november = 7 - nov_1st_weekday if nov_1st_weekday != 6 else 0
+	if first_sunday_november == 0:
+		first_sunday_november = 7
+	
+	# Check if we're in DST period
+	if month < 3 or month > 11:
+		return False
+	elif month > 3 and month < 11:
+		return True
+	elif month == 3:
+		# March - check if we're past the 2nd Sunday at 2 AM
+		if day < second_sunday_march:
+			return False
+		elif day > second_sunday_march:
+			return True
+		else:
+			# It's the 2nd Sunday - check if it's past 2 AM local time
+			# Since we're working with UTC, we need to account for standard time offset
+			# 2 AM CST = 8 AM UTC
+			return hour >= 8
+	elif month == 11:
+		# November - check if we're before the 1st Sunday at 2 AM
+		if day < first_sunday_november:
+			return True
+		elif day > first_sunday_november:
+			return False
+		else:
+			# It's the 1st Sunday - check if it's before 2 AM local time
+			# 2 AM CDT = 7 AM UTC (because we're still in DST until 2 AM)
+			return hour < 7
+
+def utc_to_chicago_robust(utc_dt):
+	"""
+	Convert UTC time to Chicago time with robust DST handling.
+	
+	Args:
+		utc_dt: UTC time struct
+		
+	Returns:
+		time.struct_time: Chicago local time
+	"""
+	# Determine if DST is active
+	dst_active = is_dst_us_central(utc_dt)
+	
+	# Central Standard Time (CST) = UTC - 6 hours
+	# Central Daylight Time (CDT) = UTC - 5 hours
+	offset_hours = -5 if dst_active else -6
+	
+	# Convert to timestamp, apply offset, convert back
+	utc_timestamp = time.mktime(utc_dt)
+	chicago_timestamp = utc_timestamp + (offset_hours * 3600)
+	
+	return time.localtime(chicago_timestamp)
+
+def get_chicago_time_from_ntp():
+	"""
+	Complete function to get Chicago time from NTP server.
+	Use this in your CircuitPython project.
+	"""
+	
+	# Ensure WiFi is connected
+	if not wifi.radio.connected:
+		print("WiFi not connected!")
+		return None
+	
+	try:
+		pool = socketpool.SocketPool(wifi.radio)
+		ntp = adafruit_ntp.NTP(pool, tz_offset=0)  # Get UTC
+		utc_time = ntp.datetime
+		
+		# Convert to Chicago time
+		chicago_time = utc_to_chicago_robust(utc_time)
+		
+		# Set the DS3231/RTC
+		rtc.datetime = chicago_time
+		
+		print(f"Set clock to Chicago time: {chicago_time}")
+		return chicago_time
+		
+	except Exception as e:
+		print(f"Error getting time: {e}")
+		return None
+		
+## UPDATE RTC ##
+		 
+chicago_time = get_chicago_time_from_ntp()
+
+start_time = time.monotonic()  # monotonic() is better than time() for timing
+duration = 15  # seconds
+
+while time.monotonic() - start_time < duration:
+		chicago_time = rtc.datetime
+		print("%02d/%02d %02d:%02d:%02d" % (chicago_time.tm_mon, chicago_time.tm_mday, chicago_time.tm_hour, chicago_time.tm_min, chicago_time.tm_sec))
+		time.sleep(1)
+
+print("Display loop finished")
