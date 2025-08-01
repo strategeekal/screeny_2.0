@@ -203,6 +203,9 @@ def get_chicago_time_from_ntp():
 
 
 ## UPDATE RTC ##
+rtc.datetime = time.struct_time((2017, 1, 1, 0, 0, 0, 6, 1, -1))
+
+print(rtc.datetime)
 
 chicago_time = get_chicago_time_from_ntp()
 
@@ -210,15 +213,14 @@ start_time = time.monotonic()  # monotonic() is better than time() for timing
 duration = 15  # seconds
 
 while time.monotonic() - start_time < duration:
-	chicago_time = rtc.datetime
 	print(
 		"%02d/%02d %02d:%02d:%02d"
 		% (
-			chicago_time.tm_mon,
-			chicago_time.tm_mday,
-			chicago_time.tm_hour,
-			chicago_time.tm_min,
-			chicago_time.tm_sec,
+			rtc.datetime.tm_mon,
+			rtc.datetime.tm_mday,
+			rtc.datetime.tm_hour,
+			rtc.datetime.tm_min,
+			rtc.datetime.tm_sec,
 		)
 	)
 	time.sleep(1)
