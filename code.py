@@ -218,8 +218,8 @@ def twelve_hour_clock(hod):
 
 ## UPDATE RTC ##
 
-#rtc.datetime = time.struct_time((2017, 1, 1, 0, 0, 0, 6, 1, -1)) # Used for testing
-#print(rtc.datetime)
+# rtc.datetime = time.struct_time((2017, 1, 1, 0, 0, 0, 6, 1, -1)) # FOR TEST
+# print(rtc.datetime) # FOR TEST
 
 chicago_time = get_chicago_time_from_ntp()
 
