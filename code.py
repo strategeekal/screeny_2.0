@@ -34,6 +34,7 @@ for attempt in range(10):
 	try:
 		rtc = adafruit_ds3231.DS3231(i2c)
 		print(rtc.datetime)
+		clock_updated = False
 		break
 	except ValueError:
 		# welcome_label.text = "Tik Tok!!"
@@ -193,9 +194,11 @@ def get_chicago_time_from_ntp():
 
 		# Set the DS3231/RTC
 		rtc.datetime = chicago_time
+		clock_updated = True
+		
 
 		print(f"Set clock to Chicago time: {chicago_time}")
-		return chicago_time
+		return chicago_time, clock_updated
 
 	except Exception as e:
 		print(f"Error getting time: {e}")
@@ -206,8 +209,11 @@ def get_chicago_time_from_ntp():
 
 # rtc.datetime = time.struct_time((2017, 1, 1, 0, 0, 0, 6, 1, -1)) # FOR TEST
 # print(rtc.datetime) # FOR TEST
+print(f"Clok Updated: {clock_updated}")
 
-chicago_time = get_chicago_time_from_ntp()
+chicago_time, clock_updated = get_chicago_time_from_ntp()
+
+print(f"Clok Updated: {clock_updated}")
 
 start_time = time.monotonic()  # monotonic() is better than time() for timing
 duration = 15  # seconds
