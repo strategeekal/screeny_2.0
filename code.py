@@ -221,9 +221,9 @@ def twelve_hour_clock(hod):
 
 ## UPDATE RTC ##
 
-
 # rtc.datetime = time.struct_time((2017, 1, 1, 0, 0, 0, 6, 1, -1)) # FOR TEST
 # print(rtc.datetime) # FOR TEST
+
 print(f"Clok Updated: {clock_updated}")
 
 chicago_time, clock_updated = get_chicago_time_from_ntp()
