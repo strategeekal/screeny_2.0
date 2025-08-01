@@ -206,8 +206,14 @@ def meridian(hod):
 		time_meridian = "am"
 	else:
 		time_meridian = "pm"
-		
 	return time_meridian
+	
+def twelve_hour_clock(hod):
+	if hod > 12:
+		h = hod - 12
+	else:
+		h = hod
+	return h
 
 
 ## UPDATE RTC ##
@@ -222,11 +228,11 @@ duration = 15  # seconds
 
 while time.monotonic() - start_time < duration:
 	print(
-		"%02d/%02d %02d:%02d:%02d%2s"
+		"%02d/%02d %d:%02d:%02d%2s"
 		% (
 			rtc.datetime.tm_mon,
 			rtc.datetime.tm_mday,
-			rtc.datetime.tm_hour,
+			twelve_hour_clock(rtc.datetime.tm_hour),
 			rtc.datetime.tm_min,
 			rtc.datetime.tm_sec,
 			meridian(rtc.datetime.tm_hour)
