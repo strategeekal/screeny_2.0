@@ -85,7 +85,6 @@ pool = socketpool.SocketPool(wifi.radio)
 
 ## DAYLIGHT SAVINGS TIME ADJUST FUNCTIONS ##
 
-
 def is_dst_us_central(dt):
 	"""
 	Determine if a given UTC datetime falls within US Central Daylight Time.
@@ -200,12 +199,21 @@ def get_chicago_time_from_ntp():
 	except Exception as e:
 		print(f"Error getting time: {e}")
 		return None
+		
+## FORMATTING FUNCTIONS ##
+def meridian(hod):
+	if hod < 12:
+		time_meridian = "am"
+	else:
+		time_meridian = "pm"
+		
+	return time_meridian
 
 
 ## UPDATE RTC ##
-rtc.datetime = time.struct_time((2017, 1, 1, 0, 0, 0, 6, 1, -1))
 
-print(rtc.datetime)
+#rtc.datetime = time.struct_time((2017, 1, 1, 0, 0, 0, 6, 1, -1)) # Used for testing
+#print(rtc.datetime)
 
 chicago_time = get_chicago_time_from_ntp()
 
@@ -214,13 +222,14 @@ duration = 15  # seconds
 
 while time.monotonic() - start_time < duration:
 	print(
-		"%02d/%02d %02d:%02d:%02d"
+		"%02d/%02d %02d:%02d:%02d%2s"
 		% (
 			rtc.datetime.tm_mon,
 			rtc.datetime.tm_mday,
 			rtc.datetime.tm_hour,
 			rtc.datetime.tm_min,
 			rtc.datetime.tm_sec,
+			meridian(rtc.datetime.tm_hour)
 		)
 	)
 	time.sleep(1)
