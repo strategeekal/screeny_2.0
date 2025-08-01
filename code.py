@@ -3,24 +3,24 @@
 ### Import Libraries ###
 
 # Main Libraries
-import board # Portal Matrix S3 main board library
-import os # OS functions. used to read setting file
-import supervisor # Soft restart board
+import board  # Portal Matrix S3 main board library
+import os  # OS functions. used to read setting file
+import supervisor  # Soft restart board
 import gc
 
 # Network Libraries
-import wifi # Provides necessary low-level functionality for managing wifi connections
-import ipaddress # Provides types for IP addresses
-import ssl # Provides SSL contexts to wrap sockets in
-import socketpool # Provides sockets through a pool to communicate over the network
-import adafruit_requests # Requests-like library for web interfacing
+import wifi  # Provides necessary low-level functionality for managing wifi connections
+import ipaddress  # Provides types for IP addresses
+import ssl  # Provides SSL contexts to wrap sockets in
+import socketpool  # Provides sockets through a pool to communicate over the network
+import adafruit_requests  # Requests-like library for web interfacing
 
 # Real Time Clock Libraries
-import adafruit_ds3231 # RTC board library
-import time # Time and timing related functions
-import adafruit_ntp # Network Time Protocol (NTP) helper for CircuitPython
+import adafruit_ds3231  # RTC board library
+import time  # Time and timing related functions
+import adafruit_ntp  # Network Time Protocol (NTP) helper for CircuitPython
 
-gc.collect() # Clear up memory after imports
+gc.collect()  # Clear up memory after imports
 
 # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== #
 
@@ -37,7 +37,7 @@ for attempt in range(10):
 		break
 	except ValueError:
 		# welcome_label.text = "Tik Tok!!"
-		time.sleep(360) # Try every 6 minutes for 10 times before soft reset
+		time.sleep(360)  # Try every 6 minutes for 10 times before soft reset
 		print("Attempt {} of 10 rtc board not found".format(attempt))
 		continue
 else:
@@ -47,7 +47,7 @@ else:
 
 ### CONNECT TO INTERNET ###
 
-## GET AND CONFIRM CREDENTIALS 
+## GET AND CONFIRM CREDENTIALS
 
 ssid = os.getenv("CIRCUITPY_WIFI_SSID")
 password = os.getenv("CIRCUITPY_WIFI_PASSWORD")
@@ -85,17 +85,18 @@ pool = socketpool.SocketPool(wifi.radio)
 
 ## DAYLIGHT SAVINGS TIME ADJUST FUNCTIONS ##
 
+
 def is_dst_us_central(dt):
 	"""
 	Determine if a given UTC datetime falls within US Central Daylight Time.
-	
+
 	DST Rules for US Central Time:
 	- Starts: 2nd Sunday in March at 2:00 AM local time (becomes 3:00 AM)
 	- Ends: 1st Sunday in November at 2:00 AM local time (becomes 1:00 AM)
-	
+
 	Args:
 		dt: time struct from time.localtime() or similar (UTC time)
-	
+
 	Returns:
 		bool: True if DST is active, False otherwise
 	"""
@@ -103,14 +104,14 @@ def is_dst_us_central(dt):
 	month = dt.tm_mon
 	day = dt.tm_mday
 	hour = dt.tm_hour
-	
+
 	# Find the 2nd Sunday in March
 	march_1st_weekday = (dt.tm_wday - (day - 1)) % 7
 	first_sunday_march = 7 - march_1st_weekday if march_1st_weekday != 6 else 0
 	if first_sunday_march == 0:
 		first_sunday_march = 7
 	second_sunday_march = first_sunday_march + 7
-	
+
 	# Find the 1st Sunday in November
 	# Create a time struct for November 1st of the same year
 	nov_1st = time.struct_time((year, 11, 1, 0, 0, 0, 0, 0, 0))
@@ -118,7 +119,7 @@ def is_dst_us_central(dt):
 	first_sunday_november = 7 - nov_1st_weekday if nov_1st_weekday != 6 else 0
 	if first_sunday_november == 0:
 		first_sunday_november = 7
-	
+
 	# Check if we're in DST period
 	if month < 3 or month > 11:
 		return False
@@ -146,68 +147,80 @@ def is_dst_us_central(dt):
 			# 2 AM CDT = 7 AM UTC (because we're still in DST until 2 AM)
 			return hour < 7
 
+
 def utc_to_chicago_robust(utc_dt):
 	"""
 	Convert UTC time to Chicago time with robust DST handling.
-	
+
 	Args:
 		utc_dt: UTC time struct
-		
+
 	Returns:
 		time.struct_time: Chicago local time
 	"""
 	# Determine if DST is active
 	dst_active = is_dst_us_central(utc_dt)
-	
+
 	# Central Standard Time (CST) = UTC - 6 hours
 	# Central Daylight Time (CDT) = UTC - 5 hours
 	offset_hours = -5 if dst_active else -6
-	
+
 	# Convert to timestamp, apply offset, convert back
 	utc_timestamp = time.mktime(utc_dt)
 	chicago_timestamp = utc_timestamp + (offset_hours * 3600)
-	
+
 	return time.localtime(chicago_timestamp)
+
 
 def get_chicago_time_from_ntp():
 	"""
 	Complete function to get Chicago time from NTP server.
 	Use this in your CircuitPython project.
 	"""
-	
+
 	# Ensure WiFi is connected
 	if not wifi.radio.connected:
 		print("WiFi not connected!")
 		return None
-	
+
 	try:
 		pool = socketpool.SocketPool(wifi.radio)
 		ntp = adafruit_ntp.NTP(pool, tz_offset=0)  # Get UTC
 		utc_time = ntp.datetime
-		
+
 		# Convert to Chicago time
 		chicago_time = utc_to_chicago_robust(utc_time)
-		
+
 		# Set the DS3231/RTC
 		rtc.datetime = chicago_time
-		
+
 		print(f"Set clock to Chicago time: {chicago_time}")
 		return chicago_time
-		
+
 	except Exception as e:
 		print(f"Error getting time: {e}")
 		return None
-		
+
+
 ## UPDATE RTC ##
-		 
+
 chicago_time = get_chicago_time_from_ntp()
 
 start_time = time.monotonic()  # monotonic() is better than time() for timing
 duration = 15  # seconds
 
 while time.monotonic() - start_time < duration:
-		chicago_time = rtc.datetime
-		print("%02d/%02d %02d:%02d:%02d" % (chicago_time.tm_mon, chicago_time.tm_mday, chicago_time.tm_hour, chicago_time.tm_min, chicago_time.tm_sec))
-		time.sleep(1)
+	chicago_time = rtc.datetime
+	print(
+		"%02d/%02d %02d:%02d:%02d"
+		% (
+			chicago_time.tm_mon,
+			chicago_time.tm_mday,
+			chicago_time.tm_hour,
+			chicago_time.tm_min,
+			chicago_time.tm_sec,
+		)
+	)
+	time.sleep(1)
 
 print("Display loop finished")
