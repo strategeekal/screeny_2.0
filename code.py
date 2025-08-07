@@ -32,6 +32,74 @@ gc.collect()  # Clear up memory after imports
 
 # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== #
 
+### CONSTANTS AND VARIABLES ###
+
+## Colors
+BLACK = 0x000000  # Black
+WHITE = 0xFFFFFF  # Pure White
+DIMMEST_WHITE = 0x080808  # White night
+DIM_WHITE = 0x202020  # White Day
+DARK_GREEN = 0x000800  # Green Darkest)
+DARK_RED = 0x080000  # Red Darkest)
+DARK_BLUE = 0x050500 # Blue Darkest)
+DARK_PURPLE = 0x080008  # Purple Darkest)
+DARK_YELLOW = 0x080800  # Yellow Darkest)
+RADIOACTIVE_GREEN = 0x160866 # Nuclear Green Bright
+TURQUOISE = 0x000808  # Turquoise Darkest)
+PINK = 0x160808  # Pink)
+LIME = 0x081608 
+MINT = 0x080816
+BUGAMBILIA = 0x101000  # Bugambilia)
+ORANGE = 0x200800  # Orange)
+LILAC = 0x161408
+BABY_BLUE = 0x081012  # Baby Blue)
+MID_WHITE = 0x888888  # White Mid Bright)
+
+color = DIMMEST_WHITE
+
+## Load Fonts
+bg_font_file = "fonts/bigbit10-16.bdf"
+bg_font = bitmap_font.load_font(bg_font_file)
+font_file = "fonts/tinybit6-16.bdf"
+font = bitmap_font.load_font(font_file)
+
+# ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== #
+	
+### INITIALIZE SCREEN ###
+
+## Release any actively used displays so their buses and pins can be used again.
+displayio.release_displays()
+
+## Create the RGB Matrix object using the native RGB Matrix class
+matrix = rgbmatrix.RGBMatrix(
+	width = 64,
+	height = 32,
+	bit_depth = 6,
+	rgb_pins = [
+		board.MTX_R1,
+		board.MTX_G1,
+		board.MTX_B1,
+		board.MTX_R2,
+		board.MTX_G2,
+		board.MTX_B2,
+	],
+	addr_pins = [
+		board.MTX_ADDRA,
+		board.MTX_ADDRB,
+		board.MTX_ADDRC,
+		board.MTX_ADDRD,
+	],
+	clock_pin = board.MTX_CLK,
+	latch_pin = board.MTX_LAT,
+	output_enable_pin = board.MTX_OE,
+	doublebuffer = True,
+)
+
+display = framebufferio.FramebufferDisplay(matrix)
+
+
+# ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== #
+
 ### INITIALIZE REAL TIME CLOCK ###
 
 ## Initialize the I2C Bus (For RTC functionality connected via STEMA from DS3231 Board):
@@ -51,6 +119,7 @@ for attempt in range(10):
 		continue
 else:
 	supervisor.reload()
+	
 
 # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== #
 
@@ -87,40 +156,6 @@ else:
 
 ## INITIALIZE WIFI ##
 pool = socketpool.SocketPool(wifi.radio)
-
-# ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== #
-
-### INITIALIZE SCREEN ###
-
-## Release any actively used displays so their buses and pins can be used again.
-displayio.release_displays()
-
-## Create the RGB Matrix object using the native RGB Matrix class
-matrix = rgbmatrix.RGBMatrix(
-	width = 64,
-	height = 32,
-	bit_depth = 6,
-	rgb_pins = [
-		board.MTX_R1,
-		board.MTX_G1,
-		board.MTX_B1,
-		board.MTX_R2,
-		board.MTX_G2,
-		board.MTX_B2,
-	],
-	addr_pins = [
-		board.MTX_ADDRA,
-		board.MTX_ADDRB,
-		board.MTX_ADDRC,
-		board.MTX_ADDRD,
-	],
-	clock_pin = board.MTX_CLK,
-	latch_pin = board.MTX_LAT,
-	output_enable_pin = board.MTX_OE,
-	doublebuffer = True,
-)
-
-display = framebufferio.FramebufferDisplay(matrix)
 
 # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== #
 
@@ -276,7 +311,7 @@ start_time = time.monotonic()  # monotonic() is better than time() for timing
 duration = 15  # seconds
 
 while time.monotonic() - start_time < duration:
-	print(
+	current_time = (
 		"%02d/%02d %d:%02d:%02d%2s"
 		% (
 			rtc.datetime.tm_mon,
@@ -287,6 +322,7 @@ while time.monotonic() - start_time < duration:
 			meridian(rtc.datetime.tm_hour)
 		)
 	)
+	print(current_time)
 	time.sleep(1)
 
 print("Display loop finished")
