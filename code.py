@@ -217,6 +217,13 @@ def twelve_hour_clock(hod):
 	else:
 		h = hod
 	return h
+	
+months = {1:"Jan", 2:"Feb", 3:"Mar", 4:"Apr", 5:"May", 6:"Jun", 7:"Jul", 8:"Aug", 9:"Sep", 10:"Oct", 11:"Nov", 12:"Dec" }
+
+def month_namer(month):
+	m = months[month]
+	return m
+	
 
 
 ## UPDATE RTC ##
@@ -235,9 +242,9 @@ duration = 15  # seconds
 
 while time.monotonic() - start_time < duration:
 	print(
-		"%02d/%02d %d:%02d:%02d%2s"
+		"%s/%02d %d:%02d:%02d%2s"
 		% (
-			rtc.datetime.tm_mon,
+			month_namer(rtc.datetime.tm_mon),
 			rtc.datetime.tm_mday,
 			twelve_hour_clock(rtc.datetime.tm_hour),
 			rtc.datetime.tm_min,
