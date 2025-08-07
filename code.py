@@ -301,14 +301,17 @@ def twelve_hour_clock(hod):
 # rtc.datetime = time.struct_time((2017, 1, 1, 0, 0, 0, 6, 1, -1)) # FOR TEST
 # print(rtc.datetime) # FOR TEST
 
-print(f"Clok Updated: {clock_updated}")
+print(f"Clock Updated: {clock_updated}")
 
 chicago_time, clock_updated = get_chicago_time_from_ntp()
 
-print(f"Clok Updated: {clock_updated}")
+print(f"Clock Updated: {clock_updated}")
 
 start_time = time.monotonic()  # monotonic() is better than time() for timing
 duration = 15  # seconds
+
+
+## PREPARE MESSAGE ## 
 
 while time.monotonic() - start_time < duration:
 	current_time = (
