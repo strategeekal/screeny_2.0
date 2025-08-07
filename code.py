@@ -55,7 +55,7 @@ LILAC = 0x161408
 BABY_BLUE = 0x081012  # Baby Blue)
 MID_WHITE = 0x888888  # White Mid Bright)
 
-color = DIMMEST_WHITE
+default_text_color = DIMMEST_WHITE
 
 ## Load Fonts
 bg_font_file = "fonts/bigbit10-16.bdf"
