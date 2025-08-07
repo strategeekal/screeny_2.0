@@ -329,26 +329,35 @@ print(f"Clock Updated: {clock_updated}")
 group = displayio.Group()
 display.root_group = group
 
-# Create a bitmap_label object
-text_label_line_1 = bitmap_label.Label(
+# Create a bitmap_label objects
+date_line_text = bitmap_label.Label(
 	font,  # Use a built-in font or load a custom font
 	color=default_text_color,  # Red color
-	text="Hello!",
-	x=1,  # X-coordinate => 0 starts on first pixel with default font
+	text="",
+	x=5,  # X-coordinate => 0 starts on first pixel with default font
 	y=5,  # Y-coordinate => 4 starts at first pixel with default font
 )
 
-text_label_line_2 = bitmap_label.Label(
+time_line_text = bitmap_label.Label(
 	bg_font,  # Use a built-in font or load a custom font
 	color=MINT,  # Pink color
-	text="World!",
-	x=1,  # X-coordinate => 0 starts on first pixel with default font
+	text="",
+	x=5,  # X-coordinate => 0 starts on first pixel with default font
+	y=17,  # Y-coordinate => 4 starts at first pixel with default font
+)
+
+meridian_line_text = bitmap_label.Label(
+	bg_font,  # Use a built-in font or load a custom font
+	color=LILAC,  # Pink color
+	text="",
+	x=45,  # X-coordinate => 0 starts on first pixel with default font
 	y=17,  # Y-coordinate => 4 starts at first pixel with default font
 )
 
 # Add the label to the display group
-group.append(text_label_line_1)
-group.append(text_label_line_2)
+group.append(date_line_text)
+group.append(time_line_text)
+group.append(meridian_line_text)
 
 start_time = time.monotonic()  # monotonic() is better than time() for timing
 duration = 15  # seconds
@@ -377,19 +386,21 @@ while time.monotonic() - start_time < duration:
 		)
 		
 	time_of_day = (
-		"%d:%02d:%02d %2s"
+		"%d:%02d:%02d"
 		% (
 			twelve_hour_clock(rtc.datetime.tm_hour),
 			rtc.datetime.tm_min,
-			rtc.datetime.tm_sec,
-			meridian(rtc.datetime.tm_hour)
+			rtc.datetime.tm_sec
 		)
 	)
+	
+	time_meridian = meridian(rtc.datetime.tm_hour)
 		
 	# print(current_time)
 	print(f"{month_and_day} - {time_of_day}")
-	text_label_line_1.text = month_and_day
-	text_label_line_2.text = time_of_day
+	date_line_text.text = month_and_day
+	time_line_text.text = time_of_day
+	meridian_line_text.text = time_meridian
 	time.sleep(1)
 
 print("Display loop finished")
