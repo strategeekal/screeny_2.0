@@ -378,6 +378,7 @@ while time.monotonic() - start_time < duration:
 			meridian(rtc.datetime.tm_hour)
 		)
 	)
+	
 	month_and_day = (
 		"%s %02d"
 		% (
@@ -397,9 +398,9 @@ while time.monotonic() - start_time < duration:
 	time_meridian = meridian(rtc.datetime.tm_hour)
 		
 	# print(current_time)
-	print(f"{month_and_day} - {time_of_day}")
-	date_line_text.text = month_and_day
+	print(f"{month_and_day} - {time_of_day} {time_meridian}")
 	time_line_text.text = time_of_day
+	date_line_text.text = month_and_day
 	meridian_line_text.text = time_meridian
 	time.sleep(1)
 
