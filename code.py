@@ -8,6 +8,14 @@ import os  # OS functions. used to read setting file
 import supervisor  # Soft restart board
 import gc
 
+# RGB Matrix Libraries
+import terminalio
+import displayio # High level, display object compositing system -> Place items on the display
+import framebufferio # Native frame buffer display driving
+import rgbmatrix # library to Initialize and Control RGB Matrix -> Drive the display
+from adafruit_display_text import bitmap_label # Text graphics handling, including text boxes
+from adafruit_bitmap_font import bitmap_font # Decoding .pcf or .bdf font files into Bitmap objects
+
 # Network Libraries
 import wifi  # Provides necessary low-level functionality for managing wifi connections
 import ipaddress  # Provides types for IP addresses
@@ -24,6 +32,74 @@ gc.collect()  # Clear up memory after imports
 
 # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== #
 
+### CONSTANTS AND VARIABLES ###
+
+## Colors
+BLACK = 0x000000  # Black
+WHITE = 0xFFFFFF  # Pure White
+DIMMEST_WHITE = 0x080808  # White night
+DIM_WHITE = 0x202020  # White Day
+DARK_GREEN = 0x000800  # Green Darkest)
+DARK_RED = 0x080000  # Red Darkest)
+DARK_BLUE = 0x050500 # Blue Darkest)
+DARK_PURPLE = 0x080008  # Purple Darkest)
+DARK_YELLOW = 0x080800  # Yellow Darkest)
+RADIOACTIVE_GREEN = 0x160866 # Nuclear Green Bright
+TURQUOISE = 0x000808  # Turquoise Darkest)
+PINK = 0x160808  # Pink)
+LIME = 0x081608 
+MINT = 0x080816
+BUGAMBILIA = 0x101000  # Bugambilia)
+ORANGE = 0x200800  # Orange)
+LILAC = 0x161408
+BABY_BLUE = 0x081012  # Baby Blue)
+MID_WHITE = 0x888888  # White Mid Bright)
+
+default_text_color = DIMMEST_WHITE
+
+## Load Fonts
+bg_font_file = "fonts/bigbit10-16.bdf"
+bg_font = bitmap_font.load_font(bg_font_file)
+font_file = "fonts/tinybit6-16.bdf"
+font = bitmap_font.load_font(font_file)
+
+# ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== #
+	
+### INITIALIZE SCREEN ###
+
+## Release any actively used displays so their buses and pins can be used again.
+displayio.release_displays()
+
+## Create the RGB Matrix object using the native RGB Matrix class
+matrix = rgbmatrix.RGBMatrix(
+	width = 64,
+	height = 32,
+	bit_depth = 6,
+	rgb_pins = [
+		board.MTX_R1,
+		board.MTX_G1,
+		board.MTX_B1,
+		board.MTX_R2,
+		board.MTX_G2,
+		board.MTX_B2,
+	],
+	addr_pins = [
+		board.MTX_ADDRA,
+		board.MTX_ADDRB,
+		board.MTX_ADDRC,
+		board.MTX_ADDRD,
+	],
+	clock_pin = board.MTX_CLK,
+	latch_pin = board.MTX_LAT,
+	output_enable_pin = board.MTX_OE,
+	doublebuffer = True,
+)
+
+display = framebufferio.FramebufferDisplay(matrix)
+
+
+# ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== #
+
 ### INITIALIZE REAL TIME CLOCK ###
 
 ## Initialize the I2C Bus (For RTC functionality connected via STEMA from DS3231 Board):
@@ -34,6 +110,7 @@ for attempt in range(10):
 	try:
 		rtc = adafruit_ds3231.DS3231(i2c)
 		print(rtc.datetime)
+		clock_updated = False
 		break
 	except ValueError:
 		# welcome_label.text = "Tik Tok!!"
@@ -42,6 +119,7 @@ for attempt in range(10):
 		continue
 else:
 	supervisor.reload()
+	
 
 # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== #
 
@@ -192,15 +270,20 @@ def get_chicago_time_from_ntp():
 
 		# Set the DS3231/RTC
 		rtc.datetime = chicago_time
+		clock_updated = True
+		
 
 		print(f"Set clock to Chicago time: {chicago_time}")
-		return chicago_time
+		return chicago_time, clock_updated
 
 	except Exception as e:
 		print(f"Error getting time: {e}")
 		return None
 		
-## FORMATTING FUNCTIONS ##
+		
+# ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== #
+
+### FORMATTING FUNCTIONS ###
 def meridian(hod):
 	if hod < 12:
 		time_meridian = "am"
@@ -215,29 +298,67 @@ def twelve_hour_clock(hod):
 		h = hod
 	return h
 	
-months = {1:"Jan", 2:"Feb", 3:"Mar", 4:"Apr", 5:"May", 6:"Jun", 7:"Jul", 8:"Aug", 9:"Sep", 10:"Oct", 11:"Nov", 12:"Dec" }
+months = {1:["January", "Jan"], 2:["February", "Feb"], 3:["March", "Mar"], 4:["April", "Apr"], 5:["May", "May"], 6:["June", "Jun"], 7:["July","Jul"], 8:["August", "Aug"], 9:["September", "Sep"], 10:["October", "Oct"], 11:["November", "Nov"], 12:["December", "Dec"] }
 
-def month_namer(month):
-	m = months[month]
+def month_namer(month_number, month_format="short"):
+	if month_format == "short":
+		m = months[month_number][1]  # Get the short name (index 1)
+	else:
+		m = months[month_number][0]  # Get the full name (index 0)
 	return m
 	
-
+	
+# ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== #
+	
+### PREPARE MESSAGE ###
 
 ## UPDATE RTC ##
 
 # rtc.datetime = time.struct_time((2017, 1, 1, 0, 0, 0, 6, 1, -1)) # FOR TEST
 # print(rtc.datetime) # FOR TEST
 
-chicago_time = get_chicago_time_from_ntp()
+print(f"Clock Updated: {clock_updated}")
+
+chicago_time, clock_updated = get_chicago_time_from_ntp()
+
+print(f"Clock Updated: {clock_updated}")
+
+## PREPARE MATRIX MESSAGE ##
+
+# Create a display group for your elements
+group = displayio.Group()
+display.root_group = group
+
+# Create a bitmap_label object
+text_label_line_1 = bitmap_label.Label(
+	bg_font,  # Use a built-in font or load a custom font
+	color=default_text_color,  # Red color
+	text="Hello!",
+	x=1,  # X-coordinate => 0 starts on first pixel with default font
+	y=5,  # Y-coordinate => 4 starts at first pixel with default font
+)
+
+text_label_line_2 = bitmap_label.Label(
+	bg_font,  # Use a built-in font or load a custom font
+	color=MINT,  # Pink color
+	text="World!",
+	x=1,  # X-coordinate => 0 starts on first pixel with default font
+	y=17,  # Y-coordinate => 4 starts at first pixel with default font
+)
+
+# Add the label to the display group
+group.append(text_label_line_1)
+group.append(text_label_line_2)
 
 start_time = time.monotonic()  # monotonic() is better than time() for timing
 duration = 15  # seconds
 
 while time.monotonic() - start_time < duration:
-	print(
+
+	current_time = (
 		"%s/%02d %d:%02d:%02d%2s"
 		% (
-			month_namer(rtc.datetime.tm_mon),
+			month_namer(rtc.datetime.tm_mon, "short").upper(),
 			rtc.datetime.tm_mday,
 			twelve_hour_clock(rtc.datetime.tm_hour),
 			rtc.datetime.tm_min,
@@ -245,6 +366,7 @@ while time.monotonic() - start_time < duration:
 			meridian(rtc.datetime.tm_hour)
 		)
 	)
+	print(current_time)
 	time.sleep(1)
 
 print("Display loop finished")
