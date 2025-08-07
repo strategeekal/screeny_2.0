@@ -8,6 +8,14 @@ import os  # OS functions. used to read setting file
 import supervisor  # Soft restart board
 import gc
 
+# RGB Matrix Libraries
+import terminalio
+import displayio # High level, display object compositing system -> Place items on the display
+import framebufferio # Native frame buffer display driving
+import rgbmatrix # library to Initialize and Control RGB Matrix -> Drive the display
+from adafruit_display_text import bitmap_label # Text graphics handling, including text boxes
+from adafruit_bitmap_font import bitmap_font # Decoding .pcf or .bdf font files into Bitmap objects
+
 # Network Libraries
 import wifi  # Provides necessary low-level functionality for managing wifi connections
 import ipaddress  # Provides types for IP addresses
@@ -79,6 +87,40 @@ else:
 
 ## INITIALIZE WIFI ##
 pool = socketpool.SocketPool(wifi.radio)
+
+# ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== #
+
+### INITIALIZE SCREEN ###
+
+## Release any actively used displays so their buses and pins can be used again.
+displayio.release_displays()
+
+## Create the RGB Matrix object using the native RGB Matrix class
+matrix = rgbmatrix.RGBMatrix(
+	width = 64,
+	height = 32,
+	bit_depth = 6,
+	rgb_pins = [
+		board.MTX_R1,
+		board.MTX_G1,
+		board.MTX_B1,
+		board.MTX_R2,
+		board.MTX_G2,
+		board.MTX_B2,
+	],
+	addr_pins = [
+		board.MTX_ADDRA,
+		board.MTX_ADDRB,
+		board.MTX_ADDRC,
+		board.MTX_ADDRD,
+	],
+	clock_pin = board.MTX_CLK,
+	latch_pin = board.MTX_LAT,
+	output_enable_pin = board.MTX_OE,
+	doublebuffer = True,
+)
+
+display = framebufferio.FramebufferDisplay(matrix)
 
 # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== #
 
