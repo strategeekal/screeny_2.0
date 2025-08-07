@@ -286,9 +286,9 @@ def get_chicago_time_from_ntp():
 ### FORMATTING FUNCTIONS ###
 def meridian(hod):
 	if hod < 12:
-		time_meridian = "am"
+		time_meridian = "AM"
 	else:
-		time_meridian = "pm"
+		time_meridian = "PM"
 	return time_meridian
 	
 def twelve_hour_clock(hod):
@@ -331,7 +331,7 @@ display.root_group = group
 
 # Create a bitmap_label object
 text_label_line_1 = bitmap_label.Label(
-	bg_font,  # Use a built-in font or load a custom font
+	font,  # Use a built-in font or load a custom font
 	color=default_text_color,  # Red color
 	text="Hello!",
 	x=1,  # X-coordinate => 0 starts on first pixel with default font
@@ -359,7 +359,7 @@ duration = 15  # seconds
 while time.monotonic() - start_time < duration:
 
 	current_time = (
-		"%s/%02d %d:%02d:%02d%2s"
+		"%s%02d %d:%02d:%02d%2s"
 		% (
 			month_namer(rtc.datetime.tm_mon, "short").upper(),
 			rtc.datetime.tm_mday,
@@ -369,7 +369,28 @@ while time.monotonic() - start_time < duration:
 			meridian(rtc.datetime.tm_hour)
 		)
 	)
-	print(current_time)
+	month_and_day = (
+		"%s %02d"
+		% (
+			month_namer(rtc.datetime.tm_mon, "short").upper(),
+			rtc.datetime.tm_mday)
+		)
+		
+	time_of_day = (
+		"%d:%02d:%02d %2s"
+		% (
+			twelve_hour_clock(rtc.datetime.tm_hour),
+			rtc.datetime.tm_min,
+			rtc.datetime.tm_sec,
+			meridian(rtc.datetime.tm_hour)
+		)
+	)
+		
+	# print(current_time)
+	print(f"{month_and_day} - {time_of_day}")
+	text_label_line_1.text = month_and_day
+	text_label_line_2.text = time_of_day
 	time.sleep(1)
 
 print("Display loop finished")
+
