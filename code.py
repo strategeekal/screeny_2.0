@@ -137,7 +137,7 @@ for attempt in range(20):
 		continue
 else:
 	supervisor.reload()	
-
+	
 # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== #
 
 ### CONNECT TO INTERNET ###
@@ -150,10 +150,11 @@ password = os.getenv("CIRCUITPY_WIFI_PASSWORD")
 ## CHECK CREDENTIALS
 if any(var is None for var in (ssid, password)):
 	recurr_message = "WiFI Key"
+	welcome_label.text = recurr_message
 else:
 	recurr_message = "Keys Imported"
 
-# welcome_label.text = recurr_message
+
 print(recurr_message)
 
 ## ESTABLISH A CONNECTION
@@ -166,6 +167,7 @@ for attempt in range(10):
 	except ConnectionError as e:
 		print(f"Connection Error: {e}")
 		print("Attempt {} of 10, Retrying in 5 seconds...".format(attempt))
+		welcome_label.text = "WI-FI"
 		time.sleep(5)
 		continue
 else:
