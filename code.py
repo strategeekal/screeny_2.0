@@ -335,7 +335,7 @@ date_line_text = bitmap_label.Label(
 	color=default_text_color,  # Red color
 	text="",
 	x=5,  # X-coordinate => 0 starts on first pixel with default font
-	y=5,  # Y-coordinate => 4 starts at first pixel with default font
+	y=7,  # Y-coordinate => 4 starts at first pixel with default font
 )
 
 time_line_text = bitmap_label.Label(
@@ -343,27 +343,37 @@ time_line_text = bitmap_label.Label(
 	color=MINT,  # Pink color
 	text="",
 	x=5,  # X-coordinate => 0 starts on first pixel with default font
-	y=17,  # Y-coordinate => 4 starts at first pixel with default font
+	y=20,  # Y-coordinate => 4 starts at first pixel with default font
 )
 
 meridian_line_text = bitmap_label.Label(
 	bg_font,  # Use a built-in font or load a custom font
-	color=LILAC,  # Pink color
+	color=default_text_color,  # Pink color
 	text="",
 	x=45,  # X-coordinate => 0 starts on first pixel with default font
-	y=17,  # Y-coordinate => 4 starts at first pixel with default font
+	y=20,  # Y-coordinate => 4 starts at first pixel with default font
+)
+
+error_line_text = bitmap_label.Label(
+	font,  # Use a built-in font or load a custom font
+	color=BUGAMBILIA,  # Pink color
+	text="W",
+	x=57,  # X-coordinate => 0 starts on first pixel with default font
+	y=1,  # Y-coordinate => 4 starts at first pixel with default font
 )
 
 # Add the label to the display group
 group.append(date_line_text)
 group.append(time_line_text)
 group.append(meridian_line_text)
-
-start_time = time.monotonic()  # monotonic() is better than time() for timing
-duration = 15  # seconds
+group.append(error_line_text)
 
 
-## PREPARE MESSAGE ## 
+## DISPLAY MESSAGE LOOP ## 
+
+# Loop time parameters
+start_time = time.monotonic()  # monotonic(ß) is better than time() for timing
+duration = 15  # seconds >> Limits loop for testing
 
 while time.monotonic() - start_time < duration:
 
@@ -401,7 +411,7 @@ while time.monotonic() - start_time < duration:
 	print(f"{month_and_day} - {time_of_day} {time_meridian}")
 	time_line_text.text = time_of_day
 	date_line_text.text = month_and_day
-	meridian_line_text.text = time_meridian
+	#meridian_line_text.text = time_meridian
 	time.sleep(1)
 
 print("Display loop finished")
