@@ -104,7 +104,7 @@ group = displayio.Group()
 display.root_group = group
 
 # Create a bitmap_label objects
-welcome_text = bitmap_label.Label(
+welcome_label = bitmap_label.Label(
 	bg_font,  # Use a built-in font or load a custom font
 	color=LILAC,  # Red color
 	text="HOLA!!",
@@ -112,33 +112,31 @@ welcome_text = bitmap_label.Label(
 	y=15,  # Y-coordinate => 4 starts at first pixel with default font
 )
 
-group.append(welcome_text)
-
-
+group.append(welcome_label)
 
 
 # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== #
 
 ### INITIALIZE REAL TIME CLOCK ###
 
-## Initialize the I2C Bus (For RTC functionality connected via STEMA from DS3231 Board):
-i2c = board.I2C()
-
 ## Create an instance of the Real Time Clock (RTC) class using the I2C interface and the DS3231 board
 for attempt in range(10):
 	try:
+		## Initialize the I2C Bus (For RTC functionality connected via STEMA from DS3231 Board):
+		i2c = board.I2C()
+		
 		rtc = adafruit_ds3231.DS3231(i2c)
 		print(rtc.datetime)
 		clock_updated = False
 		break
-	except ValueError:
-		# welcome_label.text = "Tik Tok!!"
-		time.sleep(360)  # Try every 6 minutes for 10 times before soft reset
-		print("Attempt {} of 10 rtc board not found".format(attempt))
+	except Exception as e:  # Catch specific exception and store it
+		welcome_label.text = "Tik Tok!!"
+		print(f"Error: {e}")
+		print("Attempt {} of 10 rtc board not found".format(attempt + 1))  # +1 for human-readable counting
+		time.sleep(5)  # Remove the 360-second sleep, keep only 5 seconds
 		continue
 else:
-	supervisor.reload()
-	
+	supervisor.reload()	
 
 # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== #
 
