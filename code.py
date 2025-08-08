@@ -97,6 +97,25 @@ matrix = rgbmatrix.RGBMatrix(
 
 display = framebufferio.FramebufferDisplay(matrix)
 
+## WELCOME MESSAGE ##
+
+# Create a display group to hold display elements
+group = displayio.Group()
+display.root_group = group
+
+# Create a bitmap_label objects
+welcome_text = bitmap_label.Label(
+	bg_font,  # Use a built-in font or load a custom font
+	color=LILAC,  # Red color
+	text="HOLA!!",
+	x=15,  # X-coordinate => 0 starts on first pixel with default font
+	y=15,  # Y-coordinate => 4 starts at first pixel with default font
+)
+
+group.append(welcome_text)
+
+
+
 
 # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== #
 
