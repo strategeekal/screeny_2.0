@@ -120,7 +120,7 @@ group.append(welcome_label)
 ### INITIALIZE REAL TIME CLOCK ###
 
 ## Create an instance of the Real Time Clock (RTC) class using the I2C interface and the DS3231 board
-for attempt in range(10):
+for attempt in range(20):
 	try:
 		## Initialize the I2C Bus (For RTC functionality connected via STEMA from DS3231 Board):
 		i2c = board.I2C()
@@ -133,7 +133,7 @@ for attempt in range(10):
 		welcome_label.text = "Tik Tok!!"
 		print(f"Error: {e}")
 		print("Attempt {} of 10 rtc board not found".format(attempt + 1))  # +1 for human-readable counting
-		time.sleep(5)  # Remove the 360-second sleep, keep only 5 seconds
+		time.sleep(30)
 		continue
 else:
 	supervisor.reload()	
