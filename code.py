@@ -47,7 +47,7 @@ DARK_YELLOW = 0x080800  # Yellow Darkest)
 RADIOACTIVE_GREEN = 0x160866 # Nuclear Green Bright
 TURQUOISE = 0x000808  # Turquoise Darkest)
 PINK = 0x160808  # Pink)
-LIME = 0x081608 
+LIME = 0x081608
 MINT = 0x080816
 BUGAMBILIA = 0x101000  # Bugambilia)
 ORANGE = 0x200800  # Orange)
@@ -100,8 +100,8 @@ display = framebufferio.FramebufferDisplay(matrix)
 ## WELCOME MESSAGE ##
 
 # Create a display group to hold display elements
-group = displayio.Group()
-display.root_group = group
+main_group = displayio.Group()
+display.root_group = main_group
 
 # Create a bitmap_label objects
 welcome_label = bitmap_label.Label(
@@ -112,73 +112,11 @@ welcome_label = bitmap_label.Label(
 	y=15,  # Y-coordinate => 4 starts at first pixel with default font
 )
 
-group.append(welcome_label)
-
-
-# ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== #
-
-### INITIALIZE REAL TIME CLOCK ###
-
-## Create an instance of the Real Time Clock (RTC) class using the I2C interface and the DS3231 board
-for attempt in range(20):
-	try:
-		## Initialize the I2C Bus (For RTC functionality connected via STEMA from DS3231 Board):
-		i2c = board.I2C()
-		
-		rtc = adafruit_ds3231.DS3231(i2c)
-		print(rtc.datetime)
-		clock_updated = False
-		break
-	except Exception as e:  # Catch specific exception and store it
-		welcome_label.text = "Tik Tok!!"
-		print(f"Error: {e}")
-		print("Attempt {} of 10 rtc board not found".format(attempt + 1))  # +1 for human-readable counting
-		time.sleep(30)
-		continue
-else:
-	supervisor.reload()	
-	
-# ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== #
-
-### CONNECT TO INTERNET ###
-
-## GET AND CONFIRM CREDENTIALS
-
-ssid = os.getenv("CIRCUITPY_WIFI_SSID")
-password = os.getenv("CIRCUITPY_WIFI_PASSWORD")
-
-## CHECK CREDENTIALS
-if any(var is None for var in (ssid, password)):
-	recurr_message = "WiFI Key"
-	welcome_label.text = recurr_message
-else:
-	recurr_message = "Keys Imported"
-
-
-print(recurr_message)
-
-## ESTABLISH A CONNECTION
-for attempt in range(10):
-	try:
-		wifi.radio.connect(ssid, password)
-		print(f"Connected to {ssid}")
-		print(f"My IP address: {wifi.radio.ipv4_address}")
-		break
-	except ConnectionError as e:
-		print(f"Connection Error: {e}")
-		print("Attempt {} of 10, Retrying in 5 seconds...".format(attempt))
-		welcome_label.text = "WI-FI"
-		time.sleep(5)
-		continue
-else:
-	supervisor.reload()
-
-## INITIALIZE WIFI ##
-pool = socketpool.SocketPool(wifi.radio)
+main_group.append(welcome_label)
 
 # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== #
 
-### SET REAL TIME CLOCK ###
+### TIME FUNCTIONS ###
 
 ## DAYLIGHT SAVINGS TIME ADJUST FUNCTIONS ##
 
@@ -289,11 +227,10 @@ def get_chicago_time_from_ntp():
 
 		# Set the DS3231/RTC
 		rtc.datetime = chicago_time
-		clock_updated = True
 		
 
 		print(f"Set clock to Chicago time: {chicago_time}")
-		return chicago_time, clock_updated
+		return chicago_time
 
 	except Exception as e:
 		print(f"Error getting time: {e}")
@@ -325,10 +262,132 @@ def month_namer(month_number, month_format="short"):
 	else:
 		m = months[month_number][0]  # Get the full name (index 0)
 	return m
-	
+
+# ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== #
+
+### INITIALIZE REAL TIME CLOCK ###
+
+## Create an instance of the Real Time Clock (RTC) class using the I2C interface and the DS3231 board
+for attempt in range(20):
+	try:
+		## Initialize the I2C Bus (For RTC functionality connected via STEMA from DS3231 Board):
+		i2c = board.I2C()
+		
+		rtc = adafruit_ds3231.DS3231(i2c)
+		print(rtc.datetime)
+		clock_updated = False
+		break
+	except Exception as e:  # Catch specific exception and store it
+		welcome_label.text = "Tik Tok!!"
+		print(f"Error: {e}")
+		print("Attempt {} of 10 rtc board not found".format(attempt + 1))  # +1 for human-readable counting
+		time.sleep(30)
+		continue
+else:
+	supervisor.reload()	
 	
 # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== #
-	
+
+### CONNECT TO INTERNET ###
+
+## GET AND CONFIRM CREDENTIALS
+
+ssid = os.getenv("CIRCUITPY_WIFI_SSID")
+password = os.getenv("CIRCUITPY_WIFI_PASSWORD")
+
+## CHECK CREDENTIALS
+if any(var is None for var in (ssid, password)):
+	recurr_message = "WiFI Key"
+	welcome_label.text = recurr_message
+else:
+	recurr_message = "Keys Imported"
+
+
+print(recurr_message)
+
+## ESTABLISH A CONNECTION
+for attempt in range(10):
+	try:
+		wifi.radio.connect(ssid, password)
+		print(f"Connected to {ssid}")
+		print(f"My IP address: {wifi.radio.ipv4_address}")
+		break
+	except ConnectionError as e:
+		print(f"Connection Error: {e}")
+		print("Attempt {} of 10, Retrying in 5 seconds...".format(attempt))
+		
+		## Show clock while waiting
+		
+		# Clear existing labels
+		while len(main_group):
+			main_group.pop()
+			
+		# Create a bitmap_label objects
+		date_line_text = bitmap_label.Label(
+			font,  # Use a built-in font or load a custom font
+			color=default_text_color,  # Red color
+			text="",
+			x=5,  # X-coordinate => 0 starts on first pixel with default font
+			y=7,  # Y-coordinate => 4 starts at first pixel with default font
+		)
+		
+		time_line_text = bitmap_label.Label(
+			bg_font,  # Use a built-in font or load a custom font
+			color=BUGAMBILIA,  # Pink color
+			text="",
+			x=5,  # X-coordinate => 0 starts on first pixel with default font
+			y=20,  # Y-coordinate => 4 starts at first pixel with default font
+		)
+		
+		error_line_text = bitmap_label.Label(
+			font,  # Use a built-in font or load a custom font
+			color=BUGAMBILIA,  # Pink color
+			text="W",
+			x=57,  # X-coordinate => 0 starts on first pixel with default font
+			y=1,  # Y-coordinate => 4 starts at first pixel with default font
+		)
+		
+		# Add the label to the display group
+		main_group.append(date_line_text)
+		main_group.append(time_line_text)
+		main_group.append(error_line_text)
+		
+		# Loop time parameters
+		start_time = time.monotonic()  # monotonic(ß) is better than time() for timing
+		duration = 5  # seconds >> Limits loop for testing
+
+		while time.monotonic() - start_time < duration:
+			
+			month_and_day = (
+				"%s %02d"
+				% (
+					month_namer(rtc.datetime.tm_mon, "short").upper(),
+					rtc.datetime.tm_mday)
+				)
+				
+			time_of_day = (
+				"%d:%02d"
+				% (
+					twelve_hour_clock(rtc.datetime.tm_hour),
+					rtc.datetime.tm_min
+				)
+			)
+			
+			# print(current_time)
+			time_line_text.text = time_of_day
+			date_line_text.text = month_and_day
+			time.sleep(1)
+		
+		continue
+		
+else:
+	supervisor.reload()
+
+## INITIALIZE WIFI ##
+pool = socketpool.SocketPool(wifi.radio)
+
+# ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== #
+		
 ### PREPARE MESSAGE ###
 
 ## UPDATE RTC ##
@@ -336,17 +395,14 @@ def month_namer(month_number, month_format="short"):
 # rtc.datetime = time.struct_time((2017, 1, 1, 0, 0, 0, 6, 1, -1)) # FOR TEST
 # print(rtc.datetime) # FOR TEST
 
-print(f"Clock Updated: {clock_updated}")
+chicago_time = get_chicago_time_from_ntp()
 
-chicago_time, clock_updated = get_chicago_time_from_ntp()
-
-print(f"Clock Updated: {clock_updated}")
 
 ## PREPARE MATRIX MESSAGE ##
 
-# Create a display group for your elements
-group = displayio.Group()
-display.root_group = group
+# Clear Display
+while len(main_group):
+	main_group.pop()
 
 # Create a bitmap_label objects
 date_line_text = bitmap_label.Label(
@@ -376,19 +432,19 @@ meridian_line_text = bitmap_label.Label(
 error_line_text = bitmap_label.Label(
 	font,  # Use a built-in font or load a custom font
 	color=BUGAMBILIA,  # Pink color
-	text="W",
+	text="",
 	x=57,  # X-coordinate => 0 starts on first pixel with default font
 	y=1,  # Y-coordinate => 4 starts at first pixel with default font
 )
 
 # Add the label to the display group
-group.append(date_line_text)
-group.append(time_line_text)
-group.append(meridian_line_text)
-group.append(error_line_text)
+main_group.append(date_line_text)
+main_group.append(time_line_text)
+main_group.append(meridian_line_text)
+main_group.append(error_line_text)
 
 
-## DISPLAY MESSAGE LOOP ## 
+## DISPLAY MESSAGE LOOP ##
 
 # Loop time parameters
 start_time = time.monotonic()  # monotonic(ß) is better than time() for timing
