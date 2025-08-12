@@ -15,6 +15,7 @@ import framebufferio # Native frame buffer display driving
 import rgbmatrix # library to Initialize and Control RGB Matrix -> Drive the display
 from adafruit_display_text import bitmap_label # Text graphics handling, including text boxes
 from adafruit_bitmap_font import bitmap_font # Decoding .pcf or .bdf font files into Bitmap objects
+import adafruit_imageload # process and display images
 
 # Network Libraries
 import wifi  # Provides necessary low-level functionality for managing wifi connections
@@ -449,7 +450,7 @@ main_group.append(error_line_text)
 # Loop time parameters
 start_time = time.monotonic()  # monotonic(ß) is better than time() for timing
 duration = 15  # seconds >> Limits loop for testing
-
+i = 1
 while time.monotonic() - start_time < duration:
 
 	current_time = (
@@ -483,11 +484,61 @@ while time.monotonic() - start_time < duration:
 	time_meridian = meridian(rtc.datetime.tm_hour)
 		
 	# print(current_time)
-	print(f"{month_and_day} - {time_of_day} {time_meridian}")
+	print(f"{i}/15 {month_and_day} - {time_of_day} {time_meridian}")
 	time_line_text.text = time_of_day
 	date_line_text.text = month_and_day
 	#meridian_line_text.text = time_meridian
+	i - i + 1
 	time.sleep(1)
+	
+##### SECOND LOOP 
+
+# Clear Display
+while len(main_group):
+	main_group.pop()
+	
+# Create a display group for your elements
+main_group = displayio.Group()
+display.root_group = main_group
+
+
+# Load the image (make sure "image.bmp" exists in your CIRCUITPY drive root)
+bitmap, palette = adafruit_imageload.load("img/cake_sq.bmp")
+
+# Create a TileGrid to hold the image
+image_grid = displayio.TileGrid(bitmap, pixel_shader=palette)
+image_grid.x = 36
+
+# Create a bitmap_label object
+text_label_line_1 = bitmap_label.Label(
+	bg_font,  # Use a built-in font or load a custom font
+	color=default_text_color,  # Default Color
+	text="Cumple",
+	x=2,  # X-coordinate => 0 starts on first pixel with default font
+	y=5,  # Y-coordinate => 4 starts at first pixel with default font
+)
+
+text_label_line_2 = bitmap_label.Label(
+	bg_font,  # Use a built-in font or load a custom font
+	color=MINT,  # Green color
+	text="Abuelo",
+	x=2,  # X-coordinate => 0 starts on first pixel with default font
+	y=19,  # Y-coordinate => 4 starts at first pixel with default font
+)
+
+# Add the image to the display group
+main_group.append(image_grid)
+main_group.append(text_label_line_1)
+main_group.append(text_label_line_2)
+
+print("Image loaded successfully!")
+
+	
+start_time = time.monotonic()  # monotonic(ß) is better than time() for timing
+duration = 15  # seconds >> Limits loop for testing
+
+while time.monotonic() - start_time < duration:
+	pass
 
 print("Display loop finished")
 
