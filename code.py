@@ -423,8 +423,8 @@ chicago_time = get_chicago_time_from_ntp()
 # print(f"Original Time:{rtc.datetime}")
 # 
 # chi_time = list(rtc.datetime)
-# chi_time[1] = 08 #Month
-# chi_time[2] = 11 #Day
+# chi_time[1] = 07 #Month
+# chi_time[2] = 04 #Day
 # rtc.datetime = time.struct_time(tuple(chi_time))
 # 
 # print(f"Updated Time:{rtc.datetime}")
