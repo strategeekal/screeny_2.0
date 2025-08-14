@@ -64,6 +64,21 @@ bg_font = bitmap_font.load_font(bg_font_file)
 font_file = "fonts/tinybit6-16.bdf"
 font = bitmap_font.load_font(font_file)
 
+## Important Dates
+calendar = {
+	"0825" : ["Diego", "Birthday", "cake.bmp"],
+	"0703" : ["Gaby", "Birthday", "cake.bmp"],
+	"1109" : ["Tiago", "Birthday", "cake.bmp"],
+	"0210" : ["Emilio", "Birthday", "cake.bmp"],
+	"1225" : ["X-MAS", "Merry", "xmas.bmp"],
+	"0214" : ["Didiculo", "Dia", "valentines.bmp"],
+	"0824" : ["Abuela", "Cumple", "cake_sq.bmp"],
+	"1123" : ["Ric", "Cumple", "cake_sq.bmp"],
+	"0811" : ["Alan", "Cumple", "cake_sq.bmp"],
+	"0715" : ["Mexico", "Viva", "mexico_flag.bmp"],
+	"0704" : ["July", "4th of", "us_flag.bmp"],
+}
+
 # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== #
 	
 ### INITIALIZE SCREEN ###
@@ -241,6 +256,7 @@ def get_chicago_time_from_ntp():
 # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== #
 
 ### FORMATTING FUNCTIONS ###
+
 def meridian(hod):
 	if hod < 12:
 		time_meridian = "AM"
@@ -263,6 +279,10 @@ def month_namer(month_number, month_format="short"):
 	else:
 		m = months[month_number][0]  # Get the full name (index 0)
 	return m
+	
+# ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== #
+
+### OTHER FUNCTIONS ###
 
 # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== #
 
@@ -276,9 +296,9 @@ for attempt in range(20):
 		
 		rtc = adafruit_ds3231.DS3231(i2c)
 		print(rtc.datetime)
-		clock_updated = False
 		break
 	except Exception as e:  # Catch specific exception and store it
+		welcome_label.color = "DARK_RED"
 		welcome_label.text = "Tik Tok!!"
 		print(f"Error: {e}")
 		print("Attempt {} of 10 rtc board not found".format(attempt + 1))  # +1 for human-readable counting
@@ -398,6 +418,17 @@ pool = socketpool.SocketPool(wifi.radio)
 
 chicago_time = get_chicago_time_from_ntp()
 
+# Change Date to test event functionality
+
+# print(f"Original Time:{rtc.datetime}")
+# 
+# chi_time = list(rtc.datetime)
+# chi_time[1] = 08 #Month
+# chi_time[2] = 11 #Day
+# rtc.datetime = time.struct_time(tuple(chi_time))
+# 
+# print(f"Updated Time:{rtc.datetime}")
+
 
 ## PREPARE MATRIX MESSAGE ##
 
@@ -449,7 +480,7 @@ main_group.append(error_line_text)
 
 # Loop time parameters
 start_time = time.monotonic()  # monotonic(ß) is better than time() for timing
-duration = 15  # seconds >> Limits loop for testing
+duration = 2  # seconds >> Limits loop for testing
 i = 1
 while time.monotonic() - start_time < duration:
 
@@ -493,52 +524,83 @@ while time.monotonic() - start_time < duration:
 	
 ##### SECOND LOOP 
 
-# Clear Display
-while len(main_group):
-	main_group.pop()
+# current_month = tc.datetime.tm_mon
+# current_day = rtc.datetime.tm_mday
+month_day_combo = str(f"{rtc.datetime.tm_mon:02d}" + f"{rtc.datetime.tm_mday:02d}")
+
+print(f"Month day Combo: {month_day_combo}")
+
+if month_day_combo in calendar:
 	
-# Create a display group for your elements
-main_group = displayio.Group()
-display.root_group = main_group
-
-
-# Load the image (make sure "image.bmp" exists in your CIRCUITPY drive root)
-bitmap, palette = adafruit_imageload.load("img/cake_sq.bmp")
-
-# Create a TileGrid to hold the image
-image_grid = displayio.TileGrid(bitmap, pixel_shader=palette)
-image_grid.x = 36
-
-# Create a bitmap_label object
-text_label_line_1 = bitmap_label.Label(
-	bg_font,  # Use a built-in font or load a custom font
-	color=default_text_color,  # Default Color
-	text="Cumple",
-	x=2,  # X-coordinate => 0 starts on first pixel with default font
-	y=5,  # Y-coordinate => 4 starts at first pixel with default font
-)
-
-text_label_line_2 = bitmap_label.Label(
-	bg_font,  # Use a built-in font or load a custom font
-	color=MINT,  # Green color
-	text="Abuelo",
-	x=2,  # X-coordinate => 0 starts on first pixel with default font
-	y=19,  # Y-coordinate => 4 starts at first pixel with default font
-)
-
-# Add the image to the display group
-main_group.append(image_grid)
-main_group.append(text_label_line_1)
-main_group.append(text_label_line_2)
-
-print("Image loaded successfully!")
-
+	print(calendar[month_day_combo][1])
 	
-start_time = time.monotonic()  # monotonic(ß) is better than time() for timing
-duration = 15  # seconds >> Limits loop for testing
-
-while time.monotonic() - start_time < duration:
-	pass
+	# Clear Display
+	while len(main_group):
+		main_group.pop()
+		
+	# Create a display group for your elements
+	main_group = displayio.Group()
+	display.root_group = main_group
+	
+	# Check if event is household birthday 
+	if calendar[month_day_combo][1] == "Birthday":
+		# Load the image (make sure "image.bmp" exists in your CIRCUITPY drive root)
+		bitmap, palette = adafruit_imageload.load("img/cake.bmp")
+		
+		# Create a TileGrid to hold the image
+		image_grid = displayio.TileGrid(bitmap, pixel_shader=palette)
+		
+		# Add the image to the display group
+		main_group.append(image_grid)
+		
+	else:
+		t1 = calendar[month_day_combo][0]
+		t2 = calendar[month_day_combo][1]
+		image = calendar[month_day_combo][2]
+		
+		image_link = "img/" + str(image)
+		
+		if image in os.listdir("img"):
+			# Load the image (make sure "image.bmp" exists in your CIRCUITPY drive root)
+			bitmap, palette = adafruit_imageload.load(image_link)
+		else:
+			# Load the image (make sure "image.bmp" exists in your CIRCUITPY drive root)
+			bitmap, palette = adafruit_imageload.load("img/blank_sq.bmp")
+		
+		# Create a TileGrid to hold the image
+		image_grid = displayio.TileGrid(bitmap, pixel_shader=palette)
+		image_grid.x = 36
+		
+		# Create a bitmap_label object
+		text_label_line_1 = bitmap_label.Label(
+			bg_font,  # Use a built-in font or load a custom font
+			color=default_text_color,  # Default Color
+			text=t2,
+			x=2,  # X-coordinate => 0 starts on first pixel with default font
+			y=5,  # Y-coordinate => 4 starts at first pixel with default font
+		)
+		
+		text_label_line_2 = bitmap_label.Label(
+			bg_font,  # Use a built-in font or load a custom font
+			color=MINT,  # Green color
+			text=t1,
+			x=2,  # X-coordinate => 0 starts on first pixel with default font
+			y=19,  # Y-coordinate => 4 starts at first pixel with default font
+		)
+		
+		# Add the image to the display group
+		main_group.append(image_grid)
+		main_group.append(text_label_line_1)
+		main_group.append(text_label_line_2)
+		
+	start_time = time.monotonic()  # monotonic(ß) is better than time() for timing
+	duration = 15  # seconds >> Limits loop for testing
+	
+	while time.monotonic() - start_time < duration:
+		pass
+	
+else:
+	print("No Special Event Today")
 
 print("Display loop finished")
 
