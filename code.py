@@ -75,8 +75,12 @@ calendar = {
 	"0824" : ["Abuela", "Cumple", "cake_sq.bmp"],
 	"1123" : ["Ric", "Cumple", "cake_sq.bmp"],
 	"0811" : ["Alan", "Cumple", "cake_sq.bmp"],
-	"0715" : ["Mexico", "Viva", "mexico_flag.bmp"],
+	"0915" : ["Mexico", "Viva", "mexico_flag.bmp"],
 	"0704" : ["July", "4th of", "us_flag.bmp"],
+	"0301" : ["", "Spring", "spring.bmp"],
+	"0601" : ["", "Summer", "summer.bmp"],
+	"0901" : ["", "Fall", "fall.bmp"],
+	"1201" : ["", "Winter", "winter.bmp"],
 }
 
 # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== #
@@ -280,6 +284,186 @@ def month_namer(month_number, month_format="short"):
 		m = months[month_number][0]  # Get the full name (index 0)
 	return m
 	
+## COLOR CONVERSION FUNTIONS ##
+
+def convert_bmp_palette(palette):
+	"""
+	Convert BMP palette from 8-bit BGR to 6-bit RGB for matrix display
+	"""
+	if palette is None:
+		return None
+	
+	# Check if it's a ColorConverter - if so, return as-is and let the matrix handle it
+	if hasattr(palette, '__name__') and 'ColorConverter' in str(type(palette)):
+		return palette
+	
+	# Handle standard displayio.Palette
+	try:
+		palette_len = len(palette)
+	except TypeError:
+		# If len() fails, it might be a ColorConverter or other type - return as-is
+		return palette
+	
+	print(f"Converting palette with {palette_len} colors...")
+	
+	# Create new palette for converted colors
+	converted_palette = displayio.Palette(palette_len)
+	
+	for i in range(palette_len):
+		# Get original color (24-bit color from palette)
+		original_color = palette[i]
+		
+		# Debug: Print first few colors
+		if i < 5:
+			print(f"  Original Color {i}: 0x{original_color:06X}")
+		
+		# Your BMP files need green and blue swapped
+		red_8bit = (original_color >> 16) & 0xFF    # Red is correct
+		blue_8bit = (original_color >> 8) & 0xFF    # Blue comes from green position  
+		green_8bit = original_color & 0xFF          # Green comes from blue position
+		
+		# Convert from 8-bit to 6-bit
+		red_6bit = red_8bit >> 2
+		green_6bit = green_8bit >> 2
+		blue_6bit = blue_8bit >> 2
+		
+		# For a 6-bit matrix, combine as RGB (not shifted to 24-bit positions)
+		# Just use the 6-bit values directly
+		converted_color = (red_6bit << 16) | (green_6bit << 8) | blue_6bit
+		
+		if i < 5:
+			print(f"    RGB_8bit: ({red_8bit},{green_8bit},{blue_8bit})")
+			print(f"    RGB_6bit: ({red_6bit},{green_6bit},{blue_6bit}) = 0x{converted_color:06X}")
+		
+		converted_palette[i] = converted_color
+	
+	return converted_palette
+
+def convert_png_palette(palette):
+	"""
+	Convert PNG palette from 8-bit to 6-bit for matrix display
+	PNG already has correct RGB order, just needs bit depth scaling
+	"""
+	if palette is None:
+		return None
+	
+	# Check if it's a ColorConverter - if so, return as-is
+	if hasattr(palette, '__name__') and 'ColorConverter' in str(type(palette)):
+		return palette
+	
+	# Handle standard displayio.Palette
+	try:
+		palette_len = len(palette)
+	except TypeError:
+		# If len() fails, it might be a ColorConverter - return as-is
+		return palette
+	
+	converted_palette = displayio.Palette(palette_len)
+	
+	for i in range(palette_len):
+		original_color = palette[i]
+		
+		# PNG palette is already RGB order
+		red_8bit = (original_color >> 16) & 0xFF
+		green_8bit = (original_color >> 8) & 0xFF  
+		blue_8bit = original_color & 0xFF
+		
+		# Convert from 8-bit to 6-bit (no channel swapping needed)
+		red_6bit = red_8bit >> 2
+		green_6bit = green_8bit >> 2
+		blue_6bit = blue_8bit >> 2
+		
+		# Combine back into 18-bit color for 6-bit matrix
+		converted_color = (red_6bit << 12) | (green_6bit << 6) | blue_6bit
+		
+		converted_palette[i] = converted_color
+	
+	return converted_palette
+
+# Enhanced universal image loading function with ColorConverter handling
+def load_and_convert_image(filepath):
+	"""
+	Load image (BMP or PNG) and apply appropriate color conversion for matrix display
+	"""
+	bitmap, palette = adafruit_imageload.load(filepath)
+	
+	# Check file extension to determine conversion needed
+	file_ext = filepath.lower().split('.')[-1]
+	
+	print(f"Loading {filepath}: {file_ext} format")
+	print(f"Palette type: {type(palette)}")
+	
+	# Handle ColorConverter (direct color images)
+	if palette and 'ColorConverter' in str(type(palette)):
+		print("Image uses ColorConverter (direct color)")
+		print("ColorConverter images can't be easily modified - use indexed-color BMPs instead")
+		# Return as-is - colors may be wrong but won't crash
+		return bitmap, palette
+	
+	# Handle palette-based images
+	if file_ext == 'bmp':
+		# BMP needs BGR->RGB conversion AND bit depth conversion
+		print("Applying BMP conversion...")
+		if palette:
+			converted_palette = convert_bmp_palette(palette)
+			return bitmap, converted_palette
+		else:
+			return bitmap, palette
+	
+	elif file_ext == 'png':
+		# Many PNG files also need BGR->RGB conversion
+		print("Applying BMP-style conversion to PNG...")
+		if palette:
+			converted_palette = convert_bmp_palette(palette)  # Use BMP conversion for PNG too
+			return bitmap, converted_palette
+		else:
+			return bitmap, palette
+	
+	else:
+		# Unknown format, load as-is
+		print("Unknown format, loading as-is...")
+		return bitmap, palette
+
+def create_bgr_swapped_converter():
+	"""
+	Create a custom ColorConverter that swaps BGR to RGB
+	"""
+	# This is a simple approach - create a palette with swapped colors
+	# For more complex images, this might need more sophisticated handling
+	
+	# Create a basic converter that handles common flag colors
+	converted_palette = displayio.Palette(8)  # Small palette for common colors
+	
+	# Define some common colors with BGR->RGB swap applied
+	# These are 6-bit colors (0-63 range)
+	converted_palette[0] = 0x000000  # Black
+	converted_palette[1] = 0x3F3F3F  # White (63,63,63 in 6-bit)
+	converted_palette[2] = 0x3F0000  # Red (was blue in BGR)
+	converted_palette[3] = 0x003F00  # Green (stays green)
+	converted_palette[4] = 0x00003F  # Blue (was red in BGR)
+	converted_palette[5] = 0x3F3F00  # Yellow
+	converted_palette[6] = 0x3F003F  # Magenta  
+	converted_palette[7] = 0x003F3F  # Cyan
+	
+	return converted_palette
+
+# Alternative function to force BGR->RGB conversion on PNG if needed
+def load_and_convert_image_force_bgr(filepath):
+	"""
+	Force BGR->RGB conversion on all images (use this if PNG colors are still wrong)
+	"""
+	bitmap, palette = adafruit_imageload.load(filepath)
+	
+	print(f"Loading {filepath} with forced BGR conversion")
+	print(f"Palette type: {type(palette)}")
+	
+	# Apply BMP-style conversion to all images
+	if palette:
+		converted_palette = convert_bmp_palette(palette)
+		return bitmap, converted_palette
+	else:
+		return bitmap, palette
+	
 # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== #
 
 ### OTHER FUNCTIONS ###
@@ -420,14 +604,14 @@ chicago_time = get_chicago_time_from_ntp()
 
 # Change Date to test event functionality
 
-# print(f"Original Time:{rtc.datetime}")
-# 
-# chi_time = list(rtc.datetime)
-# chi_time[1] = 07 #Month
-# chi_time[2] = 04 #Day
-# rtc.datetime = time.struct_time(tuple(chi_time))
-# 
-# print(f"Updated Time:{rtc.datetime}")
+print(f"Original Time:{rtc.datetime}")
+
+chi_time = list(rtc.datetime)
+chi_time[1] = 09 #Month
+chi_time[2] = 01 #Day
+rtc.datetime = time.struct_time(tuple(chi_time))
+
+print(f"Updated Time:{rtc.datetime}")
 
 
 ## PREPARE MATRIX MESSAGE ##
@@ -545,7 +729,7 @@ if month_day_combo in calendar:
 	# Check if event is household birthday 
 	if calendar[month_day_combo][1] == "Birthday":
 		# Load the image (make sure "image.bmp" exists in your CIRCUITPY drive root)
-		bitmap, palette = adafruit_imageload.load("img/cake.bmp")
+		bitmap, palette = load_and_convert_image("img/cake.bmp")
 		
 		# Create a TileGrid to hold the image
 		image_grid = displayio.TileGrid(bitmap, pixel_shader=palette)
@@ -561,11 +745,11 @@ if month_day_combo in calendar:
 		image_link = "img/" + str(image)
 		
 		if image in os.listdir("img"):
-			# Load the image (make sure "image.bmp" exists in your CIRCUITPY drive root)
-			bitmap, palette = adafruit_imageload.load(image_link)
+			# Load and convert the image
+			bitmap, palette = load_and_convert_image(image_link)
 		else:
-			# Load the image (make sure "image.bmp" exists in your CIRCUITPY drive root)
-			bitmap, palette = adafruit_imageload.load("img/blank_sq.bmp")
+			# Load and convert the fallback image
+			bitmap, palette = load_and_convert_image("img/blank_sq.bmp")
 		
 		# Create a TileGrid to hold the image
 		image_grid = displayio.TileGrid(bitmap, pixel_shader=palette)
