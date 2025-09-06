@@ -75,7 +75,7 @@ calendar = {
 	"0824" : ["Abuela", "Cumple", "cake_sq.bmp"],
 	"1123" : ["Ric", "Cumple", "cake_sq.bmp"],
 	"0811" : ["Alan", "Cumple", "cake_sq.bmp"],
-	"0915" : ["Mexico", "Viva", "mexico_flag.bmp"],
+	"0915" : ["Mexico", "Viva", "mexico_flag_v3.bmp"],
 	"0704" : ["July", "4th of", "us_flag.bmp"],
 	"0301" : ["", "Spring", "spring.bmp"],
 	"0601" : ["", "Summer", "summer.bmp"],
@@ -607,9 +607,9 @@ chicago_time = get_chicago_time_from_ntp()
 print(f"Original Time:{rtc.datetime}")
 
 chi_time = list(rtc.datetime)
-chi_time[1] = 09 #Month
-chi_time[2] = 01 #Day
-rtc.datetime = time.struct_time(tuple(chi_time))
+#chi_time[1] = 08 #Month
+#chi_time[2] = 24 #Day
+#rtc.datetime = time.struct_time(tuple(chi_time))
 
 print(f"Updated Time:{rtc.datetime}")
 
@@ -754,6 +754,7 @@ if month_day_combo in calendar:
 		# Create a TileGrid to hold the image
 		image_grid = displayio.TileGrid(bitmap, pixel_shader=palette)
 		image_grid.x = 36
+		image_grid.y = 2
 		
 		# Create a bitmap_label object
 		text_label_line_1 = bitmap_label.Label(
