@@ -73,6 +73,7 @@ calendar = {
 	"1225" : ["X-MAS", "Merry", "xmas.bmp"],
 	"0214" : ["Didiculo", "Dia", "valentines.bmp"],
 	"0824" : ["Abuela", "Cumple", "cake_sq.bmp"],
+	"0101" : ["New Year", "Happy", "new_year.bmp"],
 	"1123" : ["Ric", "Cumple", "cake_sq.bmp"],
 	"0811" : ["Alan", "Cumple", "cake_sq.bmp"],
 	"0915" : ["Mexico", "Viva", "mexico_flag_v3.bmp"],
@@ -81,6 +82,7 @@ calendar = {
 	"0601" : ["", "Summer", "summer.bmp"],
 	"0901" : ["", "Fall", "fall.bmp"],
 	"1031" : ["Halloween", "Happy", "halloween.bmp"],
+	"1101" : ["Muertos", "Dia de", "day_of_the_death.bmp"],
 	"1201" : ["", "Winter", "winter.bmp"],
 }
 
@@ -464,7 +466,61 @@ def load_and_convert_image_force_bgr(filepath):
 		return bitmap, converted_palette
 	else:
 		return bitmap, palette
+		
+## TEXT LENGTH FUNCTIONS ##
+
+def get_text_width(text, font):
+	"""Get pixel width of text using CircuitPython bitmap_label"""
+	if not text:  # Handle empty strings
+		return 0
 	
+	# Create a temporary label to measure
+	temp_label = bitmap_label.Label(font, text=text)
+	
+	# Get bounding box - returns (x, y, width, height)
+	bbox = temp_label.bounding_box
+	if bbox:
+		return bbox[2]  # width is at index 2
+	else:
+		return 0
+
+def choose_font_for_text(text, max_width=35):
+	"""Choose big or small font based on text width"""
+	
+	# Try big font first
+	big_width = get_text_width(text, bg_font)
+	if big_width <= max_width:
+		return bg_font
+	
+	# Fall back to small font
+	small_width = get_text_width(text, font)
+	if small_width <= max_width:
+		return font
+	
+	# Return small font even if too wide
+	return font
+	
+def fit_text_to_width(text, font, max_width):
+	"""Truncate text with ellipsis if too long"""
+	
+	# Check if full text fits
+	full_width = get_text_width(text, font)
+	if full_width <= max_width:
+		return text
+	
+	# Find how many characters fit with "..."
+	ellipsis_width = get_text_width("...", font)
+	available_width = max_width - ellipsis_width
+	
+	truncated = ""
+	for i, char in enumerate(text):
+		test_text = truncated + char
+		if get_text_width(test_text, font) > available_width:
+			break
+		truncated = test_text
+	
+	return truncated + "..."
+
 # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== #
 
 ### OTHER FUNCTIONS ###
@@ -608,9 +664,9 @@ chicago_time = get_chicago_time_from_ntp()
 print(f"Original Time:{rtc.datetime}")
 
 chi_time = list(rtc.datetime)
-#chi_time[1] = 08 #Month
-#chi_time[2] = 24 #Day
-#rtc.datetime = time.struct_time(tuple(chi_time))
+# chi_time[1] = 1 #Month
+# chi_time[2] = 1 #Day
+# rtc.datetime = time.struct_time(tuple(chi_time))
 
 print(f"Updated Time:{rtc.datetime}")
 
@@ -741,6 +797,11 @@ if month_day_combo in calendar:
 	else:
 		t1 = calendar[month_day_combo][0]
 		t2 = calendar[month_day_combo][1]
+		
+		# Choose fonts based on text width
+		chosen_font_1 = choose_font_for_text(t2, max_width=34)  # For line 1
+		chosen_font_2 = choose_font_for_text(t1, max_width=34)  # For line 2
+		
 		image = calendar[month_day_combo][2]
 		
 		image_link = "img/" + str(image)
@@ -759,7 +820,7 @@ if month_day_combo in calendar:
 		
 		# Create a bitmap_label object
 		text_label_line_1 = bitmap_label.Label(
-			bg_font,  # Use a built-in font or load a custom font
+			chosen_font_1,  # Use a built-in font or load a custom font
 			color=default_text_color,  # Default Color
 			text=t2,
 			x=2,  # X-coordinate => 0 starts on first pixel with default font
@@ -767,7 +828,7 @@ if month_day_combo in calendar:
 		)
 		
 		text_label_line_2 = bitmap_label.Label(
-			bg_font,  # Use a built-in font or load a custom font
+			chosen_font_2,  # Use a built-in font or load a custom font
 			color=MINT,  # Green color
 			text=t1,
 			x=2,  # X-coordinate => 0 starts on first pixel with default font
