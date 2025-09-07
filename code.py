@@ -80,6 +80,7 @@ calendar = {
 	"0301" : ["", "Spring", "spring.bmp"],
 	"0601" : ["", "Summer", "summer.bmp"],
 	"0901" : ["", "Fall", "fall.bmp"],
+	"1031" : ["Halloween", "Happy", "halloween.bmp"],
 	"1201" : ["", "Winter", "winter.bmp"],
 }
 
