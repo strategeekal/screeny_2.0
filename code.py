@@ -670,6 +670,14 @@ chi_time = list(rtc.datetime)
 
 print(f"Updated Time:{rtc.datetime}")
 
+## SET WEATHER VARIABLES ##
+
+weatherIcon = 0
+humidity = 0
+temperature = 00
+feelsLike = 00
+feelsLikeShade = 00
+uvIndex = 0
 
 ## PREPARE MATRIX MESSAGE ##
 
