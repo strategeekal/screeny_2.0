@@ -673,9 +673,9 @@ chicago_time = get_chicago_time_from_ntp()
 print(f"Original Time:{rtc.datetime}")
 
 chi_time = list(rtc.datetime)
-chi_time[1] = 10 #Month
-chi_time[2] = 31 #Day
-rtc.datetime = time.struct_time(tuple(chi_time))
+#chi_time[1] = 09 #Month
+#chi_time[2] = 1 #Day
+#rtc.datetime = time.struct_time(tuple(chi_time))
 
 print(f"Updated Time:{rtc.datetime}")
 
@@ -780,8 +780,8 @@ def show_weather_display(duration, weather_available=True):
 	# Mock weather data (replace with your actual data source later)
 	weatherIcon = 1.1
 	temperature = 72.3
-	feelsLike = 75.2
-	feelsLikeShade = 76.7
+	feelsLike = 74.2
+	feelsLikeShade = 71.7
 			
 	# Clear previous display elements
 	while len(main_group):
@@ -814,6 +814,8 @@ def show_weather_display(duration, weather_available=True):
 		time_line_text.x = 64 - 1 - (get_text_width(time_line_text.text, font))
 
 	main_group.append(time_line_text)
+	
+	print(5+5)
 
 
 	# Show weather display for specified duration
@@ -825,10 +827,9 @@ def show_weather_display(duration, weather_available=True):
 			
 					# Update time display
 			time_of_day = (
-				"%d:%02d:%02d" % (
+				"%d:%02d" % (
 					twelve_hour_clock(rtc.datetime.tm_hour),
 					rtc.datetime.tm_min,
-					rtc.datetime.tm_sec,
 				)
 			)
 
@@ -979,7 +980,7 @@ def main_display_loop():
 			# Try weather display first, fall back to clock if needed
 			# Set weather_available=False to test clock fallback
 			weather_available = True  # Change this to False to test clock fallback
-			show_weather_display(duration=10, weather_available=weather_available)
+			show_weather_display(duration=20, weather_available=weather_available)
 
 			# Check for special events and show if exists
 			month_day_combo = str(f"{rtc.datetime.tm_mon:02d}" + f"{rtc.datetime.tm_mday:02d}")
