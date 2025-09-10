@@ -7,6 +7,7 @@ import board  # Portal Matrix S3 main board library
 import os  # OS functions. used to read setting file
 import supervisor  # Soft restart board
 import gc
+import math
 
 # RGB Matrix Libraries
 import terminalio
@@ -309,7 +310,7 @@ def convert_bmp_palette(palette):
 		# If len() fails, it might be a ColorConverter or other type - return as-is
 		return palette
 	
-	print(f"Converting palette with {palette_len} colors...")
+	#print(f"Converting palette with {palette_len} colors...")
 	
 	# Create new palette for converted colors
 	converted_palette = displayio.Palette(palette_len)
@@ -319,12 +320,12 @@ def convert_bmp_palette(palette):
 		original_color = palette[i]
 		
 		# Debug: Print first few colors
-		if i < 5:
-			print(f"  Original Color {i}: 0x{original_color:06X}")
+		#if i < 5:
+			#print(f"  Original Color {i}: 0x{original_color:06X}")
 		
 		# Your BMP files need green and blue swapped
 		red_8bit = (original_color >> 16) & 0xFF    # Red is correct
-		blue_8bit = (original_color >> 8) & 0xFF    # Blue comes from green position  
+		blue_8bit = (original_color >> 8) & 0xFF    # Blue comes from green position
 		green_8bit = original_color & 0xFF          # Green comes from blue position
 		
 		# Convert from 8-bit to 6-bit
@@ -336,9 +337,9 @@ def convert_bmp_palette(palette):
 		# Just use the 6-bit values directly
 		converted_color = (red_6bit << 16) | (green_6bit << 8) | blue_6bit
 		
-		if i < 5:
-			print(f"    RGB_8bit: ({red_8bit},{green_8bit},{blue_8bit})")
-			print(f"    RGB_6bit: ({red_6bit},{green_6bit},{blue_6bit}) = 0x{converted_color:06X}")
+		#if i < 5:
+			#print(f"    RGB_8bit: ({red_8bit},{green_8bit},{blue_8bit})")
+			#print(f"    RGB_6bit: ({red_6bit},{green_6bit},{blue_6bit}) = 0x{converted_color:06X}")
 		
 		converted_palette[i] = converted_color
 	
@@ -370,7 +371,7 @@ def convert_png_palette(palette):
 		
 		# PNG palette is already RGB order
 		red_8bit = (original_color >> 16) & 0xFF
-		green_8bit = (original_color >> 8) & 0xFF  
+		green_8bit = (original_color >> 8) & 0xFF
 		blue_8bit = original_color & 0xFF
 		
 		# Convert from 8-bit to 6-bit (no channel swapping needed)
@@ -395,20 +396,20 @@ def load_and_convert_image(filepath):
 	# Check file extension to determine conversion needed
 	file_ext = filepath.lower().split('.')[-1]
 	
-	print(f"Loading {filepath}: {file_ext} format")
-	print(f"Palette type: {type(palette)}")
+	#print(f"Loading {filepath}: {file_ext} format")
+	#print(f"Palette type: {type(palette)}")
 	
 	# Handle ColorConverter (direct color images)
 	if palette and 'ColorConverter' in str(type(palette)):
-		print("Image uses ColorConverter (direct color)")
-		print("ColorConverter images can't be easily modified - use indexed-color BMPs instead")
+		#print("Image uses ColorConverter (direct color)")
+		#print("ColorConverter images can't be easily modified - use indexed-color BMPs instead")
 		# Return as-is - colors may be wrong but won't crash
 		return bitmap, palette
 	
 	# Handle palette-based images
 	if file_ext == 'bmp':
 		# BMP needs BGR->RGB conversion AND bit depth conversion
-		print("Applying BMP conversion...")
+		#print("Applying BMP conversion...")
 		if palette:
 			converted_palette = convert_bmp_palette(palette)
 			return bitmap, converted_palette
@@ -417,7 +418,7 @@ def load_and_convert_image(filepath):
 	
 	elif file_ext == 'png':
 		# Many PNG files also need BGR->RGB conversion
-		print("Applying BMP-style conversion to PNG...")
+		#print("Applying BMP-style conversion to PNG...")
 		if palette:
 			converted_palette = convert_bmp_palette(palette)  # Use BMP conversion for PNG too
 			return bitmap, converted_palette
@@ -447,7 +448,7 @@ def create_bgr_swapped_converter():
 	converted_palette[3] = 0x003F00  # Green (stays green)
 	converted_palette[4] = 0x00003F  # Blue (was red in BGR)
 	converted_palette[5] = 0x3F3F00  # Yellow
-	converted_palette[6] = 0x3F003F  # Magenta  
+	converted_palette[6] = 0x3F003F  # Magenta
 	converted_palette[7] = 0x003F3F  # Cyan
 	
 	return converted_palette
@@ -526,6 +527,12 @@ def fit_text_to_width(text, font, max_width):
 # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== #
 
 ### OTHER FUNCTIONS ###
+
+def temp_format(temp):
+	temp = round(temp)
+	temp = str(temp)
+	temp = temp + "°"
+	return temp
 
 # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== # # ====== #
 
@@ -666,9 +673,9 @@ chicago_time = get_chicago_time_from_ntp()
 print(f"Original Time:{rtc.datetime}")
 
 chi_time = list(rtc.datetime)
-#chi_time[1] = 8 #Month
-#chi_time[2] = 24 #Day
-#rtc.datetime = time.struct_time(tuple(chi_time))
+chi_time[1] = 10 #Month
+chi_time[2] = 31 #Day
+rtc.datetime = time.struct_time(tuple(chi_time))
 
 print(f"Updated Time:{rtc.datetime}")
 
@@ -727,8 +734,119 @@ main_group.append(meridian_line_text)
 main_group.append(error_line_text)
 
 
+def show_weather_display(duration, weather_available=True):
+	"""Display weather and time for specified duration"""
+	global main_group
+
+	if not weather_available:
+		print("Weather unavailable, falling back to clock display")
+		show_clock_display(duration)
+		return
+
+	print("Displaying weather...")
+
+	# Clear Display
+	while len(main_group):
+		main_group.pop()
+
+	# Create weather display elements (based on your weather code)
+	temp_text = bitmap_label.Label(
+		bg_font,
+		color=default_text_color,
+		x=2, y=20
+	)
+
+	feelsLike_text = bitmap_label.Label(
+		font,
+		color=default_text_color,
+		y=16
+	)
+
+	feelsLikeShade_text = bitmap_label.Label(
+		font,
+		color=default_text_color,
+		y=24
+	)
+
+	time_line_text = bitmap_label.Label(
+		font,
+		color=default_text_color,
+		text="",
+		x=15, y=24
+	)
+	
+	### GET WEATHER DATA ##
+	
+	# Mock weather data (replace with your actual data source later)
+	weatherIcon = 1.1
+	temperature = 72.3
+	feelsLike = 75.2
+	feelsLikeShade = 76.7
+			
+	# Clear previous display elements
+	while len(main_group):
+		main_group.pop()
+
+	# Load and display weather image
+	try:
+		bitmap, palette = load_and_convert_image(f"img/{weatherIcon}.bmp")
+		image_grid = displayio.TileGrid(bitmap, pixel_shader=palette)
+		main_group.append(image_grid)
+	except Exception as e:
+		print(f"Failed to load weather image: {e}")
+
+	# Display temperature
+	temp_text.text = temp_format(temperature)
+	main_group.append(temp_text)
+
+	# Display feels like temperature if different
+	if (round(feelsLike) != round(feelsLikeShade) or
+		round(feelsLike) != round(temperature)):
+		feelsLike_text.text = temp_format(feelsLike)
+		feelsLike_text.x = 64 - 1 - get_text_width(temp_format(feelsLike), font)
+		main_group.append(feelsLike_text)
+
+	if round(feelsLike) != round(feelsLikeShade):
+		feelsLikeShade_text.text = temp_format(feelsLikeShade)
+		feelsLikeShade_text.x = 64 - 1 - get_text_width(temp_format(feelsLikeShade), font)
+		main_group.append(feelsLikeShade_text)
+	else:
+		time_line_text.x = 64 - 1 - (get_text_width(time_line_text.text, font))
+
+	main_group.append(time_line_text)
+
+
+	# Show weather display for specified duration
+	start_time = time.monotonic()
+	update_counter = 1
+
+	while time.monotonic() - start_time < duration:
+		try:
+			
+					# Update time display
+			time_of_day = (
+				"%d:%02d:%02d" % (
+					twelve_hour_clock(rtc.datetime.tm_hour),
+					rtc.datetime.tm_min,
+					rtc.datetime.tm_sec,
+				)
+			)
+
+			time_line_text.text = time_of_day
+			time_line_text.x = math.floor((64 - (get_text_width(time_line_text.text, font)-1))/2)
+			
+			update_counter += 1
+			time.sleep(1)  # Update display every 5 seconds
+
+		except Exception as e:
+			print(f"Error in weather display: {e}")
+
 def show_clock_display(duration):
-	"""Display clock for specified duration"""
+	"""Display clock-only for specified duration"""
+	global main_group
+
+	print("Displaying clock...")
+
 	# Clear Display
 	while len(main_group):
 		main_group.pop()
@@ -743,27 +861,27 @@ def show_clock_display(duration):
 
 	time_line_text = bitmap_label.Label(
 		bg_font,
-		color=default_text_color,
+		color=MINT,
 		text="",
 		x=5, y=20,
 	)
 
-	error_line_text = bitmap_label.Label(
-		font,
-		color=BUGAMBILIA,
+	meridian_line_text = bitmap_label.Label(
+		bg_font,
+		color=default_text_color,
 		text="",
-		x=57, y=1,
+		x=45, y=20,
 	)
 
 	# Add labels to display group
 	main_group.append(date_line_text)
 	main_group.append(time_line_text)
-	main_group.append(error_line_text)
+	main_group.append(meridian_line_text)
 
 	# Show clock for specified duration
 	start_time = time.monotonic()
 	counter = 1
-	
+
 	while time.monotonic() - start_time < duration:
 		month_and_day = (
 			"%s %02d" % (
@@ -771,19 +889,23 @@ def show_clock_display(duration):
 				rtc.datetime.tm_mday
 			)
 		)
-		
+
 		time_of_day = (
-			"%d:%02d %02s" % (
+			"%d:%02d:%02d" % (
 				twelve_hour_clock(rtc.datetime.tm_hour),
 				rtc.datetime.tm_min,
-				meridian(rtc.datetime.tm_hour)
+				rtc.datetime.tm_sec
 			)
 		)
-		
+
+		time_meridian = meridian(rtc.datetime.tm_hour)
+
 		# Update display
 		time_line_text.text = time_of_day
 		date_line_text.text = month_and_day
-		
+
+		print(f"Clock {counter}: {month_and_day} - {time_of_day} {time_meridian}")
+		counter += 1
 		time.sleep(1)
 
 def show_special_event_display(month_day_combo, duration):
@@ -849,38 +971,32 @@ def show_special_event_display(month_day_combo, duration):
 		time.sleep(0.1)  # Just wait, no updates needed
 
 def main_display_loop():
-	"""Main loop: alternates between clock (30s) and events (10s)"""
-	print("Starting main display loop...")
-	
+	"""Main loop: alternates between weather/clock (30s) and events (10s)"""
+	print("Starting main display loop with weather integration...")
+
 	while True:
 		try:
-			# Show clock for 30 seconds
-			print("Displaying clock...")
-			show_clock_display(duration=1800)
-			
+			# Try weather display first, fall back to clock if needed
+			# Set weather_available=False to test clock fallback
+			weather_available = True  # Change this to False to test clock fallback
+			show_weather_display(duration=10, weather_available=weather_available)
+
 			# Check for special events and show if exists
 			month_day_combo = str(f"{rtc.datetime.tm_mon:02d}" + f"{rtc.datetime.tm_mday:02d}")
 			print(f"Checking for events on: {month_day_combo}")
-			
+
 			if month_day_combo in calendar:
 				print(f"Found event: {calendar[month_day_combo]}")
-				show_special_event_display(month_day_combo, duration=30)
+				show_special_event_display(month_day_combo, duration=10)
 			else:
 				print("No special event today")
-				# Optional: show a brief "no events" message or just continue to next clock cycle
-				time.sleep(1)  # Brief pause before next clock cycle
-				
+				time.sleep(1)  # Brief pause before next cycle
+
 		except Exception as e:
 			print(f"Error in main loop: {e}")
 			time.sleep(5)  # Wait before retrying
 			continue
 
-# Replace your existing display code with this:
-print("Starting alternating display...")
-
-# Initialize display once
-main_group = displayio.Group()
-display.root_group = main_group
-
-# Start the main loop
+# Start the integrated display system
+print("Starting weather-integrated display...")
 main_display_loop()
