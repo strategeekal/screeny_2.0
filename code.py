@@ -38,8 +38,8 @@ gc.collect()  # Clear up memory after imports
 ## Colors
 BLACK = 0x000000  # Black
 WHITE = 0xFFFFFF  # Pure White
-DIMMEST_WHITE = 0x080808  # White night
-DIM_WHITE = 0x202020  # White Day
+DIMMEST_WHITE = 0x101010  # White night
+DIM_WHITE = 0x303030  # White Day
 DARK_GREEN = 0x000800  # Green Darkest)
 DARK_RED = 0x080000  # Red Darkest)
 DARK_BLUE = 0x050500 # Blue Darkest)
@@ -115,10 +115,12 @@ matrix = rgbmatrix.RGBMatrix(
 	clock_pin = board.MTX_CLK,
 	latch_pin = board.MTX_LAT,
 	output_enable_pin = board.MTX_OE,
+	serpentine=True,
 	doublebuffer = True,
 )
 
-display = framebufferio.FramebufferDisplay(matrix)
+display = framebufferio.FramebufferDisplay(matrix, auto_refresh=True)
+display.brightness = 0.1
 
 ## WELCOME MESSAGE ##
 
@@ -664,9 +666,9 @@ chicago_time = get_chicago_time_from_ntp()
 print(f"Original Time:{rtc.datetime}")
 
 chi_time = list(rtc.datetime)
-# chi_time[1] = 1 #Month
-# chi_time[2] = 1 #Day
-# rtc.datetime = time.struct_time(tuple(chi_time))
+#chi_time[1] = 8 #Month
+#chi_time[2] = 24 #Day
+#rtc.datetime = time.struct_time(tuple(chi_time))
 
 print(f"Updated Time:{rtc.datetime}")
 
@@ -725,81 +727,79 @@ main_group.append(meridian_line_text)
 main_group.append(error_line_text)
 
 
-## DISPLAY MESSAGE LOOP ##
+def show_clock_display(duration):
+	"""Display clock for specified duration"""
+	# Clear Display
+	while len(main_group):
+		main_group.pop()
 
-# Loop time parameters
-start_time = time.monotonic()  # monotonic(ß) is better than time() for timing
-duration = 2  # seconds >> Limits loop for testing
-i = 1
-while time.monotonic() - start_time < duration:
-
-	current_time = (
-		"%s%02d %d:%02d:%02d%2s"
-		% (
-			month_namer(rtc.datetime.tm_mon, "short").upper(),
-			rtc.datetime.tm_mday,
-			twelve_hour_clock(rtc.datetime.tm_hour),
-			rtc.datetime.tm_min,
-			rtc.datetime.tm_sec,
-			meridian(rtc.datetime.tm_hour)
-		)
+	# Create clock labels
+	date_line_text = bitmap_label.Label(
+		font,
+		color=default_text_color,
+		text="",
+		x=5, y=7,
 	)
+
+	time_line_text = bitmap_label.Label(
+		bg_font,
+		color=default_text_color,
+		text="",
+		x=5, y=20,
+	)
+
+	error_line_text = bitmap_label.Label(
+		font,
+		color=BUGAMBILIA,
+		text="",
+		x=57, y=1,
+	)
+
+	# Add labels to display group
+	main_group.append(date_line_text)
+	main_group.append(time_line_text)
+	main_group.append(error_line_text)
+
+	# Show clock for specified duration
+	start_time = time.monotonic()
+	counter = 1
 	
-	month_and_day = (
-		"%s %02d"
-		% (
-			month_namer(rtc.datetime.tm_mon, "short").upper(),
-			rtc.datetime.tm_mday)
+	while time.monotonic() - start_time < duration:
+		month_and_day = (
+			"%s %02d" % (
+				month_namer(rtc.datetime.tm_mon, "short").upper(),
+				rtc.datetime.tm_mday
+			)
 		)
 		
-	time_of_day = (
-		"%d:%02d:%02d"
-		% (
-			twelve_hour_clock(rtc.datetime.tm_hour),
-			rtc.datetime.tm_min,
-			rtc.datetime.tm_sec
+		time_of_day = (
+			"%d:%02d %02s" % (
+				twelve_hour_clock(rtc.datetime.tm_hour),
+				rtc.datetime.tm_min,
+				meridian(rtc.datetime.tm_hour)
+			)
 		)
-	)
-	
-	time_meridian = meridian(rtc.datetime.tm_hour)
 		
-	# print(current_time)
-	print(f"{i}/15 {month_and_day} - {time_of_day} {time_meridian}")
-	time_line_text.text = time_of_day
-	date_line_text.text = month_and_day
-	#meridian_line_text.text = time_meridian
-	i - i + 1
-	time.sleep(1)
-	
-##### SECOND LOOP 
+		# Update display
+		time_line_text.text = time_of_day
+		date_line_text.text = month_and_day
+		
+		time.sleep(1)
 
-# current_month = tc.datetime.tm_mon
-# current_day = rtc.datetime.tm_mday
-month_day_combo = str(f"{rtc.datetime.tm_mon:02d}" + f"{rtc.datetime.tm_mday:02d}")
-
-print(f"Month day Combo: {month_day_combo}")
-
-if month_day_combo in calendar:
-	
-	print(calendar[month_day_combo][1])
+def show_special_event_display(month_day_combo, duration):
+	"""Display special event for specified duration"""
+	print(f"Showing event: {calendar[month_day_combo][1]}")
 	
 	# Clear Display
 	while len(main_group):
 		main_group.pop()
-		
-	# Create a display group for your elements
-	main_group = displayio.Group()
-	display.root_group = main_group
 	
-	# Check if event is household birthday 
+	# No need to create a new group, just use the existing one
+	
+	# Check if event is household birthday
 	if calendar[month_day_combo][1] == "Birthday":
-		# Load the image (make sure "image.bmp" exists in your CIRCUITPY drive root)
 		bitmap, palette = load_and_convert_image("img/cake.bmp")
-		
-		# Create a TileGrid to hold the image
 		image_grid = displayio.TileGrid(bitmap, pixel_shader=palette)
-		
-		# Add the image to the display group
 		main_group.append(image_grid)
 		
 	else:
@@ -807,55 +807,80 @@ if month_day_combo in calendar:
 		t2 = calendar[month_day_combo][1]
 		
 		# Choose fonts based on text width
-		chosen_font_1 = choose_font_for_text(t2, max_width=34)  # For line 1
-		chosen_font_2 = choose_font_for_text(t1, max_width=34)  # For line 2
+		chosen_font_1 = choose_font_for_text(t2, max_width=34)
+		chosen_font_2 = choose_font_for_text(t1, max_width=34)
 		
 		image = calendar[month_day_combo][2]
-		
 		image_link = "img/" + str(image)
 		
 		if image in os.listdir("img"):
-			# Load and convert the image
 			bitmap, palette = load_and_convert_image(image_link)
 		else:
-			# Load and convert the fallback image
 			bitmap, palette = load_and_convert_image("img/blank_sq.bmp")
 		
-		# Create a TileGrid to hold the image
+		# Create image grid
 		image_grid = displayio.TileGrid(bitmap, pixel_shader=palette)
 		image_grid.x = 36
 		image_grid.y = 2
 		
-		# Create a bitmap_label object
+		# Create text labels
 		text_label_line_1 = bitmap_label.Label(
-			chosen_font_1,  # Use a built-in font or load a custom font
-			color=default_text_color,  # Default Color
+			chosen_font_1,
+			color=default_text_color,
 			text=t2,
-			x=2,  # X-coordinate => 0 starts on first pixel with default font
-			y=5,  # Y-coordinate => 4 starts at first pixel with default font
+			x=2, y=5,
 		)
 		
 		text_label_line_2 = bitmap_label.Label(
-			chosen_font_2,  # Use a built-in font or load a custom font
-			color=MINT,  # Green color
+			chosen_font_2,
+			color=MINT,
 			text=t1,
-			x=2,  # X-coordinate => 0 starts on first pixel with default font
-			y=19,  # Y-coordinate => 4 starts at first pixel with default font
+			x=2, y=19,
 		)
 		
-		# Add the image to the display group
+		# Add elements to display
 		main_group.append(image_grid)
 		main_group.append(text_label_line_1)
 		main_group.append(text_label_line_2)
-		
-	start_time = time.monotonic()  # monotonic(ß) is better than time() for timing
-	duration = 15  # seconds >> Limits loop for testing
 	
+	# Show event for specified duration
+	start_time = time.monotonic()
 	while time.monotonic() - start_time < duration:
-		pass
+		time.sleep(0.1)  # Just wait, no updates needed
+
+def main_display_loop():
+	"""Main loop: alternates between clock (30s) and events (10s)"""
+	print("Starting main display loop...")
 	
-else:
-	print("No Special Event Today")
+	while True:
+		try:
+			# Show clock for 30 seconds
+			print("Displaying clock...")
+			show_clock_display(duration=1800)
+			
+			# Check for special events and show if exists
+			month_day_combo = str(f"{rtc.datetime.tm_mon:02d}" + f"{rtc.datetime.tm_mday:02d}")
+			print(f"Checking for events on: {month_day_combo}")
+			
+			if month_day_combo in calendar:
+				print(f"Found event: {calendar[month_day_combo]}")
+				show_special_event_display(month_day_combo, duration=30)
+			else:
+				print("No special event today")
+				# Optional: show a brief "no events" message or just continue to next clock cycle
+				time.sleep(1)  # Brief pause before next clock cycle
+				
+		except Exception as e:
+			print(f"Error in main loop: {e}")
+			time.sleep(5)  # Wait before retrying
+			continue
 
-print("Display loop finished")
+# Replace your existing display code with this:
+print("Starting alternating display...")
 
+# Initialize display once
+main_group = displayio.Group()
+display.root_group = main_group
+
+# Start the main loop
+main_display_loop()
