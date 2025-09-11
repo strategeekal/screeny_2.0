@@ -222,6 +222,10 @@ def check_daily_reset(rtc):
 		
 		log_entry(f"Daily reset triggered (running {hours_running:.1f} hours)")
 		
+		# Add log rotation here - BEFORE the reset
+		rotate_log_file()
+		
+		# Clear daily counter file if writable
 		try:
 			with open("daily_calls.txt", "w") as f:
 				f.write("0")
@@ -230,6 +234,72 @@ def check_daily_reset(rtc):
 		
 		time.sleep(2)
 		supervisor.reload()
+
+def rotate_log_file():
+	"""Rotate log file daily and clean up old logs"""
+	try:
+		if rtc_instance:
+			current_date = f"{rtc_instance.datetime.tm_year}{rtc_instance.datetime.tm_mon:02d}{rtc_instance.datetime.tm_mday:02d}"
+			
+			# Check if we need to rotate
+			try:
+				with open("current_log_date.txt", "r") as f:
+					last_date = f.read().strip()
+			except:
+				last_date = ""
+			
+			if current_date != last_date:
+				log_entry("Rotating log files...")
+				
+				# Archive old log
+				try:
+					with open("weather_log.txt", "r") as old:
+						content = old.read()
+					if content:
+						with open(f"weather_log_{last_date}.txt", "w") as archive:
+							archive.write(content)
+					
+					# Clear current log
+					with open("weather_log.txt", "w") as f:
+						pass
+					
+					# Clean up old log files (keep only last 7 days)
+					cleanup_old_logs(current_date)
+					
+					# Update date tracker
+					with open("current_log_date.txt", "w") as f:
+						f.write(current_date)
+						
+				except OSError:
+					pass
+	except Exception as e:
+		print(f"Log rotation failed: {e}")
+
+def cleanup_old_logs(current_date):
+	"""Remove log files older than 7 days"""
+	try:
+		import os
+		files = os.listdir("/")
+		
+		current_date_int = int(current_date)
+		
+		for filename in files:
+			if filename.startswith("weather_log_") and filename.endswith(".txt"):
+				try:
+					# Extract date from filename like "weather_log_20241215.txt"
+					date_str = filename[12:20]  # Extract YYYYMMDD
+					file_date_int = int(date_str)
+					
+					# Remove if older than 7 days (rough calculation)
+					if current_date_int - file_date_int > 7:
+						os.remove(filename)
+						print(f"Deleted old log: {filename}")
+						
+				except (ValueError, OSError):
+					continue  # Skip files that don't match pattern or can't be deleted
+					
+	except Exception as e:
+		print(f"Log cleanup failed: {e}")
 
 def cleanup_sockets():
 	"""Force garbage collection to free up sockets"""
@@ -499,7 +569,7 @@ def show_weather_display(rtc, duration=30):
 	while time.monotonic() - start_time < duration:
 		# Refresh weather data every 5 minutes (300 seconds)
 		current_time_mono = time.monotonic()
-		if current_time_mono - last_weather_update > 1800:
+		if current_time_mono - last_weather_update > 600:
 			log_entry("Refreshing weather data...")
 			new_weather = fetch_weather_data()
 			if new_weather:
@@ -630,7 +700,7 @@ def main():
 				check_daily_reset(rtc)
 				
 				# Show weather (30 seconds)
-				show_weather_display(rtc, duration=1800)
+				show_weather_display(rtc, duration=200)
 				
 				# Show event if exists (10 seconds)
 				event_shown = show_event_display(rtc, duration=30)
