@@ -24,6 +24,9 @@ gc.collect()
 
 ### CONSTANTS AND VARIABLES ###
 
+# Hardware
+MATRIX_TYPE = "type2"  # Change to "type1" for second display
+
 # Colors (6-bit values for your matrix)
 BLACK = 0x000000
 DIMMEST_WHITE = 0x101010
@@ -157,9 +160,17 @@ def convert_bmp_palette(palette):
 	
 	for i in range(palette_len):
 		original_color = palette[i]
-		red_8bit = (original_color >> 16) & 0xFF    # Red stays
-		green_8bit = (original_color >> 8) & 0xFF   # Green stays  
-		blue_8bit = original_color & 0xFF           # Blue stays (no swap)
+		
+		if MATRIX_TYPE == "type1":
+			# Current working setup
+			red_8bit = (original_color >> 16) & 0xFF
+			blue_8bit = (original_color >> 8) & 0xFF
+			green_8bit = original_color & 0xFF
+		else:  # type2
+			# Alternative wiring
+			red_8bit = (original_color >> 16) & 0xFF
+			green_8bit = (original_color >> 8) & 0xFF
+			blue_8bit = original_color & 0xFF          # Blue stays (no swap)
 		
 		red_6bit = red_8bit >> 2
 		green_6bit = green_8bit >> 2
