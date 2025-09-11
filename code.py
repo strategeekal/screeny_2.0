@@ -62,7 +62,7 @@ calendar = {
 	"0101": ["New Year", "Happy", "new_year.bmp"],
 	"1123": ["Ric", "Cumple", "cake_sq.bmp"],
 	"0811": ["Alan", "Cumple", "cake_sq.bmp"],
-	"0915": ["Mexico", "Viva", "mexico_flag_v3.bmp"],
+	"0916": ["Mexico", "Viva", "mexico_flag_v3.bmp"],
 	"0704": ["July", "4th of", "us_flag.bmp"],
 	"0301": ["", "Spring", "spring.bmp"],
 	"0601": ["", "Summer", "summer.bmp"],
@@ -540,11 +540,11 @@ def main():
 			sync_time_ntp(rtc)
 		
 		# Test date override (remove for production)
-		test_time = list(rtc.datetime)
-		test_time[1] = 9  # September
-		test_time[2] = 15  # 1st
-		rtc.datetime = time.struct_time(tuple(test_time))
-		log_entry(f"Test date set: {rtc.datetime}")
+		#test_time = list(rtc.datetime)
+		#test_time[1] = 9  # September
+		#test_time[2] = 15  # 1st
+		#rtc.datetime = time.struct_time(tuple(test_time))
+		#log_entry(f"Test date set: {rtc.datetime}")
 		
 		# Initialize timing
 		last_successful_weather = time.monotonic()
