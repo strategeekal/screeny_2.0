@@ -36,6 +36,9 @@ default_text_color = DIMMEST_WHITE
 # Weather constants
 ACCUWEATHER_LOCATION_KEY = "2626571"
 
+# Global RTC instance for logging
+rtc_instance = None
+
 # Tracking variables
 api_call_count = 0
 consecutive_failures = 0
@@ -53,7 +56,7 @@ font = bitmap_font.load_font("fonts/tinybit6-16.bdf")
 # Calendar
 calendar = {
 	"0825": ["Diego", "Birthday", "cake.bmp"],
-	"0703": ["Gaby", "Birthday", "cake.bmp"], 
+	"0703": ["Gaby", "Birthday", "cake.bmp"],
 	"1109": ["Tiago", "Birthday", "cake.bmp"],
 	"0210": ["Emilio", "Birthday", "cake.bmp"],
 	"1225": ["X-MAS", "Merry", "xmas.bmp"],
@@ -91,9 +94,14 @@ display.root_group = main_group
 ### LOGGING FUNCTIONS ###
 
 def log_entry(message, error=False):
-	"""Write log entry with timestamp"""
+	"""Write log entry with timestamp from RTC"""
+	global rtc_instance
 	try:
-		current_time = time.localtime()
+		if rtc_instance:
+			current_time = rtc_instance.datetime
+		else:
+			current_time = time.localtime()  # Fallback if RTC not available
+			
 		timestamp = f"{current_time.tm_year}-{current_time.tm_mon:02d}-{current_time.tm_mday:02d} {current_time.tm_hour:02d}:{current_time.tm_min:02d}:{current_time.tm_sec:02d}"
 		log_type = "ERROR" if error else "INFO"
 		
@@ -191,7 +199,7 @@ def twelve_hour_format(hour):
 
 def get_month_name(month_num):
 	"""Get short month name"""
-	months = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", 
+	months = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
 			  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 	return months[month_num]
 
@@ -209,7 +217,7 @@ def check_daily_reset(rtc):
 	current_time = time.monotonic()
 	hours_running = (current_time - startup_time) / 3600
 	
-	if (hours_running > 24 or 
+	if (hours_running > 24 or
 		(hours_running > 1 and rtc.datetime.tm_hour == DAILY_RESET_HOUR and rtc.datetime.tm_min < 5)):
 		
 		log_entry(f"Daily reset triggered (running {hours_running:.1f} hours)")
@@ -232,10 +240,12 @@ def cleanup_sockets():
 
 def setup_rtc():
 	"""Initialize RTC with retry logic"""
+	global rtc_instance
 	for attempt in range(10):
 		try:
 			i2c = board.I2C()
 			rtc = adafruit_ds3231.DS3231(i2c)
+			rtc_instance = rtc  # Set global instance
 			log_entry(f"RTC initialized: {rtc.datetime}")
 			return rtc
 		except Exception as e:
@@ -352,15 +362,84 @@ def fetch_weather_data():
 		consecutive_failures += 1
 		cleanup_sockets()
 		return None
+		
+def is_dst_us_central(dt):
+	"""
+	Determine if a given UTC datetime falls within US Central Daylight Time.
+
+	DST Rules for US Central Time:
+	- Starts: 2nd Sunday in March at 2:00 AM local time (becomes 3:00 AM)
+	- Ends: 1st Sunday in November at 2:00 AM local time (becomes 1:00 AM)
+
+	Args:
+		dt: time struct from time.localtime() or similar (UTC time)
+
+	Returns:
+		bool: True if DST is active, False otherwise
+	"""
+	year = dt.tm_year
+	month = dt.tm_mon
+	day = dt.tm_mday
+	hour = dt.tm_hour
+
+	# Find the 2nd Sunday in March
+	march_1st_weekday = (dt.tm_wday - (day - 1)) % 7
+	first_sunday_march = 7 - march_1st_weekday if march_1st_weekday != 6 else 0
+	if first_sunday_march == 0:
+		first_sunday_march = 7
+	second_sunday_march = first_sunday_march + 7
+
+	# Find the 1st Sunday in November
+	# Create a time struct for November 1st of the same year
+	nov_1st = time.struct_time((year, 11, 1, 0, 0, 0, 0, 0, 0))
+	nov_1st_weekday = time.localtime(time.mktime(nov_1st)).tm_wday
+	first_sunday_november = 7 - nov_1st_weekday if nov_1st_weekday != 6 else 0
+	if first_sunday_november == 0:
+		first_sunday_november = 7
+
+	# Check if we're in DST period
+	if month < 3 or month > 11:
+		return False
+	elif month > 3 and month < 11:
+		return True
+	elif month == 3:
+		# March - check if we're past the 2nd Sunday at 2 AM
+		if day < second_sunday_march:
+			return False
+		elif day > second_sunday_march:
+			return True
+		else:
+			# It's the 2nd Sunday - check if it's past 2 AM local time
+			# Since we're working with UTC, we need to account for standard time offset
+			# 2 AM CST = 8 AM UTC
+			return hour >= 8
+	elif month == 11:
+		# November - check if we're before the 1st Sunday at 2 AM
+		if day < first_sunday_november:
+			return True
+		elif day > first_sunday_november:
+			return False
+		else:
+			# It's the 1st Sunday - check if it's before 2 AM local time
+			# 2 AM CDT = 7 AM UTC (because we're still in DST until 2 AM)
+			return hour < 7
 
 def sync_time_ntp(rtc):
-	"""Sync RTC with NTP server"""
 	try:
 		cleanup_sockets()
 		pool = socketpool.SocketPool(wifi.radio)
-		ntp = adafruit_ntp.NTP(pool, tz_offset=-6)  # Central Time
+		
+		# Get UTC time first to check DST
+		ntp_utc = adafruit_ntp.NTP(pool, tz_offset=0)
+		utc_time = ntp_utc.datetime
+		
+		# Use your existing DST logic
+		dst_active = is_dst_us_central(utc_time)
+		offset = -5 if dst_active else -6
+		
+		ntp = adafruit_ntp.NTP(pool, tz_offset=offset)
 		rtc.datetime = ntp.datetime
-		log_entry(f"Time synced: {rtc.datetime}")
+		log_entry(f"Time synced with offset {offset}: {rtc.datetime}")
 	except Exception as e:
 		log_entry(f"NTP sync failed: {e}", error=True)
 
@@ -420,7 +499,7 @@ def show_weather_display(rtc, duration=30):
 	while time.monotonic() - start_time < duration:
 		# Refresh weather data every 5 minutes (300 seconds)
 		current_time_mono = time.monotonic()
-		if current_time_mono - last_weather_update > 300:
+		if current_time_mono - last_weather_update > 1800:
 			log_entry("Refreshing weather data...")
 			new_weather = fetch_weather_data()
 			if new_weather:
@@ -527,24 +606,17 @@ def show_event_display(rtc, duration=10):
 
 def main():
 	"""Main program loop"""
-	global last_successful_weather
+	global last_successful_weather, rtc_instance, startup_time
 	
 	log_entry("=== PROGRAM STARTED ===")
 	
 	try:
 		# Initialize hardware
-		rtc = setup_rtc()
+		rtc = setup_rtc()  # This sets rtc_instance globally
 		wifi_connected = setup_wifi()
 		
 		if wifi_connected:
 			sync_time_ntp(rtc)
-		
-		# Test date override (remove for production)
-		#test_time = list(rtc.datetime)
-		#test_time[1] = 9  # September
-		#test_time[2] = 15  # 1st
-		#rtc.datetime = time.struct_time(tuple(test_time))
-		#log_entry(f"Test date set: {rtc.datetime}")
 		
 		# Initialize timing
 		last_successful_weather = time.monotonic()
@@ -558,7 +630,7 @@ def main():
 				check_daily_reset(rtc)
 				
 				# Show weather (30 seconds)
-				show_weather_display(rtc, duration=800)
+				show_weather_display(rtc, duration=1800)
 				
 				# Show event if exists (10 seconds)
 				event_shown = show_event_display(rtc, duration=30)
