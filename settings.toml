@@ -3,6 +3,7 @@
 # Internet Credentials
 CIRCUITPY_WIFI_SSID = "o==[]:::::::::::::::::::::::::>"
 CIRCUITPY_WIFI_PASSWORD = "YOUR_WIFI_PASSWORD"
+ACCUWEATHER_API_KEY = "YOUR_ACCUWEATHER_API_KEY"
 
 # Adafruit IO
 ADAFRUIT_AIOS_USERNAME = "dcelayeta"

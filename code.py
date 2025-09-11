@@ -59,6 +59,9 @@ calendar = {
 	"1201": ["", "Winter", "winter.bmp"],
 }
 
+# Weather constants
+ACCUWEATHER_LOCATION_KEY = "2626571"
+
 ### INITIALIZE SCREEN ###
 displayio.release_displays()
 
@@ -186,6 +189,76 @@ def setup_wifi():
 	
 	print("WiFi connection failed")
 	return False
+	
+def fetch_weather_data():
+	"""Fetch current weather data from AccuWeather API"""
+	try:
+		# Get API key from settings.toml file
+		try:
+			with open("settings.toml", "r") as f:
+				for line in f:
+					if line.startswith("ACCUWEATHER_API_KEY"):
+						api_key = line.split("=")[1].strip().strip('"').strip("'")
+						break
+				else:
+					api_key = None
+		except:
+			api_key = None
+			
+		if not api_key:
+			print("AccuWeather API key not found in settings.toml")
+			return None
+		
+		# Build API URL with query parameters manually
+		url = f"https://dataservice.accuweather.com/currentconditions/v1/{ACCUWEATHER_LOCATION_KEY}?apikey={api_key}&details=true"
+		
+		# Setup request
+		pool = socketpool.SocketPool(wifi.radio)
+		requests = adafruit_requests.Session(pool, ssl.create_default_context())
+		
+		# Make API call
+		print("Fetching weather data...")
+		response = requests.get(url)
+		
+		if response.status_code != 200:
+			print(f"Weather API error: {response.status_code}")
+			return None
+		
+		# Parse JSON response
+		weather_json = response.json()
+		response.close()
+		
+		if not weather_json or len(weather_json) == 0:
+			print("Empty weather response")
+			return None
+		
+		# Extract data from first (current) condition
+		current = weather_json[0]
+		
+		# Extract temperature data in Metric (Celsius)
+		temp_data = current.get("Temperature", {}).get("Metric", {})
+		realfeel_data = current.get("RealFeelTemperature", {}).get("Metric", {})
+		realfeel_shade_data = current.get("RealFeelTemperatureShade", {}).get("Metric", {})
+		
+		weather_data = {
+			"weather_icon": current.get("WeatherIcon", 0),
+			"temperature": temp_data.get("Value", 0),
+			"feels_like": realfeel_data.get("Value", 0),
+			"feels_shade": realfeel_shade_data.get("Value", 0),
+			"humidity": current.get("RelativeHumidity", 0),
+			"uv_index": current.get("UVIndex", 0),
+			"weather_text": current.get("WeatherText", "Unknown"),
+			"is_day_time": current.get("IsDayTime", True),
+			"success": True
+		}
+		
+		print(f"Weather: {weather_data['weather_text']}, {weather_data['temperature']}°C")
+		print(f"Feels like: {weather_data['feels_like']}°C, Shade: {weather_data['feels_shade']}°C")
+		return weather_data
+		
+	except Exception as e:
+		print(f"Weather fetch error: {e}")
+		return None
 
 def sync_time_ntp(rtc):
 	"""Sync RTC with NTP server"""
@@ -202,6 +275,15 @@ def sync_time_ntp(rtc):
 def show_weather_display(rtc, duration=30):
 	"""Display weather and time"""
 	print("Displaying weather...")
+	
+	# Fetch fresh weather data
+	weather_data = fetch_weather_data()
+	
+	if not weather_data:
+		print("Weather data unavailable, showing clock instead")
+		show_clock_display(rtc, duration)
+		return
+	
 	clear_display()
 	
 	# Create display elements
@@ -210,44 +292,61 @@ def show_weather_display(rtc, duration=30):
 	feels_shade_text = bitmap_label.Label(font, color=default_text_color, y=24)
 	time_text = bitmap_label.Label(font, color=default_text_color, x=15, y=24)
 	
-	# Mock weather data (replace with AccuWeather API call)
-	weather_icon = 1.1
-	temperature = 72.3
-	feels_like = 75.2
-	feels_shade = 76.7
-	
 	# Load weather icon
 	try:
-		bitmap, palette = load_bmp_image(f"img/{weather_icon}.bmp")
+		bitmap, palette = load_bmp_image(f"img/{weather_data['weather_icon']}.bmp")
 		image_grid = displayio.TileGrid(bitmap, pixel_shader=palette)
 		main_group.append(image_grid)
 	except Exception as e:
 		print(f"Weather icon load failed: {e}")
 	
 	# Setup temperature display
-	temp_text.text = temp_format(temperature)
+	temp_text.text = temp_format(weather_data['temperature'])
 	main_group.append(temp_text)
 	
 	# Add feels-like temperatures if different
-	if round(feels_like) != round(temperature):
-		feels_like_text.text = temp_format(feels_like)
+	if round(weather_data['feels_like']) != round(weather_data['temperature']):
+		feels_like_text.text = temp_format(weather_data['feels_like'])
 		feels_like_text.x = 64 - 1 - get_text_width(feels_like_text.text, font)
 		main_group.append(feels_like_text)
 	
-	if round(feels_shade) != round(feels_like):
-		feels_shade_text.text = temp_format(feels_shade)
+	if round(weather_data['feels_shade']) != round(weather_data['feels_like']):
+		feels_shade_text.text = temp_format(weather_data['feels_shade'])
 		feels_shade_text.x = 64 - 1 - get_text_width(feels_shade_text.text, font)
 		main_group.append(feels_shade_text)
 	
 	main_group.append(time_text)
 	
-	# Update loop
+	# Update loop (refresh weather every 5 minutes)
 	start_time = time.monotonic()
+	last_weather_update = start_time
+	
 	while time.monotonic() - start_time < duration:
+		# Refresh weather data every 5 minutes (300 seconds)
+		current_time_mono = time.monotonic()
+		if current_time_mono - last_weather_update > 300:
+			print("Refreshing weather data...")
+			new_weather = fetch_weather_data()
+			if new_weather:
+				weather_data = new_weather
+				print("fetching new weather data")
+				# Update temperature displays
+				temp_text.text = temp_format(weather_data['temperature'])
+				if round(weather_data['feels_like']) != round(weather_data['temperature']):
+					feels_like_text.text = temp_format(weather_data['feels_like'])
+					feels_like_text.x = 64 - 1 - get_text_width(feels_like_text.text, font)
+				if round(weather_data['feels_shade']) != round(weather_data['feels_like']):
+					feels_shade_text.text = temp_format(weather_data['feels_shade'])
+					feels_shade_text.x = 64 - 1 - get_text_width(feels_shade_text.text, font)
+			last_weather_update = current_time_mono
+		
 		# Update time display
-		current_time = f"{twelve_hour_format(rtc.datetime.tm_hour)}:{rtc.datetime.tm_min:02d}"
+		current_time = f"{twelve_hour_format(rtc.datetime.tm_hour)}:{rtc.datetime.tm_min:02d}:{rtc.datetime.tm_sec:02d}"
 		time_text.text = current_time
-		time_text.x = math.floor((64 - get_text_width(current_time, font)) / 2)
+		if round(weather_data['feels_shade']) != round(weather_data['feels_like']):
+			time_text.x = math.floor((64 - get_text_width(current_time, font)) / 2)
+		else:
+			time_text.x = 64 - 1 - get_text_width(current_time, font)
 		time.sleep(1)
 
 def show_clock_display(rtc, duration=30):
@@ -262,7 +361,6 @@ def show_clock_display(rtc, duration=30):
 	main_group.append(time_text)
 	
 	start_time = time.monotonic()
-	counter = 1
 	
 	while time.monotonic() - start_time < duration:
 		date_str = f"{get_month_name(rtc.datetime.tm_mon).upper()} {rtc.datetime.tm_mday:02d}"
@@ -271,8 +369,6 @@ def show_clock_display(rtc, duration=30):
 		date_text.text = date_str
 		time_text.text = time_str
 		
-		print(f"Clock {counter}: {date_str} - {time_str}")
-		counter += 1
 		time.sleep(1)
 
 def show_event_display(rtc, duration=10):
@@ -332,11 +428,11 @@ def main():
 		sync_time_ntp(rtc)
 	
 	# Test date override (remove for production)
-	#test_time = list(rtc.datetime)
-	#test_time[1] = 7  # Month Number
-	#test_time[2] = 4  # Day Number
-	#rtc.datetime = time.struct_time(tuple(test_time))
-	#print(f"Test date set: {rtc.datetime}")
+	test_time = list(rtc.datetime)
+	test_time[1] = 9  # September
+	test_time[2] = 1  # 1st
+	rtc.datetime = time.struct_time(tuple(test_time))
+	print(f"Test date set: {rtc.datetime}")
 	
 	# Main display loop
 	print("Starting display loop...")
