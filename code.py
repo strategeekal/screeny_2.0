@@ -24,9 +24,6 @@ gc.collect()
 
 ### CONSTANTS AND VARIABLES ###
 
-# Hardware
-MATRIX_TYPE = "type2"  # Change to "type1" for second display
-
 # Colors (6-bit values for your matrix)
 BLACK = 0x000000
 DIMMEST_WHITE = 0x101010
@@ -145,6 +142,23 @@ def log_api_call():
 		log_entry(f"Failed to log API call: {e}", error=True)
 
 ### UTILITY FUNCTIONS ###
+
+def detect_matrix_type():
+	"""Auto-detect matrix type based on device unique ID"""
+	import microcontroller
+	uid = microcontroller.cpu.uid
+	device_id = "".join([f"{b:02x}" for b in uid[-3:]])  # Last 3 bytes as hex
+	
+	# Map your specific device IDs to matrix types
+	device_mappings = {
+		"2236c5": "type1",  # Replace with actual device ID from first matrix
+		"f78b47": "type2",  # Replace with actual device ID from second matrix
+	}
+	
+	return device_mappings.get(device_id, "type1")  # Default to type1
+
+# Then use:
+MATRIX_TYPE = detect_matrix_type()
 
 def convert_bmp_palette(palette):
 	"""Convert BMP palette from 8-bit to 6-bit with BGR->RGB swap"""
