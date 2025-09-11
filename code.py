@@ -157,9 +157,9 @@ def convert_bmp_palette(palette):
 	
 	for i in range(palette_len):
 		original_color = palette[i]
-		red_8bit = (original_color >> 16) & 0xFF
-		blue_8bit = (original_color >> 8) & 0xFF
-		green_8bit = original_color & 0xFF
+		red_8bit = (original_color >> 16) & 0xFF    # Red stays
+		green_8bit = (original_color >> 8) & 0xFF   # Green stays  
+		blue_8bit = original_color & 0xFF           # Blue stays (no swap)
 		
 		red_6bit = red_8bit >> 2
 		green_6bit = green_8bit >> 2
