@@ -1,4 +1,4 @@
-##### TIME AND WEATHER SCREENY - OPTIMIZED #####
+##### TIME AND WEATHER SCREENY - ENHANCED #####
 
 ### Import Libraries ###
 import board
@@ -33,11 +33,24 @@ LILAC = 0x161408
 
 default_text_color = DIMMEST_WHITE
 
+# Weather constants
+ACCUWEATHER_LOCATION_KEY = "2626571"
+
+# Tracking variables
+api_call_count = 0
+consecutive_failures = 0
+last_successful_weather = 0
+
+# Daily reset variables
+DAILY_RESET_ENABLED = True
+DAILY_RESET_HOUR = 3
+startup_time = 0
+
 # Load Fonts
 bg_font = bitmap_font.load_font("fonts/bigbit10-16.bdf")
 font = bitmap_font.load_font("fonts/tinybit6-16.bdf")
 
-# Calendar (only BMP files since you're optimizing for BMP only)
+# Calendar
 calendar = {
 	"0825": ["Diego", "Birthday", "cake.bmp"],
 	"0703": ["Gaby", "Birthday", "cake.bmp"], 
@@ -59,9 +72,6 @@ calendar = {
 	"1201": ["", "Winter", "winter.bmp"],
 }
 
-# Weather constants
-ACCUWEATHER_LOCATION_KEY = "2626571"
-
 ### INITIALIZE SCREEN ###
 displayio.release_displays()
 
@@ -77,6 +87,50 @@ display = framebufferio.FramebufferDisplay(matrix, auto_refresh=True)
 display.brightness = 0.1
 main_group = displayio.Group()
 display.root_group = main_group
+
+### LOGGING FUNCTIONS ###
+
+def log_entry(message, error=False):
+	"""Write log entry with timestamp"""
+	try:
+		current_time = time.localtime()
+		timestamp = f"{current_time.tm_year}-{current_time.tm_mon:02d}-{current_time.tm_mday:02d} {current_time.tm_hour:02d}:{current_time.tm_min:02d}:{current_time.tm_sec:02d}"
+		log_type = "ERROR" if error else "INFO"
+		
+		# Try to write to file, but don't fail if filesystem is read-only
+		try:
+			with open("weather_log.txt", "a") as f:
+				f.write(f"[{timestamp}] {log_type}: {message}\n")
+		except OSError:
+			# Filesystem is read-only (USB connected), just print to console
+			pass
+		
+		print(f"[{timestamp}] {log_type}: {message}")
+	except Exception as e:
+		print(f"Logging failed: {e}")
+
+def log_api_call():
+	"""Log API call and increment daily counter"""
+	global api_call_count
+	try:
+		api_call_count += 1
+		
+		# Try to update daily counter file
+		daily_count = api_call_count  # Fallback to session count
+		try:
+			with open("daily_calls.txt", "r") as f:
+				daily_count = int(f.read().strip())
+			daily_count += 1
+			with open("daily_calls.txt", "w") as f:
+				f.write(str(daily_count))
+		except OSError:
+			# Filesystem is read-only, use session count only
+			daily_count = api_call_count
+		
+		log_entry(f"API Call #{api_call_count} (Daily: {daily_count}/500)")
+		
+	except Exception as e:
+		log_entry(f"Failed to log API call: {e}", error=True)
 
 ### UTILITY FUNCTIONS ###
 
@@ -94,12 +148,10 @@ def convert_bmp_palette(palette):
 	
 	for i in range(palette_len):
 		original_color = palette[i]
-		# Swap green and blue channels for your specific setup
 		red_8bit = (original_color >> 16) & 0xFF
 		blue_8bit = (original_color >> 8) & 0xFF
 		green_8bit = original_color & 0xFF
 		
-		# Convert to 6-bit
 		red_6bit = red_8bit >> 2
 		green_6bit = green_8bit >> 2
 		blue_6bit = blue_8bit >> 2
@@ -137,10 +189,6 @@ def twelve_hour_format(hour):
 	"""Convert 24-hour to 12-hour format"""
 	return hour - 12 if hour > 12 else hour
 
-def get_meridian(hour):
-	"""Get AM/PM indicator"""
-	return "AM" if hour < 12 else "PM"
-
 def get_month_name(month_num):
 	"""Get short month name"""
 	months = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", 
@@ -151,6 +199,34 @@ def clear_display():
 	"""Clear all elements from display"""
 	while len(main_group):
 		main_group.pop()
+		
+def check_daily_reset(rtc):
+	global startup_time
+	
+	if not DAILY_RESET_ENABLED:
+		return
+	
+	current_time = time.monotonic()
+	hours_running = (current_time - startup_time) / 3600
+	
+	if (hours_running > 24 or 
+		(hours_running > 1 and rtc.datetime.tm_hour == DAILY_RESET_HOUR and rtc.datetime.tm_min < 5)):
+		
+		log_entry(f"Daily reset triggered (running {hours_running:.1f} hours)")
+		
+		try:
+			with open("daily_calls.txt", "w") as f:
+				f.write("0")
+		except OSError:
+			pass
+		
+		time.sleep(2)
+		supervisor.reload()
+
+def cleanup_sockets():
+	"""Force garbage collection to free up sockets"""
+	gc.collect()
+	log_entry("Socket cleanup performed")
 
 ### TIME AND NETWORK SETUP ###
 
@@ -160,13 +236,13 @@ def setup_rtc():
 		try:
 			i2c = board.I2C()
 			rtc = adafruit_ds3231.DS3231(i2c)
-			print(f"RTC initialized: {rtc.datetime}")
+			log_entry(f"RTC initialized: {rtc.datetime}")
 			return rtc
 		except Exception as e:
-			print(f"RTC attempt {attempt + 1} failed: {e}")
+			log_entry(f"RTC attempt {attempt + 1} failed: {e}", error=True)
 			time.sleep(2)
 	
-	print("RTC initialization failed, restarting...")
+	log_entry("RTC initialization failed, restarting...", error=True)
 	supervisor.reload()
 
 def setup_wifi():
@@ -175,23 +251,25 @@ def setup_wifi():
 	password = os.getenv("CIRCUITPY_WIFI_PASSWORD")
 	
 	if not ssid or not password:
-		print("WiFi credentials missing")
+		log_entry("WiFi credentials missing", error=True)
 		return False
 	
 	for attempt in range(5):
 		try:
 			wifi.radio.connect(ssid, password)
-			print(f"Connected to {ssid}")
+			log_entry(f"Connected to {ssid}")
 			return True
 		except ConnectionError as e:
-			print(f"WiFi attempt {attempt + 1} failed: {e}")
+			log_entry(f"WiFi attempt {attempt + 1} failed: {e}", error=True)
 			time.sleep(2)
 	
-	print("WiFi connection failed")
+	log_entry("WiFi connection failed", error=True)
 	return False
-	
+
 def fetch_weather_data():
 	"""Fetch current weather data from AccuWeather API"""
+	global consecutive_failures, last_successful_weather
+	
 	try:
 		# Get API key from settings.toml file
 		try:
@@ -202,26 +280,34 @@ def fetch_weather_data():
 						break
 				else:
 					api_key = None
-		except:
+		except Exception as e:
+			log_entry(f"Failed to read API key: {e}", error=True)
 			api_key = None
 			
 		if not api_key:
-			print("AccuWeather API key not found in settings.toml")
+			log_entry("AccuWeather API key not found in settings.toml", error=True)
+			consecutive_failures += 1
 			return None
+		
+		# Log the API call
+		log_api_call()
 		
 		# Build API URL with query parameters manually
 		url = f"https://dataservice.accuweather.com/currentconditions/v1/{ACCUWEATHER_LOCATION_KEY}?apikey={api_key}&details=true"
+		
+		# Clean up sockets before making request
+		cleanup_sockets()
 		
 		# Setup request
 		pool = socketpool.SocketPool(wifi.radio)
 		requests = adafruit_requests.Session(pool, ssl.create_default_context())
 		
-		# Make API call
-		print("Fetching weather data...")
 		response = requests.get(url)
 		
 		if response.status_code != 200:
-			print(f"Weather API error: {response.status_code}")
+			log_entry(f"Weather API error: {response.status_code}", error=True)
+			response.close()
+			consecutive_failures += 1
 			return None
 		
 		# Parse JSON response
@@ -229,7 +315,8 @@ def fetch_weather_data():
 		response.close()
 		
 		if not weather_json or len(weather_json) == 0:
-			print("Empty weather response")
+			log_entry("Empty weather response", error=True)
+			consecutive_failures += 1
 			return None
 		
 		# Extract data from first (current) condition
@@ -252,35 +339,44 @@ def fetch_weather_data():
 			"success": True
 		}
 		
-		print(f"Weather: {weather_data['weather_text']}, {weather_data['temperature']}°C")
-		print(f"Feels like: {weather_data['feels_like']}°C, Shade: {weather_data['feels_shade']}°C")
+		log_entry(f"Weather: {weather_data['weather_text']}, {weather_data['temperature']}°C")
+		
+		# Reset failure counter on success
+		consecutive_failures = 0
+		last_successful_weather = time.monotonic()
+		
 		return weather_data
 		
 	except Exception as e:
-		print(f"Weather fetch error: {e}")
+		log_entry(f"Weather fetch error: {e}", error=True)
+		consecutive_failures += 1
+		cleanup_sockets()
 		return None
 
 def sync_time_ntp(rtc):
 	"""Sync RTC with NTP server"""
 	try:
+		cleanup_sockets()
 		pool = socketpool.SocketPool(wifi.radio)
 		ntp = adafruit_ntp.NTP(pool, tz_offset=-6)  # Central Time
 		rtc.datetime = ntp.datetime
-		print(f"Time synced: {rtc.datetime}")
+		log_entry(f"Time synced: {rtc.datetime}")
 	except Exception as e:
-		print(f"NTP sync failed: {e}")
+		log_entry(f"NTP sync failed: {e}", error=True)
 
 ### DISPLAY FUNCTIONS ###
 
 def show_weather_display(rtc, duration=30):
 	"""Display weather and time"""
-	print("Displaying weather...")
+	global last_successful_weather
+	
+	log_entry("Displaying weather...")
 	
 	# Fetch fresh weather data
 	weather_data = fetch_weather_data()
 	
 	if not weather_data:
-		print("Weather data unavailable, showing clock instead")
+		log_entry("Weather data unavailable, showing clock instead", error=True)
 		show_clock_display(rtc, duration)
 		return
 	
@@ -298,7 +394,7 @@ def show_weather_display(rtc, duration=30):
 		image_grid = displayio.TileGrid(bitmap, pixel_shader=palette)
 		main_group.append(image_grid)
 	except Exception as e:
-		print(f"Weather icon load failed: {e}")
+		log_entry(f"Weather icon load failed: {e}", error=True)
 	
 	# Setup temperature display
 	temp_text.text = temp_format(weather_data['temperature'])
@@ -325,11 +421,10 @@ def show_weather_display(rtc, duration=30):
 		# Refresh weather data every 5 minutes (300 seconds)
 		current_time_mono = time.monotonic()
 		if current_time_mono - last_weather_update > 300:
-			print("Refreshing weather data...")
+			log_entry("Refreshing weather data...")
 			new_weather = fetch_weather_data()
 			if new_weather:
 				weather_data = new_weather
-				print("fetching new weather data")
 				# Update temperature displays
 				temp_text.text = temp_format(weather_data['temperature'])
 				if round(weather_data['feels_like']) != round(weather_data['temperature']):
@@ -341,7 +436,7 @@ def show_weather_display(rtc, duration=30):
 			last_weather_update = current_time_mono
 		
 		# Update time display
-		current_time = f"{twelve_hour_format(rtc.datetime.tm_hour)}:{rtc.datetime.tm_min:02d}:{rtc.datetime.tm_sec:02d}"
+		current_time = f"{twelve_hour_format(rtc.datetime.tm_hour)}:{rtc.datetime.tm_min:02d}"
 		time_text.text = current_time
 		if round(weather_data['feels_shade']) != round(weather_data['feels_like']):
 			time_text.x = math.floor((64 - get_text_width(current_time, font)) / 2)
@@ -351,7 +446,9 @@ def show_weather_display(rtc, duration=30):
 
 def show_clock_display(rtc, duration=30):
 	"""Display clock only (fallback)"""
-	print("Displaying clock...")
+	global consecutive_failures, last_successful_weather
+	
+	log_entry("Displaying clock...")
 	clear_display()
 	
 	date_text = bitmap_label.Label(font, color=default_text_color, x=5, y=7)
@@ -370,6 +467,13 @@ def show_clock_display(rtc, duration=30):
 		time_text.text = time_str
 		
 		time.sleep(1)
+	
+	# Check if we should restart due to persistent weather failures
+	time_since_success = time.monotonic() - last_successful_weather
+	if consecutive_failures >= 3 or time_since_success > 600:  # 10 minutes
+		log_entry(f"Restarting due to weather failures (failures: {consecutive_failures}, time since success: {time_since_success:.0f}s)", error=True)
+		time.sleep(2)
+		supervisor.reload()
 
 def show_event_display(rtc, duration=10):
 	"""Display special events"""
@@ -379,35 +483,38 @@ def show_event_display(rtc, duration=10):
 		return False
 	
 	event_data = calendar[month_day]
-	print(f"Showing event: {event_data[1]}")
+	log_entry(f"Showing event: {event_data[1]}")
 	clear_display()
 	
-	if event_data[1] == "Birthday":
-		bitmap, palette = load_bmp_image("img/cake.bmp")
-		image_grid = displayio.TileGrid(bitmap, pixel_shader=palette)
-		main_group.append(image_grid)
-	else:
-		# Load event image
-		image_file = f"img/{event_data[2]}"
-		if event_data[2] in os.listdir("img"):
-			bitmap, palette = load_bmp_image(image_file)
+	try:
+		if event_data[1] == "Birthday":
+			bitmap, palette = load_bmp_image("img/cake.bmp")
+			image_grid = displayio.TileGrid(bitmap, pixel_shader=palette)
+			main_group.append(image_grid)
 		else:
-			bitmap, palette = load_bmp_image("img/blank_sq.bmp")
-		
-		image_grid = displayio.TileGrid(bitmap, pixel_shader=palette)
-		image_grid.x = 36
-		image_grid.y = 2
-		
-		# Create text labels
-		line1_font = choose_font_for_text(event_data[1])
-		line2_font = choose_font_for_text(event_data[0])
-		
-		text1 = bitmap_label.Label(line1_font, color=default_text_color, text=event_data[1], x=2, y=5)
-		text2 = bitmap_label.Label(line2_font, color=MINT, text=event_data[0], x=2, y=19)
-		
-		main_group.append(image_grid)
-		main_group.append(text1)
-		main_group.append(text2)
+			# Load event image
+			image_file = f"img/{event_data[2]}"
+			if event_data[2] in os.listdir("img"):
+				bitmap, palette = load_bmp_image(image_file)
+			else:
+				bitmap, palette = load_bmp_image("img/blank_sq.bmp")
+			
+			image_grid = displayio.TileGrid(bitmap, pixel_shader=palette)
+			image_grid.x = 36
+			image_grid.y = 2
+			
+			# Create text labels
+			line1_font = choose_font_for_text(event_data[1])
+			line2_font = choose_font_for_text(event_data[0])
+			
+			text1 = bitmap_label.Label(line1_font, color=default_text_color, text=event_data[1], x=2, y=5)
+			text2 = bitmap_label.Label(line2_font, color=MINT, text=event_data[0], x=2, y=19)
+			
+			main_group.append(image_grid)
+			main_group.append(text1)
+			main_group.append(text2)
+	except Exception as e:
+		log_entry(f"Event display error: {e}", error=True)
 	
 	# Wait for duration
 	start_time = time.monotonic()
@@ -420,36 +527,53 @@ def show_event_display(rtc, duration=10):
 
 def main():
 	"""Main program loop"""
-	# Initialize hardware
-	rtc = setup_rtc()
-	wifi_connected = setup_wifi()
+	global last_successful_weather
 	
-	if wifi_connected:
-		sync_time_ntp(rtc)
+	log_entry("=== PROGRAM STARTED ===")
 	
-	# Test date override (remove for production)
-	test_time = list(rtc.datetime)
-	test_time[1] = 9  # September
-	test_time[2] = 1  # 1st
-	rtc.datetime = time.struct_time(tuple(test_time))
-	print(f"Test date set: {rtc.datetime}")
-	
-	# Main display loop
-	print("Starting display loop...")
-	while True:
-		try:
-			# Show weather (30 seconds)
-			show_weather_display(rtc, duration=30)
-			
-			# Show event if exists (10 seconds)
-			event_shown = show_event_display(rtc, duration=10)
-			
-			if not event_shown:
-				time.sleep(1)  # Brief pause if no event
+	try:
+		# Initialize hardware
+		rtc = setup_rtc()
+		wifi_connected = setup_wifi()
+		
+		if wifi_connected:
+			sync_time_ntp(rtc)
+		
+		# Test date override (remove for production)
+		test_time = list(rtc.datetime)
+		test_time[1] = 9  # September
+		test_time[2] = 15  # 1st
+		rtc.datetime = time.struct_time(tuple(test_time))
+		log_entry(f"Test date set: {rtc.datetime}")
+		
+		# Initialize timing
+		last_successful_weather = time.monotonic()
+		startup_time = time.monotonic()
+		
+		# Main display loop
+		log_entry("Starting display loop...")
+		while True:
+			try:
+				# Check for daily reset
+				check_daily_reset(rtc)
 				
-		except Exception as e:
-			print(f"Main loop error: {e}")
-			time.sleep(5)
+				# Show weather (30 seconds)
+				show_weather_display(rtc, duration=30)
+				
+				# Show event if exists (10 seconds)
+				event_shown = show_event_display(rtc, duration=10)
+				
+				if not event_shown:
+					time.sleep(1)  # Brief pause if no event
+					
+			except Exception as e:
+				log_entry(f"Main loop error: {e}", error=True)
+				time.sleep(5)
+				
+	except Exception as e:
+		log_entry(f"Critical error: {e}", error=True)
+		time.sleep(10)
+		supervisor.reload()
 
 # Start program
 if __name__ == "__main__":
