@@ -44,7 +44,8 @@ api_call_count = 0
 consecutive_failures = 0
 last_successful_weather = 0
 
-# Daily reset variables
+# Periodic and Daily reset variables
+MAX_API_CALLS_BEFORE_RESTART = 20  # Conservative - restart every ~100 minutes
 DAILY_RESET_ENABLED = True
 DAILY_RESET_HOUR = 3
 startup_time = 0
@@ -302,9 +303,14 @@ def cleanup_old_logs(current_date):
 		print(f"Log cleanup failed: {e}")
 
 def cleanup_sockets():
-	"""Force garbage collection to free up sockets"""
-	gc.collect()
-	log_entry("Socket cleanup performed")
+		"""Enhanced socket cleanup"""
+		import gc
+		
+		# Force multiple garbage collection cycles
+		for _ in range(3):
+			gc.collect()
+		
+		log_entry("Enhanced socket cleanup performed")
 
 ### TIME AND NETWORK SETUP ###
 
@@ -424,9 +430,15 @@ def fetch_weather_data():
 		# Reset failure counter on success
 		consecutive_failures = 0
 		last_successful_weather = time.monotonic()
+			
+		# ADD THE RESTART CHECK HERE - after successful API call but before return
+		if api_call_count >= MAX_API_CALLS_BEFORE_RESTART:
+			log_entry(f"Preventive restart after {api_call_count} API calls")
+			time.sleep(2)
+			supervisor.reload()
 		
 		return weather_data
-		
+			
 	except Exception as e:
 		log_entry(f"Weather fetch error: {e}", error=True)
 		consecutive_failures += 1
@@ -515,13 +527,13 @@ def sync_time_ntp(rtc):
 
 ### DISPLAY FUNCTIONS ###
 
-def show_weather_display(rtc, duration=30):
+def show_weather_display(rtc, duration=300):
 	"""Display weather and time"""
 	global last_successful_weather
 	
 	log_entry("Displaying weather...")
 	
-	# Fetch fresh weather data
+	# Fetch fresh weather data at the start of each cycle
 	weather_data = fetch_weather_data()
 	
 	if not weather_data:
@@ -562,27 +574,9 @@ def show_weather_display(rtc, duration=30):
 	
 	main_group.append(time_text)
 	
-	# Update loop (refresh weather every 5 minutes)
+	# Update loop (refresh weather every // minutes defined by main section)
 	start_time = time.monotonic()
-	last_weather_update = start_time
-	
 	while time.monotonic() - start_time < duration:
-		# Refresh weather data every 5 minutes (300 seconds)
-		current_time_mono = time.monotonic()
-		if current_time_mono - last_weather_update > 600:
-			log_entry("Refreshing weather data...")
-			new_weather = fetch_weather_data()
-			if new_weather:
-				weather_data = new_weather
-				# Update temperature displays
-				temp_text.text = temp_format(weather_data['temperature'])
-				if round(weather_data['feels_like']) != round(weather_data['temperature']):
-					feels_like_text.text = temp_format(weather_data['feels_like'])
-					feels_like_text.x = 64 - 1 - get_text_width(feels_like_text.text, font)
-				if round(weather_data['feels_shade']) != round(weather_data['feels_like']):
-					feels_shade_text.text = temp_format(weather_data['feels_shade'])
-					feels_shade_text.x = 64 - 1 - get_text_width(feels_shade_text.text, font)
-			last_weather_update = current_time_mono
 		
 		# Update time display
 		current_time = f"{twelve_hour_format(rtc.datetime.tm_hour)}:{rtc.datetime.tm_min:02d}"
@@ -700,7 +694,7 @@ def main():
 				check_daily_reset(rtc)
 				
 				# Show weather (30 seconds)
-				show_weather_display(rtc, duration=200)
+				show_weather_display(rtc, duration=300)
 				
 				# Show event if exists (10 seconds)
 				event_shown = show_event_display(rtc, duration=30)
