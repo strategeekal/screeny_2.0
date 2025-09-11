@@ -558,10 +558,10 @@ def main():
 				check_daily_reset(rtc)
 				
 				# Show weather (30 seconds)
-				show_weather_display(rtc, duration=30)
+				show_weather_display(rtc, duration=800)
 				
 				# Show event if exists (10 seconds)
-				event_shown = show_event_display(rtc, duration=10)
+				event_shown = show_event_display(rtc, duration=30)
 				
 				if not event_shown:
 					time.sleep(1)  # Brief pause if no event
