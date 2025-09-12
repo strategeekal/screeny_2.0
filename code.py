@@ -46,6 +46,21 @@ WEATHER_DISPLAY_DURATION = 300  # 5 minutes
 EVENT_DISPLAY_DURATION = 30
 CLOCK_FALLBACK_DURATION = 300
 
+TIMEZONE_CONFIG = {
+	"timezone": "America/New_York",  # Change this to your desired timezone
+}
+
+# Timezone offset table
+TIMEZONE_OFFSETS = {
+	"America/New_York": {"std": -5, "dst": -4, "dst_start": (3, 8), "dst_end": (11, 7)},
+	"America/Chicago": {"std": -6, "dst": -5, "dst_start": (3, 8), "dst_end": (11, 7)},
+	"America/Denver": {"std": -7, "dst": -6, "dst_start": (3, 8), "dst_end": (11, 7)},
+	"America/Los_Angeles": {"std": -8, "dst": -7, "dst_start": (3, 8), "dst_end": (11, 7)},
+	"Europe/London": {"std": 0, "dst": 1, "dst_start": (3, 25), "dst_end": (10, 25)},
+	"Europe/Paris": {"std": 1, "dst": 2, "dst_start": (3, 25), "dst_end": (10, 25)},
+	"Asia/Tokyo": {"std": 9, "dst": 9, "dst_start": None, "dst_end": None},  # No DST
+}
+
 ### GLOBAL STATE ###
 
 # Hardware instances
@@ -265,25 +280,79 @@ def is_dst_active(dt):
 	if month == 11:
 		return day < 7
 	return False
+	
+def get_timezone_offset(timezone_name, utc_datetime):
+	"""Calculate timezone offset including DST for a given timezone"""
+	
+	if timezone_name not in TIMEZONE_OFFSETS:
+		log_entry(f"Unknown timezone: {timezone_name}, using Chicago", error=True)
+		timezone_name = "America/Chicago"
+	
+	tz_info = TIMEZONE_OFFSETS[timezone_name]
+	
+	# If timezone doesn't observe DST
+	if tz_info["dst_start"] is None:
+		return tz_info["std"]
+	
+	# Check if DST is active
+	dst_active = is_dst_active_for_timezone(timezone_name, utc_datetime)
+	return tz_info["dst"] if dst_active else tz_info["std"]
+	
+def is_dst_active_for_timezone(timezone_name, utc_datetime):
+	"""Check if DST is active for a specific timezone and date"""
+	
+	if timezone_name not in TIMEZONE_OFFSETS:
+		return False
+	
+	tz_info = TIMEZONE_OFFSETS[timezone_name]
+	
+	# No DST for this timezone
+	if tz_info["dst_start"] is None:
+		return False
+	
+	month = utc_datetime.tm_mon
+	day = utc_datetime.tm_mday
+	
+	dst_start_month, dst_start_day = tz_info["dst_start"]
+	dst_end_month, dst_end_day = tz_info["dst_end"]
+	
+	# DST logic for Northern Hemisphere (US/Europe)
+	if month < dst_start_month or month > dst_end_month:
+		return False
+	elif month > dst_start_month and month < dst_end_month:
+		return True
+	elif month == dst_start_month:
+		return day >= dst_start_day
+	elif month == dst_end_month:
+		return day < dst_end_day
+	
+	return False
 
-def sync_time_ntp(rtc):
-	"""Sync RTC with NTP server"""
+def sync_time_with_timezone(rtc):
+	"""Enhanced NTP sync with configurable timezone support"""
+	
+	timezone_name = TIMEZONE_CONFIG["timezone"]
+	
 	try:
 		cleanup_sockets()
 		pool = socketpool.SocketPool(wifi.radio)
 		
-		# Get UTC time to determine DST
+		# Get UTC time first
 		ntp_utc = adafruit_ntp.NTP(pool, tz_offset=0)
 		utc_time = ntp_utc.datetime
 		
-		# Apply Central Time offset
-		offset = -5 if is_dst_active(utc_time) else -6
+		# Calculate timezone offset
+		offset = get_timezone_offset(timezone_name, utc_time)
+		
+		# Apply timezone offset
 		ntp = adafruit_ntp.NTP(pool, tz_offset=offset)
 		rtc.datetime = ntp.datetime
 		
-		log_entry(f"Time synced (UTC{offset:+d})")
+		log_entry(f"Time synced to {timezone_name} (UTC{offset:+d})")
+		
 	except Exception as e:
 		log_entry(f"NTP sync failed: {e}", error=True)
+
 
 def cleanup_sockets():
 	"""Aggressive socket cleanup to prevent memory issues"""
@@ -657,7 +726,7 @@ def main():
 		
 		# Sync time if WiFi available
 		if wifi_connected:
-			sync_time_ntp(rtc)
+			sync_time_with_timezone(rtc)
 		
 		# Initialize API tracking
 		load_daily_counter()
