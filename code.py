@@ -494,10 +494,10 @@ def show_weather_display(rtc, duration=WEATHER_DISPLAY_DURATION):
 	clear_display()
 	
 	# Create display elements
-	temp_text = bitmap_label.Label(bg_font, color=DEFAULT_TEXT_COLOR, x=2, y=20)
-	feels_like_text = bitmap_label.Label(font, color=DEFAULT_TEXT_COLOR, y=16)
-	feels_shade_text = bitmap_label.Label(font, color=DEFAULT_TEXT_COLOR, y=24)
-	time_text = bitmap_label.Label(font, color=DEFAULT_TEXT_COLOR, x=15, y=24)
+	temp_text = bitmap_label.Label(bg_font, color=DEFAULT_TEXT_COLOR, x=2, y=20, background_color = BLACK, padding_top =-5, padding_bottom = 1, padding_left = 1,)
+	feels_like_text = bitmap_label.Label(font, color=DEFAULT_TEXT_COLOR, y=16, background_color = BLACK, padding_top=-5, padding_bottom=-2, padding_left = 1,)
+	feels_shade_text = bitmap_label.Label(font, color=DEFAULT_TEXT_COLOR, y=24, background_color = BLACK, padding_top=-5, padding_bottom=-2, padding_left = 1,)
+	time_text = bitmap_label.Label(font, color=DEFAULT_TEXT_COLOR, x=15, y=24, background_color = BLACK, padding_top=-5, padding_bottom=-2, padding_left = 1,)
 	
 	# Load weather icon
 	try:
