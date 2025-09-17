@@ -10,6 +10,7 @@ import framebufferio
 import rgbmatrix
 from adafruit_display_text import bitmap_label
 from adafruit_bitmap_font import bitmap_font
+from adafruit_display_shapes.line import Line
 import adafruit_imageload
 import wifi
 import ssl
@@ -426,6 +427,59 @@ def clear_display():
 
 ### DISPLAY FUNCTIONS ###
 
+def calculate_uv_bar_length(uv_index):
+	"""Calculate UV bar length with spacing for readability"""
+	if uv_index <= 3:
+		return uv_index
+	elif uv_index <= 6:
+		return uv_index + 1
+	elif uv_index <= 9:
+		return uv_index + 2
+	else:
+		return uv_index + 3
+
+def calculate_humidity_bar_length(humidity):
+	"""Calculate humidity bar length (10% per pixel) with spacing every 20%"""
+	pixels = round(humidity / 10)  # 10% per pixel, so max 10 pixels at 100%
+	
+	# Add spacing pixels (black dots every 2 pixels = every 20%)
+	if pixels <= 2:
+		return pixels
+	elif pixels <= 4:
+		return pixels + 1  # Add 1 spacing pixel
+	elif pixels <= 6:
+		return pixels + 2  # Add 2 spacing pixels  
+	elif pixels <= 8:
+		return pixels + 3  # Add 3 spacing pixels
+	else:
+		return pixels + 4  # Add 4 spacing pixels
+		
+def add_indicator_bars(main_group, x_start, uv_index, humidity):
+	"""Add UV and humidity indicator bars to display"""
+	
+	# UV bar (only if UV > 0)
+	if uv_index > 0:
+		uv_length = calculate_uv_bar_length(uv_index)
+		main_group.append(Line(x_start, 27, x_start - 1 + uv_length, 27, DEFAULT_TEXT_COLOR))
+		
+		# UV spacing dots (black pixels every 3)
+		for i in [3, 7, 11]:
+			if i < uv_length:
+				main_group.append(Line(x_start + i, 27, x_start + i, 27, BLACK))
+	
+	# Humidity bar 
+	if humidity > 0:
+		humidity_length = calculate_humidity_bar_length(humidity)
+		
+		# Main humidity line
+		main_group.append(Line(x_start, 29, x_start - 1 + humidity_length, 29, DEFAULT_TEXT_COLOR))
+		
+		# Humidity spacing dots (black pixels every 2 = every 20%)
+		for i in [2, 5, 8, 11]:  # Positions for 20%, 40%, 60%, 80%
+			if i < humidity_length:
+				main_group.append(Line(x_start + i, 29, x_start + i, 29, BLACK))
+
+
 def show_weather_display(rtc, duration=WEATHER_DISPLAY_DURATION):
 	"""Display weather information and time"""
 	print("Displaying weather...")
@@ -456,6 +510,9 @@ def show_weather_display(rtc, duration=WEATHER_DISPLAY_DURATION):
 	# Setup temperature display
 	temp_text.text = f"{round(weather_data['temperature'])}°"
 	main_group.append(temp_text)
+	
+	# Add UV and humidity indicator bars
+	add_indicator_bars(main_group, temp_text.x, weather_data['uv_index'], weather_data['humidity'])
 	
 	# Add feels-like temperatures if different
 	temp_rounded = round(weather_data['temperature'])
