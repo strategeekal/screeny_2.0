@@ -35,13 +35,11 @@ DEFAULT_TEXT_COLOR = DIMMEST_WHITE
 # API Configuration
 ACCUWEATHER_LOCATION_KEY = "2626571"
 MAX_API_CALLS_BEFORE_RESTART = 8
-DAILY_API_LIMIT = 500
-API_LIMIT_WARNING_THRESHOLD = 400
 
 # System Configuration
 DAILY_RESET_ENABLED = True
 DAILY_RESET_HOUR = 3
-WEATHER_DISPLAY_DURATION = 300  # 5 minutes
+WEATHER_DISPLAY_DURATION = 10  # 5 minutes
 EVENT_DISPLAY_DURATION = 30
 CLOCK_FALLBACK_DURATION = 300
 
@@ -69,8 +67,6 @@ main_group = None
 
 # API tracking
 api_call_count = 0
-daily_api_count = 0
-last_count_date = ""
 consecutive_failures = 0
 last_successful_weather = 0
 startup_time = 0
@@ -145,76 +141,19 @@ def setup_rtc():
 	supervisor.reload()
 
 ### API CALL TRACKING ###
-
-def get_current_date_string():
-	"""Get current date as YYYY-MM-DD string"""
-	try:
-		if rtc_instance:
-			dt = rtc_instance.datetime
-			return f"{dt.tm_year}-{dt.tm_mon:02d}-{dt.tm_mday:02d}"
-		return "unknown"
-	except Exception:
-		return "unknown"
-
-def load_daily_counter():
-	"""Load daily API counter from file"""
-	global daily_api_count, last_count_date
-	
-	current_date = get_current_date_string()
-	
-	try:
-		with open("daily_calls.txt", "r") as f:
-			content = f.read().strip()
-			
-			if "|" in content:
-				stored_date, stored_count = content.split("|", 1)
-				if stored_date == current_date:
-					daily_api_count = int(stored_count)
-					last_count_date = stored_date
-					print(f"Restored daily count: {daily_api_count}")
-					return
 		
-		# File doesn't exist, wrong format, or new day
-		daily_api_count = 0
-		last_count_date = current_date
-		print(f"Starting fresh counter for {current_date}")
-		
-	except (OSError, ValueError):
-		daily_api_count = 0
-		last_count_date = current_date
-		print("Counter file unavailable, starting fresh")
-
-def save_daily_counter():
-	"""Save daily API counter to file"""
-	try:
-		content = f"{last_count_date}|{daily_api_count}"
-		with open("daily_calls.txt", "w") as f:
-			f.write(content)
-		return True
-	except OSError:
-		return False
-
 def log_api_call():
-	"""Track and log API calls"""
-	global api_call_count, daily_api_count, last_count_date
-	
-	api_call_count += 1
-	current_date = get_current_date_string()
-	
-	# Handle midnight rollover
-	if current_date != last_count_date:
-		daily_api_count = 0
-		last_count_date = current_date
-		print(f"Date changed to {current_date}, reset daily count")
-	
-	daily_api_count += 1
-	save_daily_counter()
-	
-	print(f"API Call #{api_call_count} (Daily: {daily_api_count}/{DAILY_API_LIMIT})")
-	
-	# Warning near daily limit
-	if daily_api_count >= API_LIMIT_WARNING_THRESHOLD:
-		print(f"WARNING: Near daily API limit ({daily_api_count}/{DAILY_API_LIMIT})")
+		"""Track API calls and restart when needed"""
+		global api_call_count
+		
+		api_call_count += 1
+		print(f"API Call #{api_call_count}")
+		
+		# Full restart every 8 calls for reliable socket cleanup
+		if api_call_count >= MAX_API_CALLS_BEFORE_RESTART:
+			print(f"Preventive restart after {api_call_count} API calls")
+			time.sleep(2)
+			supervisor.reload()
 
 ### NETWORK FUNCTIONS ###
 
@@ -343,9 +282,6 @@ def fetch_weather_data():
 			consecutive_failures += 1
 			return None
 		
-		# Log API call
-		log_api_call()
-		
 		# Build request URL
 		url = f"https://dataservice.accuweather.com/currentconditions/v1/{ACCUWEATHER_LOCATION_KEY}?apikey={api_key}&details=true"
 		
@@ -389,6 +325,9 @@ def fetch_weather_data():
 		# Reset failure tracking on success
 		consecutive_failures = 0
 		last_successful_weather = time.monotonic()
+		
+		# Log the API call
+		log_api_call()
 		
 		# Check for preventive restart
 		if api_call_count >= MAX_API_CALLS_BEFORE_RESTART:
@@ -540,7 +479,7 @@ def show_weather_display(rtc, duration=WEATHER_DISPLAY_DURATION):
 	while time.monotonic() - start_time < duration:
 		# Update time display
 		hour = rtc.datetime.tm_hour
-		display_hour = hour - 12 if hour > 12 else hour
+		display_hour = hour % 12 if hour % 12 != 0 else 12
 		current_time = f"{display_hour}:{rtc.datetime.tm_min:02d}"
 		time_text.text = current_time
 		
@@ -572,7 +511,7 @@ def show_clock_display(rtc, duration=CLOCK_FALLBACK_DURATION):
 		date_str = f"{months[dt.tm_mon].upper()} {dt.tm_mday:02d}"
 		
 		hour = dt.tm_hour
-		display_hour = hour - 12 if hour > 12 else hour
+		display_hour = hour % 12 if hour % 12 != 0 else 12
 		time_str = f"{display_hour}:{dt.tm_min:02d}:{dt.tm_sec:02d}"
 		
 		date_text.text = date_str
@@ -638,21 +577,13 @@ def show_event_display(rtc, duration=EVENT_DISPLAY_DURATION):
 
 def check_daily_reset(rtc):
 	"""Handle daily reset and cleanup operations"""
-	global startup_time, daily_api_count, last_count_date
+	global startup_time
 	
 	if not DAILY_RESET_ENABLED:
 		return
 	
 	current_time = time.monotonic()
 	hours_running = (current_time - startup_time) / 3600
-	current_date = get_current_date_string()
-	
-	# Handle natural midnight rollover
-	if current_date != last_count_date:
-		print(f"Natural daily reset: {current_date}")
-		daily_api_count = 0
-		last_count_date = current_date
-		save_daily_counter()
 	
 	# Scheduled restart conditions
 	should_restart = (
@@ -664,7 +595,6 @@ def check_daily_reset(rtc):
 	
 	if should_restart:
 		print(f"Daily restart triggered ({hours_running:.1f}h runtime)")
-		save_daily_counter()  # Preserve counter before restart
 		time.sleep(2)
 		supervisor.reload()
 
@@ -687,9 +617,6 @@ def main():
 		# Sync time if WiFi available
 		if wifi_connected:
 			sync_time_with_timezone(rtc)
-		
-		# Initialize API tracking
-		load_daily_counter()
 		
 		# Set startup time
 		startup_time = time.monotonic()
