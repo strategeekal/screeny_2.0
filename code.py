@@ -5,7 +5,6 @@ import board
 import os
 import supervisor
 import gc
-import math
 import displayio
 import framebufferio
 import rgbmatrix
@@ -47,7 +46,7 @@ EVENT_DISPLAY_DURATION = 30
 CLOCK_FALLBACK_DURATION = 300
 
 TIMEZONE_CONFIG = {
-	"timezone": "America/New_York",  # Change this to your desired timezone
+	"timezone": "America/Chicago",
 }
 
 # Timezone offset table
@@ -130,45 +129,20 @@ def setup_rtc():
 	"""Initialize RTC with retry logic"""
 	global rtc_instance
 	
-	for attempt in range(5):  # Reduced from 10 attempts
+	for attempt in range(5):
 		try:
 			i2c = board.I2C()
 			rtc = adafruit_ds3231.DS3231(i2c)
 			rtc_instance = rtc
-			log_entry(f"RTC initialized on attempt {attempt + 1}")
+			print(f"RTC initialized on attempt {attempt + 1}")
 			return rtc
 		except Exception as e:
-			log_entry(f"RTC attempt {attempt + 1} failed: {e}", error=True)
-			if attempt < 4:  # Don't sleep on last attempt
+			print(f"RTC attempt {attempt + 1} failed: {e}")
+			if attempt < 4:
 				time.sleep(2)
 	
-	log_entry("RTC initialization failed, restarting...", error=True)
+	print("RTC initialization failed, restarting...")
 	supervisor.reload()
-
-### LOGGING SYSTEM ###
-
-def log_entry(message, error=False):
-	"""Unified logging with timestamp"""
-	try:
-		if rtc_instance:
-			dt = rtc_instance.datetime
-			timestamp = f"{dt.tm_year}-{dt.tm_mon:02d}-{dt.tm_mday:02d} {dt.tm_hour:02d}:{dt.tm_min:02d}:{dt.tm_sec:02d}"
-		else:
-			timestamp = "NO-RTC"
-		
-		log_type = "ERROR" if error else "INFO"
-		log_line = f"[{timestamp}] {log_type}: {message}"
-		
-		# Try to write to file, fail silently if read-only
-		try:
-			with open("weather_log.txt", "a") as f:
-				f.write(f"{log_line}\n")
-		except OSError:
-			pass  # Filesystem read-only
-		
-		print(log_line)
-	except Exception:
-		print(f"LOG-ERROR: {message}")
 
 ### API CALL TRACKING ###
 
@@ -197,18 +171,18 @@ def load_daily_counter():
 				if stored_date == current_date:
 					daily_api_count = int(stored_count)
 					last_count_date = stored_date
-					log_entry(f"Restored daily count: {daily_api_count}")
+					print(f"Restored daily count: {daily_api_count}")
 					return
 		
 		# File doesn't exist, wrong format, or new day
 		daily_api_count = 0
 		last_count_date = current_date
-		log_entry(f"Starting fresh counter for {current_date}")
+		print(f"Starting fresh counter for {current_date}")
 		
 	except (OSError, ValueError):
 		daily_api_count = 0
 		last_count_date = current_date
-		log_entry("Counter file unavailable, starting fresh")
+		print("Counter file unavailable, starting fresh")
 
 def save_daily_counter():
 	"""Save daily API counter to file"""
@@ -218,7 +192,7 @@ def save_daily_counter():
 			f.write(content)
 		return True
 	except OSError:
-		return False  # Read-only filesystem
+		return False
 
 def log_api_call():
 	"""Track and log API calls"""
@@ -231,16 +205,16 @@ def log_api_call():
 	if current_date != last_count_date:
 		daily_api_count = 0
 		last_count_date = current_date
-		log_entry(f"Date changed to {current_date}, reset daily count")
+		print(f"Date changed to {current_date}, reset daily count")
 	
 	daily_api_count += 1
 	save_daily_counter()
 	
-	log_entry(f"API Call #{api_call_count} (Daily: {daily_api_count}/{DAILY_API_LIMIT})")
+	print(f"API Call #{api_call_count} (Daily: {daily_api_count}/{DAILY_API_LIMIT})")
 	
 	# Warning near daily limit
 	if daily_api_count >= API_LIMIT_WARNING_THRESHOLD:
-		log_entry(f"WARNING: Near daily API limit ({daily_api_count}/{DAILY_API_LIMIT})", error=True)
+		print(f"WARNING: Near daily API limit ({daily_api_count}/{DAILY_API_LIMIT})")
 
 ### NETWORK FUNCTIONS ###
 
@@ -250,42 +224,27 @@ def setup_wifi():
 	password = os.getenv("CIRCUITPY_WIFI_PASSWORD")
 	
 	if not ssid or not password:
-		log_entry("WiFi credentials missing", error=True)
+		print("WiFi credentials missing")
 		return False
 	
-	for attempt in range(3):  # Reduced retry attempts
+	for attempt in range(3):
 		try:
 			wifi.radio.connect(ssid, password)
-			log_entry(f"Connected to {ssid}")
+			print(f"Connected to {ssid}")
 			return True
 		except ConnectionError as e:
-			log_entry(f"WiFi attempt {attempt + 1} failed", error=True)
+			print(f"WiFi attempt {attempt + 1} failed")
 			if attempt < 2:
 				time.sleep(2)
 	
-	log_entry("WiFi connection failed", error=True)
+	print("WiFi connection failed")
 	return False
 
-def is_dst_active(dt):
-	"""Simplified DST check for US Central Time"""
-	month, day = dt.tm_mon, dt.tm_mday
-	
-	# DST is roughly March 8 - November 7 (conservative estimate)
-	if month < 3 or month > 11:
-		return False
-	if month > 3 and month < 11:
-		return True
-	if month == 3:
-		return day >= 8
-	if month == 11:
-		return day < 7
-	return False
-	
 def get_timezone_offset(timezone_name, utc_datetime):
 	"""Calculate timezone offset including DST for a given timezone"""
 	
 	if timezone_name not in TIMEZONE_OFFSETS:
-		log_entry(f"Unknown timezone: {timezone_name}, using Chicago", error=True)
+		print(f"Unknown timezone: {timezone_name}, using Chicago")
 		timezone_name = "America/Chicago"
 	
 	tz_info = TIMEZONE_OFFSETS[timezone_name]
@@ -348,11 +307,10 @@ def sync_time_with_timezone(rtc):
 		ntp = adafruit_ntp.NTP(pool, tz_offset=offset)
 		rtc.datetime = ntp.datetime
 		
-		log_entry(f"Time synced to {timezone_name} (UTC{offset:+d})")
+		print(f"Time synced to {timezone_name} (UTC{offset:+d})")
 		
 	except Exception as e:
-		log_entry(f"NTP sync failed: {e}", error=True)
-
+		print(f"NTP sync failed: {e}")
 
 def cleanup_sockets():
 	"""Aggressive socket cleanup to prevent memory issues"""
@@ -378,10 +336,10 @@ def fetch_weather_data():
 						api_key = line.split("=")[1].strip().strip('"').strip("'")
 						break
 		except Exception as e:
-			log_entry(f"Failed to read API key: {e}", error=True)
+			print(f"Failed to read API key: {e}")
 			
 		if not api_key:
-			log_entry("API key not found", error=True)
+			print("API key not found")
 			consecutive_failures += 1
 			return None
 		
@@ -398,14 +356,14 @@ def fetch_weather_data():
 		response = requests.get(url)
 		
 		if response.status_code != 200:
-			log_entry(f"API error: {response.status_code}", error=True)
+			print(f"API error: {response.status_code}")
 			consecutive_failures += 1
 			return None
 		
 		# Parse response
 		weather_json = response.json()
 		if not weather_json:
-			log_entry("Empty weather response", error=True)
+			print("Empty weather response")
 			consecutive_failures += 1
 			return None
 		
@@ -426,7 +384,7 @@ def fetch_weather_data():
 			"is_day_time": current.get("IsDayTime", True),
 		}
 		
-		log_entry(f"Weather: {weather_data['weather_text']}, {weather_data['temperature']}°C")
+		print(f"Weather: {weather_data['weather_text']}, {weather_data['temperature']}°C")
 		
 		# Reset failure tracking on success
 		consecutive_failures = 0
@@ -434,14 +392,14 @@ def fetch_weather_data():
 		
 		# Check for preventive restart
 		if api_call_count >= MAX_API_CALLS_BEFORE_RESTART:
-			log_entry(f"Preventive restart after {api_call_count} API calls")
+			print(f"Preventive restart after {api_call_count} API calls")
 			time.sleep(2)
 			supervisor.reload()
 		
 		return weather_data
 		
 	except Exception as e:
-		log_entry(f"Weather fetch error: {e}", error=True)
+		print(f"Weather fetch error: {e}")
 		consecutive_failures += 1
 		return None
 		
@@ -531,12 +489,12 @@ def clear_display():
 
 def show_weather_display(rtc, duration=WEATHER_DISPLAY_DURATION):
 	"""Display weather information and time"""
-	log_entry("Displaying weather...")
+	print("Displaying weather...")
 	
 	# Fetch fresh weather data
 	weather_data = fetch_weather_data()
 	if not weather_data:
-		log_entry("Weather unavailable, showing clock", error=True)
+		print("Weather unavailable, showing clock")
 		show_clock_display(rtc, duration)
 		return
 	
@@ -554,7 +512,7 @@ def show_weather_display(rtc, duration=WEATHER_DISPLAY_DURATION):
 		image_grid = displayio.TileGrid(bitmap, pixel_shader=palette)
 		main_group.append(image_grid)
 	except Exception as e:
-		log_entry(f"Icon load failed: {e}", error=True)
+		print(f"Icon load failed: {e}")
 	
 	# Setup temperature display
 	temp_text.text = f"{round(weather_data['temperature'])}°"
@@ -596,7 +554,7 @@ def show_weather_display(rtc, duration=WEATHER_DISPLAY_DURATION):
 
 def show_clock_display(rtc, duration=CLOCK_FALLBACK_DURATION):
 	"""Display clock as fallback when weather unavailable"""
-	log_entry("Displaying clock...")
+	print("Displaying clock...")
 	clear_display()
 	
 	date_text = bitmap_label.Label(font, color=DEFAULT_TEXT_COLOR, x=5, y=7)
@@ -624,7 +582,7 @@ def show_clock_display(rtc, duration=CLOCK_FALLBACK_DURATION):
 	# Check for restart conditions
 	time_since_success = time.monotonic() - last_successful_weather
 	if consecutive_failures >= 3 or time_since_success > 600:  # 10 minutes
-		log_entry(f"Restarting due to weather failures", error=True)
+		print("Restarting due to weather failures")
 		time.sleep(2)
 		supervisor.reload()
 
@@ -636,7 +594,7 @@ def show_event_display(rtc, duration=EVENT_DISPLAY_DURATION):
 		return False
 	
 	event_data = CALENDAR_EVENTS[month_day]
-	log_entry(f"Showing event: {event_data[1]}")
+	print(f"Showing event: {event_data[1]}")
 	clear_display()
 	
 	try:
@@ -670,7 +628,7 @@ def show_event_display(rtc, duration=EVENT_DISPLAY_DURATION):
 			main_group.append(text2)
 			
 	except Exception as e:
-		log_entry(f"Event display error: {e}", error=True)
+		print(f"Event display error: {e}")
 	
 	# Wait for specified duration
 	time.sleep(duration)
@@ -691,7 +649,7 @@ def check_daily_reset(rtc):
 	
 	# Handle natural midnight rollover
 	if current_date != last_count_date:
-		log_entry(f"Natural daily reset: {current_date}")
+		print(f"Natural daily reset: {current_date}")
 		daily_api_count = 0
 		last_count_date = current_date
 		save_daily_counter()
@@ -705,7 +663,7 @@ def check_daily_reset(rtc):
 	)
 	
 	if should_restart:
-		log_entry(f"Daily restart triggered ({hours_running:.1f}h runtime)")
+		print(f"Daily restart triggered ({hours_running:.1f}h runtime)")
 		save_daily_counter()  # Preserve counter before restart
 		time.sleep(2)
 		supervisor.reload()
@@ -716,12 +674,14 @@ def main():
 	"""Main program execution"""
 	global last_successful_weather, startup_time
 	
-	log_entry("=== SYSTEM STARTUP ===")
+	print("=== WEATHER DISPLAY STARTUP ===")
 	
 	try:
 		# Initialize hardware
 		initialize_display()
 		rtc = setup_rtc()
+		
+		# Initialize WiFi
 		wifi_connected = setup_wifi()
 		
 		# Sync time if WiFi available
@@ -735,7 +695,7 @@ def main():
 		startup_time = time.monotonic()
 		last_successful_weather = startup_time
 		
-		log_entry("Entering main display loop...")
+		print("Entering main display loop...")
 		
 		# Main display loop
 		while True:
@@ -754,11 +714,11 @@ def main():
 					time.sleep(1)
 					
 			except Exception as e:
-				log_entry(f"Display loop error: {e}", error=True)
+				print(f"Display loop error: {e}")
 				time.sleep(5)  # Brief recovery pause
 				
 	except Exception as e:
-		log_entry(f"Critical system error: {e}", error=True)
+		print(f"Critical system error: {e}")
 		time.sleep(10)
 		supervisor.reload()
 
