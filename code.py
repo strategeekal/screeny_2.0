@@ -762,7 +762,7 @@ def show_event_display(rtc, duration=EVENT_DISPLAY_DURATION):
 			
 			# Position 25px wide image at top right
 			image_grid = displayio.TileGrid(bitmap, pixel_shader=palette)
-			image_grid.x = 39  # Right-aligned for 25px wide image
+			image_grid.x = 38  # Right-aligned for 25px wide image
 			image_grid.y = 2   # Start at y = 2 as requested
 			
 			# Calculate optimal text positions dynamically
