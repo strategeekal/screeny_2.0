@@ -93,6 +93,7 @@ CALENDAR_EVENTS = {
 	"0301": ["", "Spring", "spring.bmp"],
 	"0601": ["", "Summer", "summer.bmp"],
 	"0901": ["", "Fall", "fall.bmp"],
+	"0922": ["Puchis", "Cumple", "panzon.bmp"],
 	"1031": ["Halloween", "Happy", "halloween.bmp"],
 	"1101": ["Muertos", "Dia de", "day_of_the_death.bmp"],
 	"1201": ["", "Winter", "winter.bmp"],
@@ -419,6 +420,51 @@ def get_text_width(text, font):
 	temp_label = bitmap_label.Label(font, text=text)
 	bbox = temp_label.bounding_box
 	return bbox[2] if bbox else 0
+	
+def get_font_metrics(font, text="Aygjpq"):
+	"""
+	Calculate font metrics including ascenders and descenders
+	Uses test text with both tall and descending characters
+	"""
+	temp_label = bitmap_label.Label(font, text=text)
+	bbox = temp_label.bounding_box
+	
+	if bbox:
+		# bbox format: (x, y, width, height)
+		font_height = bbox[3]  # Total height including ascenders/descenders
+		baseline_offset = abs(bbox[1]) if bbox[1] < 0 else 0  # How much above baseline
+		return font_height, baseline_offset
+	else:
+		# Fallback values if bounding box fails
+		return 8, 2
+
+def calculate_bottom_aligned_positions(font, line1_text, line2_text, display_height=32, bottom_margin=2, line_spacing=1):
+	"""
+	Calculate optimal y positions for two lines of text aligned to bottom
+	Returns:
+		tuple: (line1_y, line2_y) positions
+	"""
+	
+	# Get font metrics
+	font_height, baseline_offset = get_font_metrics(font, line1_text + line2_text)
+	
+	# Calculate positions working backwards from bottom
+	# Start from the bottom edge minus margin
+	bottom_edge = display_height - bottom_margin
+	
+	# Second line position (bottom line)
+	line2_y = bottom_edge - baseline_offset
+	
+	# First line position (needs space for font height + line spacing)
+	line1_y = line2_y - font_height - line_spacing
+	
+	# Ensure we don't go above display area
+	if line1_y < baseline_offset:
+		line1_y = baseline_offset
+		line2_y = line1_y + font_height + line_spacing
+	
+	return int(line1_y), int(line2_y)
+
 
 def clear_display():
 	"""Clear all display elements"""
@@ -583,7 +629,7 @@ def show_clock_display(rtc, duration=CLOCK_FALLBACK_DURATION):
 		supervisor.reload()
 
 def show_event_display(rtc, duration=EVENT_DISPLAY_DURATION):
-	"""Display special calendar events"""
+	"""Display special calendar events with dynamic text positioning"""
 	month_day = f"{rtc.datetime.tm_mon:02d}{rtc.datetime.tm_mday:02d}"
 	
 	if month_day not in CALENDAR_EVENTS:
@@ -595,30 +641,55 @@ def show_event_display(rtc, duration=EVENT_DISPLAY_DURATION):
 	
 	try:
 		if event_data[1] == "Birthday":
+			# For birthday events, use the original cake image layout
 			bitmap, palette = load_bmp_image("img/events/cake.bmp")
 			image_grid = displayio.TileGrid(bitmap, pixel_shader=palette)
 			main_group.append(image_grid)
 		else:
-			# Load event-specific image
+			# Load event-specific image (25x28 positioned at top right)
 			image_file = f"img/events/{event_data[2]}"
 			try:
 				bitmap, palette = load_bmp_image(image_file)
 			except:
 				bitmap, palette = load_bmp_image("img/events/blank_sq.bmp")
 			
+			# Position 25px wide image at top right
 			image_grid = displayio.TileGrid(bitmap, pixel_shader=palette)
-			image_grid.x = 36
-			image_grid.y = 2
+			image_grid.x = 39  # Right-aligned for 25px wide image
+			image_grid.y = 2   # Start at y = 2 as requested
 			
-			# Choose appropriate fonts based on text length
-			line1_font = bg_font if get_text_width(event_data[1], bg_font) <= 34 else font
-			line2_font = bg_font if get_text_width(event_data[0], bg_font) <= 34 else font
+			# Calculate optimal text positions dynamically
+			line1_text = event_data[1]  # e.g., "Cumple"
+			line2_text = event_data[0]  # e.g., "Pichono"
 			
-			text1 = bitmap_label.Label(line1_font, color=DEFAULT_TEXT_COLOR, 
-									 text=event_data[1], x=2, y=5)
-			text2 = bitmap_label.Label(line2_font, color=MINT, 
-									 text=event_data[0], x=2, y=19)
+			# Get dynamic positions with 1px bottom margin and 1px line spacing
+			line1_y, line2_y = calculate_bottom_aligned_positions(
+				font, 
+				line1_text, 
+				line2_text,
+				display_height=32,
+				bottom_margin=1,  # Very tight bottom margin
+				line_spacing=1    # Minimal spacing between lines
+			)
+						
+			# Create text labels with calculated positions
+			text1 = bitmap_label.Label(
+				font,
+				color=DEFAULT_TEXT_COLOR, 
+				text=line1_text,
+				x=2,
+				y=line1_y
+			)
 			
+			text2 = bitmap_label.Label(
+				font,
+				color=MINT, 
+				text=line2_text,
+				x=2,
+				y=line2_y
+			)
+			
+			# Add elements to display
 			main_group.append(image_grid)
 			main_group.append(text1)
 			main_group.append(text2)
