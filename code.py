@@ -53,28 +53,6 @@ _COLOR_CORRECTIONS = {
 	},
 }
 
-# Function to get corrected colors for current matrix
-def get_matrix_colors():
-	"""Get color constants corrected for the current matrix type"""
-	matrix_type = detect_matrix_type()
-	return _COLOR_CORRECTIONS.get(matrix_type, _COLOR_CORRECTIONS["type1"])
-
-# Initialize colors after matrix detection (this will be called in main())
-def initialize_colors():
-	"""Initialize color constants based on matrix type"""
-	global BLACK, DIMMEST_WHITE, MINT, BUGAMBILIA, LILAC, DEFAULT_TEXT_COLOR
-	
-	colors = get_matrix_colors()
-	BLACK = colors["BLACK"]
-	DIMMEST_WHITE = colors["DIMMEST_WHITE"] 
-	MINT = colors["MINT"]
-	BUGAMBILIA = colors["BUGAMBILIA"]
-	LILAC = colors["LILAC"]
-	DEFAULT_TEXT_COLOR = DIMMEST_WHITE
-	
-	print(f"Colors initialized for matrix type: {detect_matrix_type()}")
-	print(f"MINT color: 0x{MINT:06X}")
-
 # Temporary placeholder values (will be overwritten by initialize_colors())
 BLACK = 0x000000
 DIMMEST_WHITE = 0x101010
@@ -311,8 +289,12 @@ def cleanup_sockets():
 		gc.collect()
 
 def fetch_weather_data():
-	"""Fetch current weather data with improved error handling"""
+	"""Fetch current weather data with matrix-specific API keys"""
 	global consecutive_failures, last_successful_weather
+	
+	# Monitor memory just before planned restart
+	if api_call_count >= MAX_API_CALLS_BEFORE_RESTART - 1:
+		monitor_memory("before planned restart")
 	
 	# Resource cleanup variables
 	pool = None
@@ -320,19 +302,45 @@ def fetch_weather_data():
 	response = None
 	
 	try:
-		# Get API key
+		# Get matrix-specific API key
 		api_key = None
+		matrix_type = detect_matrix_type()
+		
+		# Define which API key variable to look for based on matrix type
+		if matrix_type == "type1":
+			api_key_name = "ACCUWEATHER_API_KEY_TYPE1"
+		elif matrix_type == "type2":
+			api_key_name = "ACCUWEATHER_API_KEY_TYPE2"
+		else:
+			# Fallback to original key for unknown types
+			api_key_name = "ACCUWEATHER_API_KEY"
+		
+		# Read the appropriate API key from settings
 		try:
 			with open("settings.toml", "r") as f:
 				for line in f:
-					if line.startswith("ACCUWEATHER_API_KEY"):
+					if line.startswith(api_key_name):
 						api_key = line.split("=")[1].strip().strip('"').strip("'")
+						print(f"Using {api_key_name} for {matrix_type}")
 						break
 		except Exception as e:
 			print(f"Failed to read API key: {e}")
 			
+		# Fallback to original key if matrix-specific key not found
 		if not api_key:
-			print("API key not found")
+			print(f"{api_key_name} not found, trying fallback key")
+			try:
+				with open("settings.toml", "r") as f:
+					for line in f:
+						if line.startswith("ACCUWEATHER_API_KEY"):
+							api_key = line.split("=")[1].strip().strip('"').strip("'")
+							print("Using fallback ACCUWEATHER_API_KEY")
+							break
+			except Exception as e:
+				print(f"Failed to read fallback API key: {e}")
+			
+		if not api_key:
+			print("No API key found")
 			consecutive_failures += 1
 			return None
 		
@@ -423,13 +431,34 @@ def detect_matrix_type():
 	
 	device_mappings = {
 		"2236c5": "type1",
-		"f78b47": "type2",
-		# Add more device IDs as you discover them
+		"f78b47": "type2", # BIG MATRIX
 	}
 	
 	_matrix_type_cache = device_mappings.get(device_id, "type1")
 	print(f"Device ID: {device_id}, Matrix type: {_matrix_type_cache}")
 	return _matrix_type_cache
+	
+# Function to get corrected colors for current matrix
+def get_matrix_colors():
+	"""Get color constants corrected for the current matrix type"""
+	matrix_type = detect_matrix_type()
+	return _COLOR_CORRECTIONS.get(matrix_type, _COLOR_CORRECTIONS["type1"])
+
+# Initialize colors after matrix detection (this will be called in main())
+def initialize_colors():
+	"""Initialize color constants based on matrix type"""
+	global BLACK, DIMMEST_WHITE, MINT, BUGAMBILIA, LILAC, DEFAULT_TEXT_COLOR
+	
+	colors = get_matrix_colors()
+	BLACK = colors["BLACK"]
+	DIMMEST_WHITE = colors["DIMMEST_WHITE"] 
+	MINT = colors["MINT"]
+	BUGAMBILIA = colors["BUGAMBILIA"]
+	LILAC = colors["LILAC"]
+	DEFAULT_TEXT_COLOR = DIMMEST_WHITE
+	
+	print(f"Colors initialized for matrix type: {detect_matrix_type()}")
+	print(f"MINT color: 0x{MINT:06X}")
 
 def convert_bmp_palette(palette):
 	"""Convert BMP palette for RGB matrix display"""
@@ -829,12 +858,14 @@ def main():
 		
 		# Initialize colors based on detected matrix type
 		initialize_colors()
+		monitor_memory("after display and color init")
 		
 		# Initialize RTC
 		rtc = setup_rtc()
 		
 		# Initialize WiFi
 		wifi_connected = setup_wifi()
+		monitor_memory("after wifi init")
 		
 		# Sync time if WiFi available
 		if wifi_connected:
@@ -844,6 +875,7 @@ def main():
 		startup_time = time.monotonic()
 		last_successful_weather = startup_time
 		
+		monitor_memory("ready for main loop")
 		print("Entering main display loop...")
 		
 		# Main display loop
@@ -864,10 +896,12 @@ def main():
 					
 			except Exception as e:
 				print(f"Display loop error: {e}")
+				monitor_memory("error occurred")
 				time.sleep(5)  # Brief recovery pause
 				
 	except Exception as e:
 		print(f"Critical system error: {e}")
+		monitor_memory("critical error")
 		time.sleep(10)
 		supervisor.reload()
 
