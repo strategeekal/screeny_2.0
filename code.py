@@ -24,7 +24,58 @@ gc.collect()
 
 ### CONSTANTS AND CONFIGURATION ###
 
-# Display Colors (6-bit values for RGB matrix)
+# Base colors (standard RGB values)
+_BASE_COLORS = {
+	"BLACK": 0x000000,
+	"DIMMEST_WHITE": 0x101010,
+	"MINT": 0x080816,
+	"BUGAMBILIA": 0x101000,
+	"LILAC": 0x161408,
+}
+
+# Color correction mappings for different matrix types
+_COLOR_CORRECTIONS = {
+	"type1": {
+		# type1 uses standard colors (no correction needed)
+		"BLACK": 0x000000,
+		"DIMMEST_WHITE": 0x101010,
+		"MINT": 0x080816,
+		"BUGAMBILIA": 0x101000,
+		"LILAC": 0x161408,
+	},
+	"type2": {
+		# type2 has red/green channel swap (your working matrix)
+		"BLACK": 0x000000,
+		"DIMMEST_WHITE": 0x101010,
+		"MINT": 0x081608,  # This worked on your matrix
+		"BUGAMBILIA": 0x011000,  # Red/green swapped
+		"LILAC": 0x141608,  # Red/green swapped
+	},
+}
+
+# Function to get corrected colors for current matrix
+def get_matrix_colors():
+	"""Get color constants corrected for the current matrix type"""
+	matrix_type = detect_matrix_type()
+	return _COLOR_CORRECTIONS.get(matrix_type, _COLOR_CORRECTIONS["type1"])
+
+# Initialize colors after matrix detection (this will be called in main())
+def initialize_colors():
+	"""Initialize color constants based on matrix type"""
+	global BLACK, DIMMEST_WHITE, MINT, BUGAMBILIA, LILAC, DEFAULT_TEXT_COLOR
+	
+	colors = get_matrix_colors()
+	BLACK = colors["BLACK"]
+	DIMMEST_WHITE = colors["DIMMEST_WHITE"] 
+	MINT = colors["MINT"]
+	BUGAMBILIA = colors["BUGAMBILIA"]
+	LILAC = colors["LILAC"]
+	DEFAULT_TEXT_COLOR = DIMMEST_WHITE
+	
+	print(f"Colors initialized for matrix type: {detect_matrix_type()}")
+	print(f"MINT color: 0x{MINT:06X}")
+
+# Temporary placeholder values (will be overwritten by initialize_colors())
 BLACK = 0x000000
 DIMMEST_WHITE = 0x101010
 MINT = 0x080816
@@ -65,6 +116,7 @@ TIMEZONE_OFFSETS = {
 rtc_instance = None
 display = None
 main_group = None
+_matrix_type_cache = None
 
 # API tracking
 api_call_count = 0
@@ -359,7 +411,12 @@ def fetch_weather_data():
 ### DISPLAY UTILITIES ###
 
 def detect_matrix_type():
-	"""Auto-detect matrix wiring type"""
+	"""Auto-detect matrix wiring type (cached for performance)"""
+	global _matrix_type_cache
+	
+	if _matrix_type_cache is not None:
+		return _matrix_type_cache
+	
 	import microcontroller
 	uid = microcontroller.cpu.uid
 	device_id = "".join([f"{b:02x}" for b in uid[-3:]])
@@ -367,8 +424,12 @@ def detect_matrix_type():
 	device_mappings = {
 		"2236c5": "type1",
 		"f78b47": "type2",
+		# Add more device IDs as you discover them
 	}
-	return device_mappings.get(device_id, "type1")
+	
+	_matrix_type_cache = device_mappings.get(device_id, "type1")
+	print(f"Device ID: {device_id}, Matrix type: {_matrix_type_cache}")
+	return _matrix_type_cache
 
 def convert_bmp_palette(palette):
 	"""Convert BMP palette for RGB matrix display"""
@@ -426,16 +487,21 @@ def get_font_metrics(font, text="Aygjpq"):
 	Calculate font metrics including ascenders and descenders
 	Uses test text with both tall and descending characters
 	"""
-	temp_label = bitmap_label.Label(font, text=text)
-	bbox = temp_label.bounding_box
-	
-	if bbox:
-		# bbox format: (x, y, width, height)
-		font_height = bbox[3]  # Total height including ascenders/descenders
-		baseline_offset = abs(bbox[1]) if bbox[1] < 0 else 0  # How much above baseline
-		return font_height, baseline_offset
-	else:
-		# Fallback values if bounding box fails
+	try:
+		temp_label = bitmap_label.Label(font, text=text)
+		bbox = temp_label.bounding_box
+		
+		if bbox and len(bbox) >= 4:
+			# bbox format: (x, y, width, height)
+			font_height = bbox[3]  # Total height including ascenders/descenders
+			baseline_offset = abs(bbox[1]) if bbox[1] < 0 else 0  # How much above baseline
+			return font_height, baseline_offset
+		else:
+			# Fallback if bbox is invalid
+			return 8, 2
+	except Exception as e:
+		print(f"Font metrics error: {e}")
+		# Safe fallback values for small font
 		return 8, 2
 
 def calculate_bottom_aligned_positions(font, line1_text, line2_text, display_height=32, bottom_margin=2, line_spacing=1):
@@ -470,6 +536,14 @@ def clear_display():
 	"""Clear all display elements"""
 	while len(main_group):
 		main_group.pop()
+		
+
+def monitor_memory(label=""):
+		"""Monitor memory usage for debugging"""
+		import gc
+		free_mem = gc.mem_free()
+		print(f"Free memory{' (' + label + ')' if label else ''}: {free_mem} bytes")
+		return free_mem
 
 ### DISPLAY FUNCTIONS ###
 
@@ -639,6 +713,9 @@ def show_event_display(rtc, duration=EVENT_DISPLAY_DURATION):
 	print(f"Showing event: {event_data[1]}")
 	clear_display()
 	
+	# Force garbage collection before loading images
+	gc.collect()
+	
 	try:
 		if event_data[1] == "Birthday":
 			# For birthday events, use the original cake image layout
@@ -650,7 +727,8 @@ def show_event_display(rtc, duration=EVENT_DISPLAY_DURATION):
 			image_file = f"img/events/{event_data[2]}"
 			try:
 				bitmap, palette = load_bmp_image(image_file)
-			except:
+			except Exception as e:
+				print(f"Failed to load {image_file}: {e}")
 				bitmap, palette = load_bmp_image("img/events/blank_sq.bmp")
 			
 			# Position 25px wide image at top right
@@ -671,7 +749,9 @@ def show_event_display(rtc, duration=EVENT_DISPLAY_DURATION):
 				bottom_margin=1,  # Very tight bottom margin
 				line_spacing=1    # Minimal spacing between lines
 			)
-						
+			
+			print(f"Dynamic text positions: line1_y={line1_y}, line2_y={line2_y}")
+			
 			# Create text labels with calculated positions
 			text1 = bitmap_label.Label(
 				font,
@@ -699,6 +779,9 @@ def show_event_display(rtc, duration=EVENT_DISPLAY_DURATION):
 	
 	# Wait for specified duration
 	time.sleep(duration)
+	
+	# Optional: Clean up after event display
+	gc.collect()
 	return True
 
 ### SYSTEM MANAGEMENT ###
@@ -735,8 +818,19 @@ def main():
 	print("=== WEATHER DISPLAY STARTUP ===")
 	
 	try:
-		# Initialize hardware
+		# Monitor memory at startup
+		monitor_memory("startup")
+		
+		# Initialize hardware first
 		initialize_display()
+		
+		# Detect matrix type once (this caches the result)
+		matrix_type = detect_matrix_type()
+		
+		# Initialize colors based on detected matrix type
+		initialize_colors()
+		
+		# Initialize RTC
 		rtc = setup_rtc()
 		
 		# Initialize WiFi
