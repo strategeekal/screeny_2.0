@@ -501,7 +501,7 @@ def show_weather_display(rtc, duration=WEATHER_DISPLAY_DURATION):
 	
 	# Load weather icon
 	try:
-		bitmap, palette = load_bmp_image(f"img/{weather_data['weather_icon']}.bmp")
+		bitmap, palette = load_bmp_image(f"img/weather/{weather_data['weather_icon']}.bmp")
 		image_grid = displayio.TileGrid(bitmap, pixel_shader=palette)
 		main_group.append(image_grid)
 	except Exception as e:
@@ -595,16 +595,16 @@ def show_event_display(rtc, duration=EVENT_DISPLAY_DURATION):
 	
 	try:
 		if event_data[1] == "Birthday":
-			bitmap, palette = load_bmp_image("img/cake.bmp")
+			bitmap, palette = load_bmp_image("img/events/cake.bmp")
 			image_grid = displayio.TileGrid(bitmap, pixel_shader=palette)
 			main_group.append(image_grid)
 		else:
 			# Load event-specific image
-			image_file = f"img/{event_data[2]}"
+			image_file = f"img/events/{event_data[2]}"
 			try:
 				bitmap, palette = load_bmp_image(image_file)
 			except:
-				bitmap, palette = load_bmp_image("img/blank_sq.bmp")
+				bitmap, palette = load_bmp_image("img/events/blank_sq.bmp")
 			
 			image_grid = displayio.TileGrid(bitmap, pixel_shader=palette)
 			image_grid.x = 36
