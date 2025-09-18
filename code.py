@@ -779,8 +779,6 @@ def show_event_display(rtc, duration=EVENT_DISPLAY_DURATION):
 				line_spacing=1    # Minimal spacing between lines
 			)
 			
-			print(f"Dynamic text positions: line1_y={line1_y}, line2_y={line2_y}")
-			
 			# Create text labels with calculated positions
 			text1 = bitmap_label.Label(
 				font,
