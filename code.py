@@ -94,7 +94,8 @@ TIMEZONE_OFFSETS = {
 rtc_instance = None
 display = None
 main_group = None
-_matrix_type_cache = None
+_matrix_type_cache = None # Matrix type cache - loaded once at startup
+cached_events = None # Event cache - loaded once at startup
 
 # API tracking
 api_call_count = 0
@@ -105,29 +106,6 @@ startup_time = 0
 # Load fonts once at startup
 bg_font = bitmap_font.load_font("fonts/bigbit10-16.bdf")
 font = bitmap_font.load_font("fonts/tinybit6-16.bdf")
-
-# Calendar events (MM/DD format)
-CALENDAR_EVENTS = {
-	"0825": ["Diego", "Birthday", "cake.bmp"],
-	"0703": ["Gaby", "Birthday", "cake.bmp"],
-	"1109": ["Tiago", "Birthday", "cake.bmp"],
-	"0210": ["Emilio", "Birthday", "cake.bmp"],
-	"1225": ["X-MAS", "Merry", "xmas.bmp"],
-	"0214": ["Didiculo", "Dia", "valentines.bmp"],
-	"0824": ["Abuela", "Cumple", "cake_sq.bmp"],
-	"0101": ["New Year", "Happy", "new_year.bmp"],
-	"1123": ["Ric", "Cumple", "cake_sq.bmp"],
-	"0811": ["Alan", "Cumple", "cake_sq.bmp"],
-	"0916": ["Mexico", "Viva", "mexico_flag_v3.bmp"],
-	"0704": ["July", "4th of", "us_flag.bmp"],
-	"0301": ["", "Spring", "spring.bmp"],
-	"0601": ["", "Summer", "summer.bmp"],
-	"0901": ["", "Fall", "fall.bmp"],
-	"0922": ["Puchis", "Cumple", "panzon.bmp"],
-	"1031": ["Halloween", "Happy", "halloween.bmp"],
-	"1101": ["Muertos", "Dia de", "day_of_the_death.bmp"],
-	"1201": ["", "Winter", "winter.bmp"],
-}
 
 ### HARDWARE INITIALIZATION ###
 
@@ -533,9 +511,66 @@ def get_font_metrics(font, text="Aygjpq"):
 		# Safe fallback values for small font
 		return 8, 2
 
+def load_events_from_csv():
+	"""Load events from CSV file - called only once at startup"""
+	events = {}
+	try:
+		print("Loading events from events.csv...")
+		with open("events.csv", "r") as f:
+			line_count = 0
+			for line in f:
+				line = line.strip()
+				if line and not line.startswith("#"):  # Skip empty lines and comments
+					parts = [part.strip() for part in line.split(",")]
+					if len(parts) >= 4:
+						date = parts[0]  # MM-DD format
+						line1 = parts[1] 
+						line2 = parts[2]
+						image = parts[3]
+						color = parts[4] if len(parts) > 4 else "MINT"  # Default to MINT
+						
+						# Convert MM-DD to MMDD format for lookup
+						date_key = date.replace("-", "")
+						events[date_key] = [line1, line2, image, color]
+						line_count += 1
+			
+			print(f"Loaded {line_count} events from CSV")
+			return events
+			
+	except Exception as e:
+		print(f"Failed to load events.csv: {e}")
+		print("Using fallback hardcoded events")
+		# Return your current hardcoded events as fallback
+		return {
+			"0101": ["New Year", "Happy", "new_year.bmp", "BUGAMBILIA"],
+			"0210": ["Emilio", "Birthday", "cake.bmp", "MINT"],
+			"0703": ["Gaby", "Birthday", "cake.bmp", "MINT"],
+			"0704": ["July", "4th of", "us_flag.bmp", "BUGAMBILIA"],
+			"0825": ["Diego", "Birthday", "cake.bmp", "MINT"],
+			"0916": ["Mexico", "Viva", "mexico_flag_v3.bmp", "BUGAMBILIA"],
+			"0922": ["Puchis", "Cumple", "panzon.bmp", "MINT"],
+			"1031": ["Halloween", "Happy", "halloween.bmp", "BUGAMBILIA"],
+			"1101": ["Muertos", "Dia de", "day_of_the_death.bmp", "BUGAMBILIA"],
+			"1109": ["Tiago", "Birthday", "cake.bmp", "MINT"],
+			"1127": ["Thanksgiving", "Happy", "thanksgiving.bmp", "BUGAMBILIA"],
+			"1225": ["X-MAS", "Merry", "xmas.bmp", "BUGAMBILIA"],
+		}
+		
+def get_events():
+	"""Get cached events - loads from CSV only once"""
+	global cached_events
+	
+	if cached_events is None:
+		cached_events = load_events_from_csv()
+	
+	return cached_events
+
+
 def calculate_bottom_aligned_positions(font, line1_text, line2_text, display_height=32, bottom_margin=2, line_spacing=1):
 	"""
 	Calculate optimal y positions for two lines of text aligned to bottom
+	Enhanced to account for descender characters (g, j, p, q, y)
+	
 	Returns:
 		tuple: (line1_y, line2_y) positions
 	"""
@@ -543,9 +578,15 @@ def calculate_bottom_aligned_positions(font, line1_text, line2_text, display_hei
 	# Get font metrics
 	font_height, baseline_offset = get_font_metrics(font, line1_text + line2_text)
 	
+	# Check if ONLY the second line (bottom line) has lowercase descender characters
+	descender_chars = {'g', 'j', 'p', 'q', 'y'}
+	has_descenders = any(char in descender_chars for char in line2_text)
+	
+	# Add extra bottom margin if descenders are present
+	adjusted_bottom_margin = bottom_margin + (2 if has_descenders else 0)
+	
 	# Calculate positions working backwards from bottom
-	# Start from the bottom edge minus margin
-	bottom_edge = display_height - bottom_margin
+	bottom_edge = display_height - adjusted_bottom_margin
 	
 	# Second line position (bottom line)
 	line2_y = bottom_edge - baseline_offset
@@ -557,6 +598,10 @@ def calculate_bottom_aligned_positions(font, line1_text, line2_text, display_hei
 	if line1_y < baseline_offset:
 		line1_y = baseline_offset
 		line2_y = line1_y + font_height + line_spacing
+	
+	# Debug output
+	print(f"Text positioning: '{line1_text}' at y={line1_y}, '{line2_text}' at y={line2_y}")
+	print(f"  Has descenders: {has_descenders}, bottom margin: {adjusted_bottom_margin}")
 	
 	return int(line1_y), int(line2_y)
 
@@ -732,13 +777,16 @@ def show_clock_display(rtc, duration=CLOCK_FALLBACK_DURATION):
 		supervisor.reload()
 
 def show_event_display(rtc, duration=EVENT_DISPLAY_DURATION):
-	"""Display special calendar events with dynamic text positioning"""
+	"""Display special calendar events using cached CSV data"""
 	month_day = f"{rtc.datetime.tm_mon:02d}{rtc.datetime.tm_mday:02d}"
 	
-	if month_day not in CALENDAR_EVENTS:
+	# Get events from cache (loaded only once at startup)
+	events = get_events()
+	
+	if month_day not in events:
 		return False
 	
-	event_data = CALENDAR_EVENTS[month_day]
+	event_data = events[month_day]
 	print(f"Showing event: {event_data[1]}")
 	clear_display()
 	
@@ -762,12 +810,23 @@ def show_event_display(rtc, duration=EVENT_DISPLAY_DURATION):
 			
 			# Position 25px wide image at top right
 			image_grid = displayio.TileGrid(bitmap, pixel_shader=palette)
-			image_grid.x = 38  # Right-aligned for 25px wide image
+			image_grid.x = 37  # Right-aligned for 25px wide image
 			image_grid.y = 2   # Start at y = 2 as requested
 			
 			# Calculate optimal text positions dynamically
 			line1_text = event_data[1]  # e.g., "Cumple"
-			line2_text = event_data[0]  # e.g., "Pichono"
+			line2_text = event_data[0]  # e.g., "Puchis"
+			text_color = event_data[3] if len(event_data) > 3 else "MINT"  # Get color from CSV
+			
+			# Convert color name to actual color value
+			color_map = {
+				"MINT": MINT,
+				"BUGAMBILIA": BUGAMBILIA, 
+				"LILAC": LILAC,
+				"DIMMEST_WHITE": DIMMEST_WHITE,
+				"BLACK": BLACK
+			}
+			line2_color = color_map.get(text_color, MINT)  # Default to MINT if color not found
 			
 			# Get dynamic positions with 1px bottom margin and 1px line spacing
 			line1_y, line2_y = calculate_bottom_aligned_positions(
@@ -775,7 +834,7 @@ def show_event_display(rtc, duration=EVENT_DISPLAY_DURATION):
 				line1_text, 
 				line2_text,
 				display_height=32,
-				bottom_margin=1,  # Very tight bottom margin
+				bottom_margin=2,  # Very tight bottom margin
 				line_spacing=1    # Minimal spacing between lines
 			)
 			
@@ -790,7 +849,7 @@ def show_event_display(rtc, duration=EVENT_DISPLAY_DURATION):
 			
 			text2 = bitmap_label.Label(
 				font,
-				color=MINT, 
+				color=line2_color,  # Use color from CSV
 				text=line2_text,
 				x=2,
 				y=line2_y
@@ -856,7 +915,13 @@ def main():
 		
 		# Initialize colors based on detected matrix type
 		initialize_colors()
-		monitor_memory("after display and color init")
+		
+		# Load events once at startup
+		print("Loading events...")
+		events = get_events()  # This loads and caches the CSV
+		print(f"Events loaded: {len(events)} total")
+		
+		monitor_memory("after display and events init")
 		
 		# Initialize RTC
 		rtc = setup_rtc()
