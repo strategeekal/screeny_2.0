@@ -23,6 +23,9 @@ import adafruit_ntp
 gc.collect()
 
 ### CONSTANTS AND CONFIGURATION ###
+
+# Debugging
+ESTIMATED_TOTAL_MEMORY = 2000000
 DEBUG_MODE = False
 MEMORY_MONITORING = False
 
@@ -626,12 +629,14 @@ def clear_display():
 		
 
 def monitor_memory(label=""):
-	if MEMORY_MONITORING:
+		"""Monitor memory usage for high-memory board"""
 		import gc
 		free_mem = gc.mem_free()
-		print(f"Free memory{' (' + label + ')' if label else ''}: {free_mem} bytes")
+		used_mem = ESTIMATED_TOTAL_MEMORY - free_mem
+		usage_percent = (used_mem / ESTIMATED_TOTAL_MEMORY) * 100
+		
+		print(f"Memory {label}: {free_mem//1024}KB free ({usage_percent:.1f}% used)")
 		return free_mem
-	return 0
 
 ### DISPLAY FUNCTIONS ###
 
