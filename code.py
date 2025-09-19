@@ -23,6 +23,8 @@ import adafruit_ntp
 gc.collect()
 
 ### CONSTANTS AND CONFIGURATION ###
+DEBUG_MODE = False
+MEMORY_MONITORING = False
 
 # Base colors (standard RGB values)
 _BASE_COLORS = {
@@ -69,8 +71,14 @@ MAX_API_CALLS_BEFORE_RESTART = 8
 # System Configuration
 DAILY_RESET_ENABLED = True
 DAILY_RESET_HOUR = 3
-WEATHER_DISPLAY_DURATION = 300  # 5 minutes
+
+# Event Configuration
 EVENT_DISPLAY_DURATION = 30
+CSV_EVENTS_FILE = "events.csv"
+DEFAULT_EVENT_COLOR = "MINT"
+
+# Display Configuration  
+WEATHER_DISPLAY_DURATION = 300  # 5 minutes
 CLOCK_FALLBACK_DURATION = 300
 
 TIMEZONE_CONFIG = {
@@ -516,7 +524,7 @@ def load_events_from_csv():
 	events = {}
 	try:
 		print("Loading events from events.csv...")
-		with open("events.csv", "r") as f:
+		with open(CSV_EVENTS_FILE, "r") as f:
 			line_count = 0
 			for line in f:
 				line = line.strip()
@@ -527,7 +535,7 @@ def load_events_from_csv():
 						line1 = parts[1] 
 						line2 = parts[2]
 						image = parts[3]
-						color = parts[4] if len(parts) > 4 else "MINT"  # Default to MINT
+						color = parts[4] if len(parts) > 4 else DEFAULT_EVENT_COLOR  # Default to MINT
 						
 						# Convert MM-DD to MMDD format for lookup
 						date_key = date.replace("-", "")
@@ -562,6 +570,10 @@ def get_events():
 	
 	if cached_events is None:
 		cached_events = load_events_from_csv()
+		# Ensure we always have events even if CSV and fallback both fail
+		if not cached_events:
+			print("Warning: No events loaded, using minimal fallback")
+			cached_events = {}
 	
 	return cached_events
 
@@ -600,8 +612,9 @@ def calculate_bottom_aligned_positions(font, line1_text, line2_text, display_hei
 		line2_y = line1_y + font_height + line_spacing
 	
 	# Debug output
-	print(f"Text positioning: '{line1_text}' at y={line1_y}, '{line2_text}' at y={line2_y}")
-	print(f"  Has descenders: {has_descenders}, bottom margin: {adjusted_bottom_margin}")
+	if DEBUG_MODE:
+		print(f"Text positioning: '{line1_text}' at y={line1_y}, '{line2_text}' at y={line2_y}")
+		print(f"  Has descenders: {has_descenders}, bottom margin: {adjusted_bottom_margin}")
 	
 	return int(line1_y), int(line2_y)
 
@@ -613,11 +626,12 @@ def clear_display():
 		
 
 def monitor_memory(label=""):
-		"""Monitor memory usage for debugging"""
+	if MEMORY_MONITORING:
 		import gc
 		free_mem = gc.mem_free()
 		print(f"Free memory{' (' + label + ')' if label else ''}: {free_mem} bytes")
 		return free_mem
+	return 0
 
 ### DISPLAY FUNCTIONS ###
 
@@ -826,7 +840,7 @@ def show_event_display(rtc, duration=EVENT_DISPLAY_DURATION):
 				"DIMMEST_WHITE": DIMMEST_WHITE,
 				"BLACK": BLACK
 			}
-			line2_color = color_map.get(text_color, MINT)  # Default to MINT if color not found
+			line2_color = color_map.get(text_color.upper(), MINT)  # Default to MINT if color not found
 			
 			# Get dynamic positions with 1px bottom margin and 1px line spacing
 			line1_y, line2_y = calculate_bottom_aligned_positions(
