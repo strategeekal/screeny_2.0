@@ -27,7 +27,7 @@ gc.collect()
 # Debugging
 ESTIMATED_TOTAL_MEMORY = 2000000
 DEBUG_MODE = False
-MEMORY_MONITORING = False
+MEMORY_MONITORING = True
 
 # Base colors (standard RGB values)
 _BASE_COLORS = {
@@ -630,13 +630,14 @@ def clear_display():
 
 def monitor_memory(label=""):
 		"""Monitor memory usage for high-memory board"""
-		import gc
-		free_mem = gc.mem_free()
-		used_mem = ESTIMATED_TOTAL_MEMORY - free_mem
-		usage_percent = (used_mem / ESTIMATED_TOTAL_MEMORY) * 100
-		
-		print(f"Memory {label}: {free_mem//1024}KB free ({usage_percent:.1f}% used)")
-		return free_mem
+		if MEMORY_MONITORING:
+			import gc
+			free_mem = gc.mem_free()
+			used_mem = ESTIMATED_TOTAL_MEMORY - free_mem
+			usage_percent = (used_mem / ESTIMATED_TOTAL_MEMORY) * 100
+			
+			print(f"Memory {label}: {free_mem//1024}KB free ({usage_percent:.1f}% used)")
+			return free_mem
 
 ### DISPLAY FUNCTIONS ###
 
@@ -928,22 +929,26 @@ def main():
 		
 		# Initialize hardware first
 		initialize_display()
+		monitor_memory("after display init")
 		
 		# Detect matrix type once (this caches the result)
 		matrix_type = detect_matrix_type()
+		monitor_memory("after matrix type detection")
 		
 		# Initialize colors based on detected matrix type
 		initialize_colors()
+		monitor_memory("after color init")
 		
 		# Load events once at startup
 		print("Loading events...")
 		events = get_events()  # This loads and caches the CSV
 		print(f"Events loaded: {len(events)} total")
 		
-		monitor_memory("after display and events init")
+		monitor_memory("after events init")
 		
 		# Initialize RTC
 		rtc = setup_rtc()
+		monitor_memory("after rtc init")
 		
 		# Initialize WiFi
 		wifi_connected = setup_wifi()
@@ -968,9 +973,12 @@ def main():
 				
 				# Display weather (5 minutes)
 				show_weather_display(rtc, WEATHER_DISPLAY_DURATION)
+				monitor_memory("after weather loop")
 				
 				# Show event if scheduled (30 seconds)
 				event_shown = show_event_display(rtc, EVENT_DISPLAY_DURATION)
+				if event_shown:
+					monitor_memory("after event loop")
 				
 				# Brief pause if no event
 				if not event_shown:
