@@ -28,6 +28,9 @@ gc.collect()
 ESTIMATED_TOTAL_MEMORY = 2000000
 DEBUG_MODE = False
 MEMORY_MONITORING = True
+LOG_TO_FILE = False  # Set to True if filesystem becomes writable
+LOG_MEMORY_STATS = True  # Include memory info in logs
+LOG_FILE = "weather_log.txt"
 
 # Base colors (standard RGB values)
 _BASE_COLORS = {
@@ -117,6 +120,80 @@ startup_time = 0
 # Load fonts once at startup
 bg_font = bitmap_font.load_font("fonts/bigbit10-16.bdf")
 font = bitmap_font.load_font("fonts/tinybit6-16.bdf")
+
+### LOGGING UTILITIES ###
+
+def log_entry(message, level="INFO", include_memory=False):
+	"""
+	Unified logging with timestamp and optional memory stats
+	
+	Args:
+		message: Log message
+		level: Log level (INFO, ERROR, WARNING, DEBUG)
+		include_memory: Include memory usage in log entry
+	"""
+	try:
+		# Generate timestamp
+		if rtc_instance:
+			dt = rtc_instance.datetime
+			timestamp = f"{dt.tm_year}-{dt.tm_mon:02d}-{dt.tm_mday:02d} {dt.tm_hour:02d}:{dt.tm_min:02d}:{dt.tm_sec:02d}"
+		else:
+			timestamp = "NO-RTC"
+		
+		# Build log entry
+		log_line = f"[{timestamp}] {level}: {message}"
+		
+		# Add memory info if requested
+		if include_memory and LOG_MEMORY_STATS:
+			import gc
+			free_mem = gc.mem_free()
+			mem_percent = ((ESTIMATED_TOTAL_MEMORY - free_mem) / ESTIMATED_TOTAL_MEMORY) * 100
+			log_line += f" (Mem: {free_mem//1024}KB/{mem_percent:.1f}%)"
+		
+		# Output to console
+		print(log_line)
+		
+		# Try to write to file if enabled
+		if LOG_TO_FILE:
+			try:
+				with open(LOG_FILE, "a") as f:
+					f.write(f"{log_line}\n")
+			except OSError:
+				# Only warn about filesystem issues once per session
+				if not hasattr(log_entry, '_fs_warning_shown'):
+					print("[LOG] Warning: Filesystem read-only, file logging disabled")
+					log_entry._fs_warning_shown = True
+	
+	except Exception as e:
+		# Fallback logging that should always work
+		print(f"[LOG-ERROR] Failed to log: {message} (Error: {e})")
+
+def log_info(message, include_memory=False):
+	"""Log info message"""
+	log_entry(message, "INFO", include_memory)
+
+def log_error(message, include_memory=True):
+	"""Log error message with memory stats"""
+	log_entry(message, "ERROR", include_memory)
+
+def log_warning(message, include_memory=False):
+	"""Log warning message"""
+	log_entry(message, "WARNING", include_memory)
+
+def log_debug(message, include_memory=False):
+	"""Log debug message"""
+	log_entry(message, "DEBUG", include_memory)
+
+def monitor_memory(label=""):
+	"""Monitor memory usage for high-memory board"""
+	if MEMORY_MONITORING:
+		import gc
+		free_mem = gc.mem_free()
+		used_mem = ESTIMATED_TOTAL_MEMORY - free_mem
+		usage_percent = (used_mem / ESTIMATED_TOTAL_MEMORY) * 100
+		
+		print(f"Memory {label}: {free_mem//1024}KB free ({usage_percent:.1f}% used)")
+		return free_mem
 
 ### HARDWARE INITIALIZATION ###
 
@@ -626,18 +703,6 @@ def clear_display():
 	"""Clear all display elements"""
 	while len(main_group):
 		main_group.pop()
-		
-
-def monitor_memory(label=""):
-		"""Monitor memory usage for high-memory board"""
-		if MEMORY_MONITORING:
-			import gc
-			free_mem = gc.mem_free()
-			used_mem = ESTIMATED_TOTAL_MEMORY - free_mem
-			usage_percent = (used_mem / ESTIMATED_TOTAL_MEMORY) * 100
-			
-			print(f"Memory {label}: {free_mem//1024}KB free ({usage_percent:.1f}% used)")
-			return free_mem
 
 ### DISPLAY FUNCTIONS ###
 
