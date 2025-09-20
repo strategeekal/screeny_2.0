@@ -27,7 +27,6 @@ gc.collect()
 # Debugging
 ESTIMATED_TOTAL_MEMORY = 2000000
 DEBUG_MODE = False
-MEMORY_MONITORING = True
 LOG_TO_FILE = False  # Set to True if filesystem becomes writable
 LOG_MEMORY_STATS = True  # Include memory info in logs
 LOG_FILE = "weather_log.txt"
@@ -126,22 +125,33 @@ font = bitmap_font.load_font("fonts/tinybit6-16.bdf")
 def log_entry(message, level="INFO", include_memory=False):
 	"""
 	Unified logging with timestamp and optional memory stats
-	
-	Args:
-		message: Log message
-		level: Log level (INFO, ERROR, WARNING, DEBUG)
-		include_memory: Include memory usage in log entry
 	"""
 	try:
-		# Generate timestamp
+		# Try RTC first, fallback to system time
 		if rtc_instance:
-			dt = rtc_instance.datetime
-			timestamp = f"{dt.tm_year}-{dt.tm_mon:02d}-{dt.tm_mday:02d} {dt.tm_hour:02d}:{dt.tm_min:02d}:{dt.tm_sec:02d}"
+			try:
+				dt = rtc_instance.datetime
+				timestamp = f"{dt.tm_year}-{dt.tm_mon:02d}-{dt.tm_mday:02d} {dt.tm_hour:02d}:{dt.tm_min:02d}:{dt.tm_sec:02d}"
+				time_source = ""  # RTC time is most reliable
+			except Exception:
+				# RTC exists but failed to read
+				import time
+				monotonic_time = time.monotonic()
+				timestamp = f"SYS+{int(monotonic_time)}"
+				time_source = " [SYS]"
 		else:
-			timestamp = "NO-RTC"
+			# No RTC available, use system monotonic time
+			import time
+			monotonic_time = time.monotonic()
+			# Convert to more readable format (hours:minutes since startup)
+			hours = int(monotonic_time // 3600)
+			minutes = int((monotonic_time % 3600) // 60)
+			seconds = int(monotonic_time % 60)
+			timestamp = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+			time_source = " [UPTIME]"
 		
 		# Build log entry
-		log_line = f"[{timestamp}] {level}: {message}"
+		log_line = f"[{timestamp}{time_source}] {level}: {message}"
 		
 		# Add memory info if requested
 		if include_memory and LOG_MEMORY_STATS:
@@ -150,22 +160,19 @@ def log_entry(message, level="INFO", include_memory=False):
 			mem_percent = ((ESTIMATED_TOTAL_MEMORY - free_mem) / ESTIMATED_TOTAL_MEMORY) * 100
 			log_line += f" (Mem: {free_mem//1024}KB/{mem_percent:.1f}%)"
 		
-		# Output to console
 		print(log_line)
 		
-		# Try to write to file if enabled
+		# File logging if enabled
 		if LOG_TO_FILE:
 			try:
 				with open(LOG_FILE, "a") as f:
 					f.write(f"{log_line}\n")
 			except OSError:
-				# Only warn about filesystem issues once per session
 				if not hasattr(log_entry, '_fs_warning_shown'):
 					print("[LOG] Warning: Filesystem read-only, file logging disabled")
 					log_entry._fs_warning_shown = True
 	
 	except Exception as e:
-		# Fallback logging that should always work
 		print(f"[LOG-ERROR] Failed to log: {message} (Error: {e})")
 
 def log_info(message, include_memory=False):
@@ -182,18 +189,8 @@ def log_warning(message, include_memory=False):
 
 def log_debug(message, include_memory=False):
 	"""Log debug message"""
-	log_entry(message, "DEBUG", include_memory)
-
-def monitor_memory(label=""):
-	"""Monitor memory usage for high-memory board"""
-	if MEMORY_MONITORING:
-		import gc
-		free_mem = gc.mem_free()
-		used_mem = ESTIMATED_TOTAL_MEMORY - free_mem
-		usage_percent = (used_mem / ESTIMATED_TOTAL_MEMORY) * 100
-		
-		print(f"Memory {label}: {free_mem//1024}KB free ({usage_percent:.1f}% used)")
-		return free_mem
+	if DEBUG_MODE:
+		log_entry(message, "DEBUG", include_memory)
 
 ### HARDWARE INITIALIZATION ###
 
@@ -218,6 +215,7 @@ def initialize_display():
 	display.brightness = 0.1
 	main_group = displayio.Group()
 	display.root_group = main_group
+	log_info("Display initiated successfully")
 
 def setup_rtc():
 	"""Initialize RTC with retry logic"""
@@ -228,30 +226,15 @@ def setup_rtc():
 			i2c = board.I2C()
 			rtc = adafruit_ds3231.DS3231(i2c)
 			rtc_instance = rtc
-			print(f"RTC initialized on attempt {attempt + 1}")
+			log_info(f"RTC initialized on attempt {attempt + 1}")
 			return rtc
 		except Exception as e:
-			print(f"RTC attempt {attempt + 1} failed: {e}")
+			log_warning(f"RTC attempt {attempt + 1} failed: {e}")
 			if attempt < 4:
 				time.sleep(2)
 	
-	print("RTC initialization failed, restarting...")
+	log_error("RTC initialization failed, restarting...")
 	supervisor.reload()
-
-### API CALL TRACKING ###
-		
-def log_api_call():
-		"""Track API calls and restart when needed"""
-		global api_call_count
-		
-		api_call_count += 1
-		print(f"API Call #{api_call_count}")
-		
-		# Full restart every 8 calls for reliable socket cleanup
-		if api_call_count >= MAX_API_CALLS_BEFORE_RESTART:
-			print(f"Preventive restart after {api_call_count} API calls")
-			time.sleep(2)
-			supervisor.reload()
 
 ### NETWORK FUNCTIONS ###
 
@@ -261,27 +244,30 @@ def setup_wifi():
 	password = os.getenv("CIRCUITPY_WIFI_PASSWORD")
 	
 	if not ssid or not password:
-		print("WiFi credentials missing")
+		log_warning("WiFi credentials missing")
 		return False
 	
 	for attempt in range(3):
 		try:
 			wifi.radio.connect(ssid, password)
-			print(f"Connected to {ssid}")
+			if DEBUG_MODE:
+				log_debug(f"Connected to {ssid}")
+			else:
+				log_info(f"WiFi connected to {ssid[:8]}...")
 			return True
 		except ConnectionError as e:
-			print(f"WiFi attempt {attempt + 1} failed")
+			log_warning(f"WiFi attempt {attempt + 1} failed")
 			if attempt < 2:
 				time.sleep(2)
 	
-	print("WiFi connection failed")
+	log_error("WiFi connection failed")
 	return False
 
 def get_timezone_offset(timezone_name, utc_datetime):
 	"""Calculate timezone offset including DST for a given timezone"""
 	
 	if timezone_name not in TIMEZONE_OFFSETS:
-		print(f"Unknown timezone: {timezone_name}, using Chicago")
+		log_warning(f"Unknown timezone: {timezone_name}, using Chicago")
 		timezone_name = "America/Chicago"
 	
 	tz_info = TIMEZONE_OFFSETS[timezone_name]
@@ -344,10 +330,10 @@ def sync_time_with_timezone(rtc):
 		ntp = adafruit_ntp.NTP(pool, tz_offset=offset)
 		rtc.datetime = ntp.datetime
 		
-		print(f"Time synced to {timezone_name} (UTC{offset:+d})")
+		log_info(f"Time synced to {timezone_name} (UTC{offset:+d})")
 		
 	except Exception as e:
-		print(f"NTP sync failed: {e}")
+		log_error(f"NTP sync failed: {e}")
 
 def cleanup_sockets():
 	"""Aggressive socket cleanup to prevent memory issues"""
@@ -356,11 +342,14 @@ def cleanup_sockets():
 
 def fetch_weather_data():
 	"""Fetch current weather data with matrix-specific API keys"""
-	global consecutive_failures, last_successful_weather
+	global consecutive_failures, last_successful_weather, api_call_count
+	
+	# Increment API call counter
+	api_call_count += 1
 	
 	# Monitor memory just before planned restart
 	if api_call_count >= MAX_API_CALLS_BEFORE_RESTART - 1:
-		monitor_memory("before planned restart")
+		log_warning(f"API call #{api_call_count} - restart imminent", include_memory = True)
 	
 	# Resource cleanup variables
 	pool = None
@@ -387,26 +376,26 @@ def fetch_weather_data():
 				for line in f:
 					if line.startswith(api_key_name):
 						api_key = line.split("=")[1].strip().strip('"').strip("'")
-						print(f"Using {api_key_name} for {matrix_type}")
+						log_debug(f"Using {api_key_name} for {matrix_type}")
 						break
 		except Exception as e:
-			print(f"Failed to read API key: {e}")
+			log_warning(f"Failed to read API key: {e}")
 			
 		# Fallback to original key if matrix-specific key not found
 		if not api_key:
-			print(f"{api_key_name} not found, trying fallback key")
+			log_warning(f"{api_key_name} not found, trying fallback key")
 			try:
 				with open("settings.toml", "r") as f:
 					for line in f:
 						if line.startswith("ACCUWEATHER_API_KEY"):
 							api_key = line.split("=")[1].strip().strip('"').strip("'")
-							print("Using fallback ACCUWEATHER_API_KEY")
+							log_warning("Using fallback ACCUWEATHER_API_KEY")
 							break
 			except Exception as e:
-				print(f"Failed to read fallback API key: {e}")
+				log_error(f"Failed to read fallback API key: {e}")
 			
 		if not api_key:
-			print("No API key found")
+			log_error("No API key found")
 			consecutive_failures += 1
 			return None
 		
@@ -420,14 +409,14 @@ def fetch_weather_data():
 		response = requests.get(url)
 		
 		if response.status_code != 200:
-			print(f"API error: {response.status_code}")
+			log_error(f"API error: {response.status_code}")
 			consecutive_failures += 1
 			return None
 		
 		# Parse response
 		weather_json = response.json()
 		if not weather_json:
-			print("Empty weather response")
+			log_warning("Empty weather response")
 			consecutive_failures += 1
 			return None
 		
@@ -448,25 +437,23 @@ def fetch_weather_data():
 			"is_day_time": current.get("IsDayTime", True),
 		}
 		
-		print(f"Weather: {weather_data['weather_text']}, {weather_data['temperature']}°C")
+		# Log successful weather fetch with current count
+		log_info(f"Weather: {weather_data['weather_text']}, {weather_data['temperature']}°C (API #{api_call_count}/{MAX_API_CALLS_BEFORE_RESTART})", include_memory=True)
 		
 		# Reset failure tracking on success
 		consecutive_failures = 0
 		last_successful_weather = time.monotonic()
 		
-		# Log the API call
-		log_api_call()
-		
 		# Check for preventive restart
 		if api_call_count >= MAX_API_CALLS_BEFORE_RESTART:
-			print(f"Preventive restart after {api_call_count} API calls")
+			log_warning(f"Preventive restart after {api_call_count} API calls", include_memory=True)
 			time.sleep(2)
 			supervisor.reload()
 		
 		return weather_data
 		
 	except Exception as e:
-		print(f"Weather fetch error: {e}")
+		log_error(f"Weather fetch error: {e}")
 		consecutive_failures += 1
 		return None
 		
@@ -501,7 +488,7 @@ def detect_matrix_type():
 	}
 	
 	_matrix_type_cache = device_mappings.get(device_id, "type1")
-	print(f"Device ID: {device_id}, Matrix type: {_matrix_type_cache}")
+	log_info(f"Device ID: {device_id}, Matrix type: {_matrix_type_cache}")
 	return _matrix_type_cache
 	
 # Function to get corrected colors for current matrix
@@ -523,8 +510,8 @@ def initialize_colors():
 	LILAC = colors["LILAC"]
 	DEFAULT_TEXT_COLOR = DIMMEST_WHITE
 	
-	print(f"Colors initialized for matrix type: {detect_matrix_type()}")
-	print(f"MINT color: 0x{MINT:06X}")
+	log_debug(f"Colors initialized for matrix type: {detect_matrix_type()}")
+	log_debug(f"MINT color: 0x{MINT:06X}")
 
 def convert_bmp_palette(palette):
 	"""Convert BMP palette for RGB matrix display"""
@@ -595,7 +582,7 @@ def get_font_metrics(font, text="Aygjpq"):
 			# Fallback if bbox is invalid
 			return 8, 2
 	except Exception as e:
-		print(f"Font metrics error: {e}")
+		log_error(f"Font metrics error: {e}")
 		# Safe fallback values for small font
 		return 8, 2
 
@@ -603,7 +590,7 @@ def load_events_from_csv():
 	"""Load events from CSV file - called only once at startup"""
 	events = {}
 	try:
-		print("Loading events from events.csv...")
+		log_debug(f"Loading events from {CSV_EVENTS_FILE}...")
 		with open(CSV_EVENTS_FILE, "r") as f:
 			line_count = 0
 			for line in f:
@@ -622,12 +609,12 @@ def load_events_from_csv():
 						events[date_key] = [line1, line2, image, color]
 						line_count += 1
 			
-			print(f"Loaded {line_count} events from CSV")
+			log_info(f"Loaded {line_count} events successfully from CSV", include_memory = True)
 			return events
 			
 	except Exception as e:
-		print(f"Failed to load events.csv: {e}")
-		print("Using fallback hardcoded events")
+		log_warning(f"Failed to load events.csv: {e}")
+		log_warning("Using fallback hardcoded events")
 		# Return your current hardcoded events as fallback
 		return {
 			"0101": ["New Year", "Happy", "new_year.bmp", "BUGAMBILIA"],
@@ -652,7 +639,7 @@ def get_events():
 		cached_events = load_events_from_csv()
 		# Ensure we always have events even if CSV and fallback both fail
 		if not cached_events:
-			print("Warning: No events loaded, using minimal fallback")
+			log_warning("Warning: No events loaded, using minimal fallback")
 			cached_events = {}
 	
 	return cached_events
@@ -693,8 +680,8 @@ def calculate_bottom_aligned_positions(font, line1_text, line2_text, display_hei
 	
 	# Debug output
 	if DEBUG_MODE:
-		print(f"Text positioning: '{line1_text}' at y={line1_y}, '{line2_text}' at y={line2_y}")
-		print(f"  Has descenders: {has_descenders}, bottom margin: {adjusted_bottom_margin}")
+		log_debug(f"Text positioning: '{line1_text}' at y={line1_y}, '{line2_text}' at y={line2_y}")
+		log_debug(f"  Has descenders: {has_descenders}, bottom margin: {adjusted_bottom_margin}")
 	
 	return int(line1_y), int(line2_y)
 
@@ -761,12 +748,12 @@ def add_indicator_bars(main_group, x_start, uv_index, humidity):
 
 def show_weather_display(rtc, duration=WEATHER_DISPLAY_DURATION):
 	"""Display weather information and time"""
-	print("Displaying weather...")
+	log_debug("Displaying weather...", include_memory = True)
 	
 	# Fetch fresh weather data
 	weather_data = fetch_weather_data()
 	if not weather_data:
-		print("Weather unavailable, showing clock")
+		log_warning("Weather unavailable, showing clock")
 		show_clock_display(rtc, duration)
 		return
 	
@@ -784,7 +771,7 @@ def show_weather_display(rtc, duration=WEATHER_DISPLAY_DURATION):
 		image_grid = displayio.TileGrid(bitmap, pixel_shader=palette)
 		main_group.append(image_grid)
 	except Exception as e:
-		print(f"Icon load failed: {e}")
+		log_warning(f"Icon load failed: {e}")
 	
 	# Setup temperature display
 	temp_text.text = f"{round(weather_data['temperature'])}°"
@@ -829,7 +816,7 @@ def show_weather_display(rtc, duration=WEATHER_DISPLAY_DURATION):
 
 def show_clock_display(rtc, duration=CLOCK_FALLBACK_DURATION):
 	"""Display clock as fallback when weather unavailable"""
-	print("Displaying clock...")
+	log_warning("Displaying clock...", include_memory = True)
 	clear_display()
 	
 	date_text = bitmap_label.Label(font, color=DEFAULT_TEXT_COLOR, x=5, y=7)
@@ -857,7 +844,7 @@ def show_clock_display(rtc, duration=CLOCK_FALLBACK_DURATION):
 	# Check for restart conditions
 	time_since_success = time.monotonic() - last_successful_weather
 	if consecutive_failures >= 3 or time_since_success > 600:  # 10 minutes
-		print("Restarting due to weather failures")
+		log_warning("Restarting due to weather failures")
 		time.sleep(2)
 		supervisor.reload()
 
@@ -869,10 +856,11 @@ def show_event_display(rtc, duration=EVENT_DISPLAY_DURATION):
 	events = get_events()
 	
 	if month_day not in events:
+		log_info("No events to display today")
 		return False
 	
 	event_data = events[month_day]
-	print(f"Showing event: {event_data[1]}")
+	log_info(f"Showing event: {event_data[1]}", include_memory = True)
 	clear_display()
 	
 	# Force garbage collection before loading images
@@ -890,7 +878,7 @@ def show_event_display(rtc, duration=EVENT_DISPLAY_DURATION):
 			try:
 				bitmap, palette = load_bmp_image(image_file)
 			except Exception as e:
-				print(f"Failed to load {image_file}: {e}")
+				log_warning(f"Failed to load {image_file}: {e}")
 				bitmap, palette = load_bmp_image("img/events/blank_sq.bmp")
 			
 			# Position 25px wide image at top right
@@ -946,7 +934,7 @@ def show_event_display(rtc, duration=EVENT_DISPLAY_DURATION):
 			main_group.append(text2)
 			
 	except Exception as e:
-		print(f"Event display error: {e}")
+		log_error(f"Event display error: {e}")
 	
 	# Wait for specified duration
 	time.sleep(duration)
@@ -976,7 +964,7 @@ def check_daily_reset(rtc):
 	)
 	
 	if should_restart:
-		print(f"Daily restart triggered ({hours_running:.1f}h runtime)")
+		log_info(f"Daily restart triggered ({hours_running:.1f}h runtime)", include_memory = True)
 		time.sleep(2)
 		supervisor.reload()
 
@@ -986,49 +974,37 @@ def main():
 	"""Main program execution"""
 	global last_successful_weather, startup_time
 	
-	print("=== WEATHER DISPLAY STARTUP ===")
+	# Initialize RTC FIRST for proper timestamps
+	rtc = setup_rtc()
+	
+	log_info("=== WEATHER DISPLAY STARTUP ===", include_memory=True)
 	
 	try:
-		# Monitor memory at startup
-		monitor_memory("startup")
-		
-		# Initialize hardware first
+		# Initialize hardware
 		initialize_display()
-		monitor_memory("after display init")
 		
-		# Detect matrix type once (this caches the result)
+		# Detect matrix type and initialize colors
 		matrix_type = detect_matrix_type()
-		monitor_memory("after matrix type detection")
-		
-		# Initialize colors based on detected matrix type
 		initialize_colors()
-		monitor_memory("after color init")
 		
-		# Load events once at startup
-		print("Loading events...")
-		events = get_events()  # This loads and caches the CSV
-		print(f"Events loaded: {len(events)} total")
+		# Load events
+		events = get_events()
+		log_debug(f"System initialized - {len(events)} events loaded")
 		
-		monitor_memory("after events init")
-		
-		# Initialize RTC
-		rtc = setup_rtc()
-		monitor_memory("after rtc init")
-		
-		# Initialize WiFi
+		# Network operations (can be slower/fail)
 		wifi_connected = setup_wifi()
-		monitor_memory("after wifi init")
 		
-		# Sync time if WiFi available
 		if wifi_connected:
 			sync_time_with_timezone(rtc)
+			log_info("Time synchronized with NTP")
+		else:
+			log_warning("Starting without WiFi - using RTC time only")
 		
 		# Set startup time
 		startup_time = time.monotonic()
 		last_successful_weather = startup_time
 		
-		monitor_memory("ready for main loop")
-		print("Entering main display loop...")
+		log_info("Entering main display loop", include_memory=True)
 		
 		# Main display loop
 		while True:
@@ -1038,25 +1014,20 @@ def main():
 				
 				# Display weather (5 minutes)
 				show_weather_display(rtc, WEATHER_DISPLAY_DURATION)
-				monitor_memory("after weather loop")
 				
 				# Show event if scheduled (30 seconds)
 				event_shown = show_event_display(rtc, EVENT_DISPLAY_DURATION)
-				if event_shown:
-					monitor_memory("after event loop")
 				
 				# Brief pause if no event
 				if not event_shown:
 					time.sleep(1)
 					
 			except Exception as e:
-				print(f"Display loop error: {e}")
-				monitor_memory("error occurred")
+				log_error(f"Display loop error: {e}", include_memory = True)
 				time.sleep(5)  # Brief recovery pause
 				
 	except Exception as e:
-		print(f"Critical system error: {e}")
-		monitor_memory("critical error")
+		log_error(f"Critical system error: {e}", include_memory = True)
 		time.sleep(10)
 		supervisor.reload()
 
