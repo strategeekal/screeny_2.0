@@ -47,7 +47,7 @@ LOG_FILE = "weather_log.txt"
 
 # Dummy Weather Control
 DUMMY_WEATHER_DATA = {
-	"weather_icon": 34,
+	"weather_icon": 19,
 	"temperature": -12,
 	"feels_like": -13.6,
 	"feels_shade": -14.6,
@@ -757,6 +757,16 @@ def add_day_indicator(main_group, rtc):
 		for y in range(0, 4):
 			pixel_line = Line(x, y, x, y, day_color)
 			main_group.append(pixel_line)
+			
+	# Add 1-pixel black margin to the left (x=59)
+	for y in range(0, 4):
+		black_pixel = Line(59, y, 59, y, COLORS["BLACK"])
+		main_group.append(black_pixel)
+	
+	# Add 1-pixel black margin to the bottom (y=4)
+	for x in range(59, 64):  # Include the corner pixel at (59,4)
+		black_pixel = Line(x, 4, x, 4, COLORS["BLACK"])
+		main_group.append(black_pixel)
 
 def calculate_uv_bar_length(uv_index):
 	"""Calculate UV bar length with spacing for readability"""
@@ -868,7 +878,7 @@ def show_weather_display(rtc, duration=DISPLAY_CONFIG["weather_duration"]):
 	
 	main_group.append(time_text)
 	
-	# Add day indicator after other elements
+	# Add day indicator
 	if DISPLAY_CONFIG["weekday_color"]:
 		add_day_indicator(main_group, rtc)
 		log_debug(f"Showing Weekday Color Indicator on Weather Display")
