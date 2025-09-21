@@ -26,7 +26,7 @@ gc.collect()
 DEBUG_MODE = False
 MEMORY_MONITORING = False
 
-# Base colors (standard RGB values)
+# Base colors - used by both matrix types for most colors
 _BASE_COLORS = {
 	"BLACK": 0x000000,
 	"DIMMEST_WHITE": 0x101010,
@@ -35,25 +35,16 @@ _BASE_COLORS = {
 	"LILAC": 0x161408,
 }
 
-# Color correction mappings for different matrix types
+# Corrections for colors that differ on second display
 _COLOR_CORRECTIONS = {
-	"type1": {
-		# type1 uses standard colors (no correction needed)
-		"BLACK": 0x000000,
-		"DIMMEST_WHITE": 0x101010,
-		"MINT": 0x080816,
-		"BUGAMBILIA": 0x101000,
-		"LILAC": 0x161408,
-	},
 	"type2": {
-		# type2 has red/green channel swap (your working matrix)
-		"BLACK": 0x000000,
-		"DIMMEST_WHITE": 0x101010,
-		"MINT": 0x081608,  # This worked on your matrix
-		"BUGAMBILIA": 0x011000,  # Red/green swapped
-		"LILAC": 0x141608,  # Red/green swapped
-	},
+		"MINT": 0x081608,
+		"BUGAMBILIA": 0x011000,  
+		"LILAC": 0x141608,
+	}
+	# type1 uses base colors (no corrections needed)
 }
+
 
 # Temporary placeholder values (will be overwritten by initialize_colors())
 BLACK = 0x000000
@@ -426,9 +417,15 @@ def detect_matrix_type():
 	
 # Function to get corrected colors for current matrix
 def get_matrix_colors():
-	"""Get color constants corrected for the current matrix type"""
+	"""Get color constants with corrections applied"""
 	matrix_type = detect_matrix_type()
-	return _COLOR_CORRECTIONS.get(matrix_type, _COLOR_CORRECTIONS["type1"])
+	colors = _BASE_COLORS.copy()  # Start with base colors
+	
+	# Apply corrections if they exist for this matrix type
+	if matrix_type in _COLOR_CORRECTIONS:
+		colors.update(_COLOR_CORRECTIONS[matrix_type])
+	
+	return colors
 
 # Initialize colors after matrix detection (this will be called in main())
 def initialize_colors():
