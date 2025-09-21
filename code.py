@@ -30,9 +30,10 @@ DISPLAY_CONFIG = {
 	"dummy_weather": True,
 	"events": True,
 	"clock_fallback": True,
-	"color_test": True,
-	"weather_duration": 5,
-	"event_duration": 5,
+	"color_test": False,
+	"weekday_color": True,
+	"weather_duration": 15,
+	"event_duration": 15,
 	"clock_fallback_duration": 300,
 	"color_test_duration": 300
 }
@@ -732,6 +733,31 @@ def clear_display():
 
 ### DISPLAY FUNCTIONS ###
 
+def get_day_color(rtc):
+	"""Get color for day of week indicator"""
+	day_colors = {
+		0: COLORS["RED"],      # Monday
+		1: COLORS["ORANGE"],   # Tuesday  
+		2: COLORS["YELLOW"],   # Wednesday
+		3: COLORS["GREEN"],    # Thursday
+		4: COLORS["AQUA"],     # Friday
+		5: COLORS["PURPLE"],   # Saturday
+		6: COLORS["PINK"]      # Sunday
+	}
+	
+	weekday = rtc.datetime.tm_wday  # 0=Monday, 6=Sunday
+	return day_colors.get(weekday, COLORS["WHITE"])  # Default to white if error
+
+def add_day_indicator(main_group, rtc):
+	"""Add 4x4 day-of-week color indicator at top right"""
+	day_color = get_day_color(rtc)
+	
+	# Create 4x4 rectangle at top right (64-4=60 pixels from left)
+	for x in range(60, 64):
+		for y in range(0, 4):
+			pixel_line = Line(x, y, x, y, day_color)
+			main_group.append(pixel_line)
+
 def calculate_uv_bar_length(uv_index):
 	"""Calculate UV bar length with spacing for readability"""
 	if uv_index <= 3:
@@ -842,6 +868,13 @@ def show_weather_display(rtc, duration=DISPLAY_CONFIG["weather_duration"]):
 	
 	main_group.append(time_text)
 	
+	# Add day indicator after other elements
+	if DISPLAY_CONFIG["weekday_color"]:
+		add_day_indicator(main_group, rtc)
+		log_debug(f"Showing Weekday Color Indicator on Weather Display")
+	else:
+		log_debug("Weekday Color Indicator Disabled")
+
 	# Display update loop
 	start_time = time.monotonic()
 	while time.monotonic() - start_time < duration:
@@ -872,6 +905,13 @@ def show_clock_display(rtc, duration=DISPLAY_CONFIG["clock_fallback_duration"]):
 	
 	months = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
 			  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+			  
+	# Add day indicator after other elements
+	if DISPLAY_CONFIG["weekday_color"]:
+		add_day_indicator(main_group, rtc)
+		log_debug(f"Showing Weekday Color Indicator on Clock Display")
+	else:
+		log_debug("Weekday Color Indicator Disabled")
 	
 	start_time = time.monotonic()
 	while time.monotonic() - start_time < duration:
@@ -970,6 +1010,13 @@ def show_event_display(rtc, duration=DISPLAY_CONFIG["event_duration"]):
 			main_group.append(text1)
 			main_group.append(text2)
 			
+			# Add day indicator after other elements
+			if DISPLAY_CONFIG["weekday_color"]:
+				add_day_indicator(main_group, rtc)
+				log_debug(f"Showing Weekday Color Indicator on Event Display")
+			else:
+				log_debug("Weekday Color Indicator Disabled")
+			
 	except Exception as e:
 		log_error(f"Event display error: {e}")
 	
@@ -981,7 +1028,7 @@ def show_event_display(rtc, duration=DISPLAY_CONFIG["event_duration"]):
 	return True
 	
 def show_color_test_display(duration=DISPLAY_CONFIG["color_test_duration"]):
-	log_info(f"Displaying Color Test", include_memory=True)
+	log_info(f"Displaying Color Test for {duration_message(DISPLAY_CONFIG["color_test_duration"])}", include_memory=True)
 	clear_display()
 	gc.collect()
 	
