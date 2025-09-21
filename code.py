@@ -27,7 +27,7 @@ gc.collect()
 # Display Control Configuration
 DISPLAY_CONFIG = {
 	"weather": True,
-	"dummy_weather": False,
+	"dummy_weather": True,
 	"events": True,
 	"clock_fallback": True,
 	"weather_duration": 300,
@@ -44,14 +44,14 @@ LOG_FILE = "weather_log.txt"
 
 # Dummy Weather Control
 DUMMY_WEATHER_DATA = {
-	"weather_icon": 1),
-	"temperature": 0),
-	"feels_like": 0),
-	"feels_shade": 0),
-	"humidity": 0),
-	"uv_index":0),
-	"weather_text": "Unknown"),
-	"is_day_time": True),
+	"weather_icon": 34,
+	"temperature": -12,
+	"feels_like": -13.6,
+	"feels_shade": -14.6,
+	"humidity": 90,
+	"uv_index":7,
+	"weather_text": "FAKE ",
+	"is_day_time": True,
 }
 
 # Base colors (standard RGB values)
@@ -769,7 +769,13 @@ def show_weather_display(rtc, duration=DISPLAY_CONFIG["weather_duration"]):
 	log_debug("Displaying weather...", include_memory = True)
 	
 	# Fetch fresh weather data
-	weather_data = fetch_weather_data()
+	if DISPLAY_CONFIG["dummy_weather"]:
+		weather_data = DUMMY_WEATHER_DATA
+		# Log successful weather fetch with current count
+		log_info(f"Displaying DUMMY Weather: {weather_data['weather_text']}, {weather_data['temperature']}°C (API #{api_call_count}/{MAX_API_CALLS_BEFORE_RESTART})", include_memory=True)
+	else:
+		weather_data = fetch_weather_data()
+	
 	if not weather_data:
 		log_warning("Weather unavailable, showing clock")
 		show_clock_display(rtc, duration)
