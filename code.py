@@ -26,13 +26,15 @@ gc.collect()
 
 # Display Control Configuration
 DISPLAY_CONFIG = {
-	"weather": True,
+	"weather": False,
 	"dummy_weather": True,
-	"events": True,
+	"events": False,
 	"clock_fallback": True,
-	"weather_duration": 300,
-	"event_duration": 30,
-	"clock_fallback_duration": 300
+	"color_test": True,
+	"weather_duration": 10,
+	"event_duration": 10,
+	"clock_fallback_duration": 300,
+	"color_test_duration": 300
 }
 
 # Debugging
@@ -965,6 +967,57 @@ def show_event_display(rtc, duration=DISPLAY_CONFIG["event_duration"]):
 	# Optional: Clean up after event display
 	gc.collect()
 	return True
+	
+def show_color_test_display(duration=DISPLAY_CONFIG["color_test_duration"]):
+	log_info(f"Displaying Color Test", include_memory=True)
+	clear_display()
+	gc.collect()
+	
+	try:
+		# Define colors with their names for better logging
+		color_data = [
+			(MINT, "MINT"),
+			(BUGAMBILIA, "BUGAMBILIA"), 
+			(LILAC, "LILAC"),
+			(0x3F0000, "RED"),
+			(0x003F00, "GREEN"),
+			(0x00003F, "BLUE"),
+			(0x3F1F00, "ORANGE"),
+			(0x3F3F00, "YELLOW"),
+			(0x003F3F, "CYAN"),
+			(0x100010, "PURPLE"),
+			(0x3F1F1F, "PINK"),
+			(0x002020, "AQUA")
+		]
+		
+		texts = ["Aa", "Bb", "Cc", "Dd", "Ee", "Ff", "Gg", "Hh", "Ii", "Jj", "Kk", "Ll"]
+		
+		key_text = "Color Key: "
+		
+		for i, ((color, color_name), text) in enumerate(zip(color_data, texts)):
+			col = i // 3  # Column (0, 1, 2, 3)
+			row = i % 3   # Row (0, 1, 2)
+			
+			label = bitmap_label.Label(
+				font, color=color, text=text,
+				x=2 + col * 16, y=2 + row * 11
+			)
+			main_group.append(label)
+			
+			# Add color name and hex value to key
+			key_text += f"{text}={color_name}(0x{color:06X}) | "
+	
+	except Exception as e:
+		log_error(f"Color Test display error: {e}")
+	
+	log_info(key_text)
+	
+	# Wait for specified duration
+	time.sleep(duration)
+	
+	# Optional: Clean up after event display
+	gc.collect()
+	return True
 
 ### SYSTEM MANAGEMENT ###
 
@@ -1036,22 +1089,29 @@ def main():
 				# System maintenance
 				check_daily_reset(rtc)
 				
-				# Display weather (5 minutes)
+				# Display weather
 				if DISPLAY_CONFIG["weather"]:
 					show_weather_display(rtc, DISPLAY_CONFIG["weather_duration"])
 				else:
 					log_debug("Weather display disabled")
 				
-				# Show event if scheduled (30 seconds)
+				# Show event if scheduled
 				if DISPLAY_CONFIG["events"]:
 					event_shown = show_event_display(rtc, DISPLAY_CONFIG["event_duration"])
+					
+					# Brief pause if no event
+					if not event_shown:
+						log_info("No event to show today")
+						time.sleep(1)
+						
 				else:
 					log_debug("event display disabled")
-				
-				# Brief pause if no event
-				if not event_shown:
-					log_info("No event to show today")
-					time.sleep(1)
+					
+				# Show color test
+				if DISPLAY_CONFIG["color_test"]:
+					show_color_test_display(DISPLAY_CONFIG["color_test_duration"])
+				else:
+					log_debug("Color Test Disabled")
 					
 			except Exception as e:
 				log_error(f"Display loop error: {e}", include_memory = True)
