@@ -627,7 +627,7 @@ def get_font_metrics(font, text="Aygjpq"):
 		return 8, 2
 
 def load_events_from_csv():
-	"""Load events from CSV file - called only once at startup"""
+	"""Load events from CSV file - supports multiple events per day"""
 	events = {}
 	try:
 		log_debug(f"Loading events from {CSV_EVENTS_FILE}...")
@@ -642,15 +642,38 @@ def load_events_from_csv():
 						line1 = parts[1] 
 						line2 = parts[2]
 						image = parts[3]
-						color = parts[4] if len(parts) > 4 else DEFAULT_EVENT_COLOR  # Default to MINT
+						color = parts[4] if len(parts) > 4 else DEFAULT_EVENT_COLOR
 						
 						# Convert MM-DD to MMDD format for lookup
 						date_key = date.replace("-", "")
-						events[date_key] = [line1, line2, image, color]
+						
+						# Store as list to support multiple events per day
+						if date_key not in events:
+							events[date_key] = []
+						events[date_key].append([line1, line2, image, color])
 						line_count += 1
 			
 			log_info(f"Loaded {line_count} events successfully from CSV", include_memory = True)
 			return events
+			
+	except Exception as e:
+		log_warning(f"Failed to load events.csv: {e}")
+		log_warning("Using fallback hardcoded events")
+		# Return fallback events as lists
+		return {
+			"0101": [["New Year", "Happy", "new_year.bmp", "BUGAMBILIA"]],
+			"0210": [["Emilio", "Birthday", "cake.bmp", "MINT"]],
+			"0703": [["Gaby", "Birthday", "cake.bmp", "MINT"]],
+			"0704": [["July", "4th of", "us_flag.bmp", "BUGAMBILIA"]],
+			"0825": [["Diego", "Birthday", "cake.bmp", "MINT"]],
+			"0916": [["Mexico", "Viva", "mexico_flag_v3.bmp", "BUGAMBILIA"]],
+			"0922": [["Puchis", "Cumple", "panzon.bmp", "MINT"]],
+			"1031": [["Halloween", "Happy", "halloween.bmp", "BUGAMBILIA"]],
+			"1101": [["Muertos", "Dia de", "day_of_the_death.bmp", "BUGAMBILIA"]],
+			"1109": [["Tiago", "Birthday", "cake.bmp", "MINT"]],
+			"1127": [["Thanksgiving", "Happy", "thanksgiving.bmp", "BUGAMBILIA"]],
+			"1225": [["X-MAS", "Merry", "xmas.bmp", "BUGAMBILIA"]],
+		}
 			
 	except Exception as e:
 		log_warning(f"Failed to load events.csv: {e}")
@@ -942,100 +965,118 @@ def show_clock_display(rtc, duration=DISPLAY_CONFIG["clock_fallback_duration"]):
 		log_warning("Restarting due to weather failures")
 		time.sleep(2)
 		supervisor.reload()
-
+		
 def show_event_display(rtc, duration=DISPLAY_CONFIG["event_duration"]):
-	"""Display special calendar events using cached CSV data"""
-	month_day = f"{rtc.datetime.tm_mon:02d}{rtc.datetime.tm_mday:02d}"
-	
-	# Get events from cache (loaded only once at startup)
-	events = get_events()
-	
-	if month_day not in events:
-		log_info("No events to display today")
-		return False
-	
-	event_data = events[month_day]
-	log_info(f"Showing event: {event_data[1]}, for {duration_message(DISPLAY_CONFIG["event_duration"])}", include_memory = True)
-	clear_display()
-	
-	# Force garbage collection before loading images
-	gc.collect()
-	
-	try:
-		if event_data[1] == "Birthday":
-			# For birthday events, use the original cake image layout
-			bitmap, palette = load_bmp_image("img/events/cake.bmp")
-			image_grid = displayio.TileGrid(bitmap, pixel_shader=palette)
-			main_group.append(image_grid)
+		"""Display special calendar events - cycles through multiple events if present"""
+		month_day = f"{rtc.datetime.tm_mon:02d}{rtc.datetime.tm_mday:02d}"
+		
+		# Get events from cache (loaded only once at startup)
+		events = get_events()
+		
+		if month_day not in events:
+			log_info("No events to display today")
+			return False
+		
+		event_list = events[month_day]
+		num_events = len(event_list)
+		
+		if num_events == 1:
+			# Single event - use full duration
+			event_data = event_list[0]
+			log_info(f"Showing event: {event_data[1]}, for {duration_message(duration)}", include_memory=True)
+			_display_single_event(event_data, rtc, duration)
 		else:
-			# Load event-specific image (25x28 positioned at top right)
-			image_file = f"img/events/{event_data[2]}"
-			try:
-				bitmap, palette = load_bmp_image(image_file)
-			except Exception as e:
-				log_warning(f"Failed to load {image_file}: {e}")
-				bitmap, palette = load_bmp_image("img/events/blank_sq.bmp")
+			# Multiple events - split time between them
+			event_duration = duration // num_events
+			log_info(f"Showing {num_events} events, {duration_message(event_duration)} each", include_memory=True)
 			
-			# Position 25px wide image at top right
-			image_grid = displayio.TileGrid(bitmap, pixel_shader=palette)
-			image_grid.x = 37  # Right-aligned for 25px wide image
-			image_grid.y = 2   # Start at y = 2 as requested
-			
-			# Calculate optimal text positions dynamically
-			line1_text = event_data[1]  # e.g., "Cumple"
-			line2_text = event_data[0]  # e.g., "Puchis"
-			text_color = event_data[3] if len(event_data) > 3 else "MINT"  # Get color from CSV
-			
-			# Color_map through dictionary access:
-			line2_color = COLORS.get(text_color.upper(), COLORS["MINT"])
-			
-			# Get dynamic positions with 1px bottom margin and 1px line spacing
-			line1_y, line2_y = calculate_bottom_aligned_positions(
-				font, 
-				line1_text, 
-				line2_text,
-				display_height=32,
-				bottom_margin=2,  # Very tight bottom margin
-				line_spacing=1    # Minimal spacing between lines
-			)
-			
-			# Create text labels with calculated positions
-			text1 = bitmap_label.Label(
-				font,
-				color=COLORS["DIMMEST_WHITE"],  # Instead of DEFAULT_TEXT_COLOR
-				text=line1_text,
-				x=2, y=line1_y
-			)
-			
-			text2 = bitmap_label.Label(
-				font,
-				color=line2_color,  # Use color from CSV
-				text=line2_text,
-				x=2,
-				y=line2_y
-			)
-			
-			# Add elements to display
-			main_group.append(image_grid)
-			main_group.append(text1)
-			main_group.append(text2)
-			
-			# Add day indicator after other elements
-			if DISPLAY_CONFIG["weekday_color"]:
-				add_day_indicator(main_group, rtc)
-				log_debug(f"Showing Weekday Color Indicator on Event Display")
+			for i, event_data in enumerate(event_list):
+				log_info(f"Event {i+1}/{num_events}: {event_data[1]}")
+				_display_single_event(event_data, rtc, event_duration)
+		
+		return True
+
+def _display_single_event(event_data, rtc, duration):
+		"""Helper function to display a single event"""
+		clear_display()
+		
+		# Force garbage collection before loading images
+		gc.collect()
+		
+		try:
+			if event_data[1] == "Birthday":
+				# For birthday events, use the original cake image layout
+				bitmap, palette = load_bmp_image("img/events/cake.bmp")
+				image_grid = displayio.TileGrid(bitmap, pixel_shader=palette)
+				main_group.append(image_grid)
 			else:
-				log_debug("Weekday Color Indicator Disabled")
-			
-	except Exception as e:
-		log_error(f"Event display error: {e}")
-	
-	# Wait for specified duration
-	time.sleep(duration)
-	
-	# Optional: Clean up after event display
-	gc.collect()
-	return True
+				# Load event-specific image (25x28 positioned at top right)
+				image_file = f"img/events/{event_data[2]}"
+				try:
+					bitmap, palette = load_bmp_image(image_file)
+				except Exception as e:
+					log_warning(f"Failed to load {image_file}: {e}")
+					bitmap, palette = load_bmp_image("img/events/blank_sq.bmp")
+				
+				# Position 25px wide image at top right
+				image_grid = displayio.TileGrid(bitmap, pixel_shader=palette)
+				image_grid.x = 37  # Right-aligned for 25px wide image
+				image_grid.y = 2   # Start at y = 2 as requested
+				
+				# Calculate optimal text positions dynamically
+				line1_text = event_data[1]  # e.g., "Cumple"
+				line2_text = event_data[0]  # e.g., "Puchis"
+				text_color = event_data[3] if len(event_data) > 3 else "MINT"  # Get color from CSV
+				
+				# Color_map through dictionary access:
+				line2_color = COLORS.get(text_color.upper(), COLORS["MINT"])
+				
+				# Get dynamic positions with 1px bottom margin and 1px line spacing
+				line1_y, line2_y = calculate_bottom_aligned_positions(
+					font, 
+					line1_text, 
+					line2_text,
+					display_height=32,
+					bottom_margin=2,  # Very tight bottom margin
+					line_spacing=1    # Minimal spacing between lines
+				)
+				
+				# Create text labels with calculated positions
+				text1 = bitmap_label.Label(
+					font,
+					color=COLORS["DIMMEST_WHITE"],
+					text=line1_text,
+					x=2, y=line1_y
+				)
+				
+				text2 = bitmap_label.Label(
+					font,
+					color=line2_color,  # Use color from CSV
+					text=line2_text,
+					x=2,
+					y=line2_y
+				)
+				
+				# Add elements to display
+				main_group.append(image_grid)
+				main_group.append(text1)
+				main_group.append(text2)
+				
+				# Add day indicator after other elements
+				if DISPLAY_CONFIG["weekday_color"]:
+					add_day_indicator(main_group, rtc)
+					log_debug(f"Showing Weekday Color Indicator on Event Display")
+				else:
+					log_debug("Weekday Color Indicator Disabled")
+				
+		except Exception as e:
+			log_error(f"Event display error: {e}")
+		
+		# Wait for specified duration
+		time.sleep(duration)
+		
+		# Optional: Clean up after event display
+		gc.collect()
 	
 def show_color_test_display(duration=DISPLAY_CONFIG["color_test_duration"]):
 	log_info(f"Displaying Color Test for {duration_message(DISPLAY_CONFIG["color_test_duration"])}", include_memory=True)
