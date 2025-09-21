@@ -50,7 +50,7 @@ DUMMY_WEATHER_DATA = {
 	"feels_shade": -14.6,
 	"humidity": 90,
 	"uv_index":7,
-	"weather_text": "FAKE ",
+	"weather_text": "DUMMY",
 	"is_day_time": True,
 }
 
@@ -447,7 +447,8 @@ def fetch_weather_data():
 		}
 		
 		# Log successful weather fetch with current count
-		log_info(f"Weather: {weather_data['weather_text']}, {weather_data['temperature']}°C (API #{api_call_count}/{MAX_API_CALLS_BEFORE_RESTART})", include_memory=True)
+		m, s = divmod(DISPLAY_CONFIG["weather_duration"], 60)
+		log_info(f"Displaying Weather for {m} minutes {s} seconds: {weather_data['weather_text']}, {weather_data['temperature']}°C (API #{api_call_count}/{MAX_API_CALLS_BEFORE_RESTART})", include_memory=True)
 		
 		# Reset failure tracking on success
 		consecutive_failures = 0
@@ -769,7 +770,8 @@ def show_weather_display(rtc, duration=DISPLAY_CONFIG["weather_duration"]):
 	if DISPLAY_CONFIG["dummy_weather"]:
 		weather_data = DUMMY_WEATHER_DATA
 		# Log successful weather fetch with current count
-		log_info(f"Displaying DUMMY Weather: {weather_data['weather_text']}, {weather_data['temperature']}°C (API #{api_call_count}/{MAX_API_CALLS_BEFORE_RESTART})", include_memory=True)
+		m, s = divmod(DISPLAY_CONFIG["weather_duration"], 60)
+		log_info(f"Displaying DUMMY Weather for {m} minutes {s} seconds: {weather_data['weather_text']}, {weather_data['temperature']}°C", include_memory=True)
 	else:
 		weather_data = fetch_weather_data()
 	
