@@ -27,13 +27,13 @@ gc.collect()
 # Display Control Configuration
 DISPLAY_CONFIG = {
 	"weather": True,
-	"dummy_weather": True,
+	"dummy_weather": False,
 	"events": True,
 	"clock_fallback": True,
 	"color_test": False,
 	"weekday_color": True,
-	"weather_duration": 15,
-	"event_duration": 15,
+	"weather_duration": 300,
+	"event_duration": 30,
 	"clock_fallback_duration": 300,
 	"color_test_duration": 300
 }
