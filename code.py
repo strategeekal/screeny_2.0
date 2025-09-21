@@ -26,13 +26,13 @@ gc.collect()
 
 # Display Control Configuration
 DISPLAY_CONFIG = {
-	"weather": False,
+	"weather": True,
 	"dummy_weather": True,
-	"events": False,
+	"events": True,
 	"clock_fallback": True,
 	"color_test": True,
-	"weather_duration": 10,
-	"event_duration": 10,
+	"weather_duration": 5,
+	"event_duration": 5,
 	"clock_fallback_duration": 300,
 	"color_test_duration": 300
 }
@@ -1095,7 +1095,6 @@ def main():
 					
 					# Brief pause if no event
 					if not event_shown:
-						log_info("No event to show today")
 						time.sleep(1)
 						
 				else:
