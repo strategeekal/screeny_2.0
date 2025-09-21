@@ -56,34 +56,45 @@ DUMMY_WEATHER_DATA = {
 	"is_day_time": True,
 }
 
-# Base colors - used by both matrix types for most colors
+# Base colors use standard RGB (works correctly on type2)
 _BASE_COLORS = {
 	"BLACK": 0x000000,
 	"DIMMEST_WHITE": 0x101010,
-	"MINT": 0x080816,
-	"BUGAMBILIA": 0x101000,
-	"LILAC": 0x161408,
+	"MINT": 0x081608,
+	"BUGAMBILIA": 0x100010,
+	"LILAC": 0x160814,
+	"RED": 0x3F0000,
+	"GREEN": 0x003F00,
+	"BLUE": 0x00003F,
+	"ORANGE": 0x7F1F00,
+	"YELLOW": 0x3F3F00,
+	"CYAN": 0x003F3F,
+	"PURPLE": 0x080025,
+	"PINK": 0x7F1F5F,
+	"AQUA": 0x002020,
+	"WHITE": 0x3F3F3F,
+	"GRAY": 0x1F1F1F,
 }
 
-# Corrections for colors that differ on second display
+# Only correct for the non-standard type1 matrix (green↔blue swap)
 _COLOR_CORRECTIONS = {
-	"type2": {
-		"MINT": 0x081608,
-		"BUGAMBILIA": 0x011000,  
-		"LILAC": 0x141608,
+	"type1": {
+		# Green↔Blue swap for type1 matrix
+		"MINT": 0x080816,      # 0x081608 with green/blue swapped
+		"BUGAMBILIA": 0x101000, # 0x100010 with green/blue swapped
+		"LILAC": 0x161408,     # 0x160814 with green/blue swapped
+		"GREEN": 0x00003F,     # 0x003F00 with green/blue swapped
+		"BLUE": 0x003F00,      # 0x00003F with green/blue swapped
+		"ORANGE": 0x7F001F,    # 0x5F1F00 with green/blue swapped
+		"YELLOW": 0x3F003F,    # 0x3F3F00 with green/blue swapped
+		"PURPLE": 0x082500,    # 0x3F003F with green/blue swapped
+		"PINK": 0x7F5F1F,      # 0x3F1F5F with green/blue swapped
 	}
-	# type1 uses base colors (no corrections needed)
+	# type2 uses base colors as-is (no corrections needed)
 }
 
-
-# Temporary placeholder values (will be overwritten by initialize_colors())
-BLACK = 0x000000
-DIMMEST_WHITE = 0x101010
-MINT = 0x080816
-BUGAMBILIA = 0x101000
-LILAC = 0x161408
-
-DEFAULT_TEXT_COLOR = DIMMEST_WHITE
+# Global Colors Object
+COLORS = {}
 
 # API Configuration
 ACCUWEATHER_LOCATION_KEY = "2626571"
@@ -223,7 +234,6 @@ def initialize_display():
 	)
 	
 	display = framebufferio.FramebufferDisplay(matrix, auto_refresh=True)
-	display.brightness = 0.1
 	main_group = displayio.Group()
 	display.root_group = main_group
 	log_info("Display initiated successfully")
@@ -517,19 +527,14 @@ def get_matrix_colors():
 
 # Initialize colors after matrix detection (this will be called in main())
 def initialize_colors():
-	"""Initialize color constants based on matrix type"""
-	global BLACK, DIMMEST_WHITE, MINT, BUGAMBILIA, LILAC, DEFAULT_TEXT_COLOR
+	"""Initialize all color constants based on matrix type"""
+	global COLORS, DEFAULT_TEXT_COLOR
 	
-	colors = get_matrix_colors()
-	BLACK = colors["BLACK"]
-	DIMMEST_WHITE = colors["DIMMEST_WHITE"] 
-	MINT = colors["MINT"]
-	BUGAMBILIA = colors["BUGAMBILIA"]
-	LILAC = colors["LILAC"]
-	DEFAULT_TEXT_COLOR = DIMMEST_WHITE
+	COLORS = get_matrix_colors()
+	DEFAULT_TEXT_COLOR = COLORS["DIMMEST_WHITE"]
 	
 	log_debug(f"Colors initialized for matrix type: {detect_matrix_type()}")
-	log_debug(f"MINT color: 0x{MINT:06X}")
+	log_debug(f"MINT color: 0x{COLORS['MINT']:06X}")
 
 def convert_bmp_palette(palette):
 	"""Convert BMP palette for RGB matrix display"""
@@ -744,24 +749,24 @@ def add_indicator_bars(main_group, x_start, uv_index, humidity):
 	# UV bar (only if UV > 0)
 	if uv_index > 0:
 		uv_length = calculate_uv_bar_length(uv_index)
-		main_group.append(Line(x_start, 27, x_start - 1 + uv_length, 27, DEFAULT_TEXT_COLOR))
+		main_group.append(Line(x_start, 27, x_start - 1 + uv_length, 27, COLORS["DIMMEST_WHITE"]))
 		
 		# UV spacing dots (black pixels every 3)
 		for i in [3, 7, 11]:
 			if i < uv_length:
-				main_group.append(Line(x_start + i, 27, x_start + i, 27, BLACK))
+				main_group.append(Line(x_start + i, 27, x_start + i, 27, COLORS["BLACK"]))
 	
 	# Humidity bar 
 	if humidity > 0:
 		humidity_length = calculate_humidity_bar_length(humidity)
 		
 		# Main humidity line
-		main_group.append(Line(x_start, 29, x_start - 1 + humidity_length, 29, DEFAULT_TEXT_COLOR))
+		main_group.append(Line(x_start, 29, x_start - 1 + humidity_length, 29, COLORS["DIMMEST_WHITE"]))
 		
 		# Humidity spacing dots (black pixels every 2 = every 20%)
 		for i in [2, 5, 8, 11]:  # Positions for 20%, 40%, 60%, 80%
 			if i < humidity_length:
-				main_group.append(Line(x_start + i, 29, x_start + i, 29, BLACK))
+				main_group.append(Line(x_start + i, 29, x_start + i, 29, COLORS["BLACK"]))
 
 
 def show_weather_display(rtc, duration=DISPLAY_CONFIG["weather_duration"]):
@@ -785,10 +790,10 @@ def show_weather_display(rtc, duration=DISPLAY_CONFIG["weather_duration"]):
 	clear_display()
 	
 	# Create display elements
-	temp_text = bitmap_label.Label(bg_font, color=DEFAULT_TEXT_COLOR, x=2, y=20, background_color = BLACK, padding_top =-5, padding_bottom = 1, padding_left = 1,)
-	feels_like_text = bitmap_label.Label(font, color=DEFAULT_TEXT_COLOR, y=16, background_color = BLACK, padding_top=-5, padding_bottom=-2, padding_left = 1,)
-	feels_shade_text = bitmap_label.Label(font, color=DEFAULT_TEXT_COLOR, y=24, background_color = BLACK, padding_top=-5, padding_bottom=-2, padding_left = 1,)
-	time_text = bitmap_label.Label(font, color=DEFAULT_TEXT_COLOR, x=15, y=24, background_color = BLACK, padding_top=-5, padding_bottom=-2, padding_left = 1,)
+	temp_text = bitmap_label.Label(bg_font, color=COLORS["DIMMEST_WHITE"], x=2, y=20, background_color = COLORS["BLACK"], padding_top =-5, padding_bottom = 1, padding_left = 1,)
+	feels_like_text = bitmap_label.Label(font, color=COLORS["DIMMEST_WHITE"], y=16, background_color = COLORS["BLACK"], padding_top=-5, padding_bottom=-2, padding_left = 1,)
+	feels_shade_text = bitmap_label.Label(font, color=COLORS["DIMMEST_WHITE"], y=24, background_color = COLORS["BLACK"], padding_top=-5, padding_bottom=-2, padding_left = 1,)
+	time_text = bitmap_label.Label(font, color=COLORS["DIMMEST_WHITE"], x=15, y=24, background_color = COLORS["BLACK"], padding_top=-5, padding_bottom=-2, padding_left = 1,)
 	
 	# Load weather icon
 	try:
@@ -844,8 +849,8 @@ def show_clock_display(rtc, duration=DISPLAY_CONFIG["clock_fallback_duration"]):
 	log_warning("Displaying clock...", include_memory = True)
 	clear_display()
 	
-	date_text = bitmap_label.Label(font, color=DEFAULT_TEXT_COLOR, x=5, y=7)
-	time_text = bitmap_label.Label(bg_font, color=MINT, x=5, y=20)
+	date_text = bitmap_label.Label(font, color=COLORS["DIMMEST_WHITE"], x=5, y=7)
+	time_text = bitmap_label.Label(bg_font, color=COLORS["MINT"], x=5, y=20)
 	
 	main_group.append(date_text)
 	main_group.append(time_text)
@@ -916,15 +921,8 @@ def show_event_display(rtc, duration=DISPLAY_CONFIG["event_duration"]):
 			line2_text = event_data[0]  # e.g., "Puchis"
 			text_color = event_data[3] if len(event_data) > 3 else "MINT"  # Get color from CSV
 			
-			# Convert color name to actual color value
-			color_map = {
-				"MINT": MINT,
-				"BUGAMBILIA": BUGAMBILIA, 
-				"LILAC": LILAC,
-				"DIMMEST_WHITE": DIMMEST_WHITE,
-				"BLACK": BLACK
-			}
-			line2_color = color_map.get(text_color.upper(), MINT)  # Default to MINT if color not found
+			# Color_map through dictionary access:
+			line2_color = COLORS.get(text_color.upper(), COLORS["MINT"])
 			
 			# Get dynamic positions with 1px bottom margin and 1px line spacing
 			line1_y, line2_y = calculate_bottom_aligned_positions(
@@ -939,10 +937,9 @@ def show_event_display(rtc, duration=DISPLAY_CONFIG["event_duration"]):
 			# Create text labels with calculated positions
 			text1 = bitmap_label.Label(
 				font,
-				color=DEFAULT_TEXT_COLOR, 
+				color=COLORS["DIMMEST_WHITE"],  # Instead of DEFAULT_TEXT_COLOR
 				text=line1_text,
-				x=2,
-				y=line1_y
+				x=2, y=line1_y
 			)
 			
 			text2 = bitmap_label.Label(
@@ -974,48 +971,30 @@ def show_color_test_display(duration=DISPLAY_CONFIG["color_test_duration"]):
 	gc.collect()
 	
 	try:
-		# Define colors with their names for better logging
-		color_data = [
-			(MINT, "MINT"),
-			(BUGAMBILIA, "BUGAMBILIA"), 
-			(LILAC, "LILAC"),
-			(0x3F0000, "RED"),
-			(0x003F00, "GREEN"),
-			(0x00003F, "BLUE"),
-			(0x3F1F00, "ORANGE"),
-			(0x3F3F00, "YELLOW"),
-			(0x003F3F, "CYAN"),
-			(0x100010, "PURPLE"),
-			(0x3F1F1F, "PINK"),
-			(0x002020, "AQUA")
-		]
-		
+		# Get test colors dynamically from COLORS dictionary
+		test_color_names = ["MINT", "BUGAMBILIA", "LILAC", "RED", "GREEN", "BLUE", 
+						   "ORANGE", "YELLOW", "CYAN", "PURPLE", "PINK", "AQUA"]
 		texts = ["Aa", "Bb", "Cc", "Dd", "Ee", "Ff", "Gg", "Hh", "Ii", "Jj", "Kk", "Ll"]
 		
 		key_text = "Color Key: "
 		
-		for i, ((color, color_name), text) in enumerate(zip(color_data, texts)):
-			col = i // 3  # Column (0, 1, 2, 3)
-			row = i % 3   # Row (0, 1, 2)
+		for i, (color_name, text) in enumerate(zip(test_color_names, texts)):
+			color = COLORS[color_name]
+			col = i // 3
+			row = i % 3
 			
 			label = bitmap_label.Label(
 				font, color=color, text=text,
 				x=2 + col * 16, y=2 + row * 11
 			)
 			main_group.append(label)
-			
-			# Add color name and hex value to key
 			key_text += f"{text}={color_name}(0x{color:06X}) | "
 	
 	except Exception as e:
 		log_error(f"Color Test display error: {e}")
 	
 	log_info(key_text)
-	
-	# Wait for specified duration
 	time.sleep(duration)
-	
-	# Optional: Clean up after event display
 	gc.collect()
 	return True
 
