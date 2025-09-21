@@ -213,6 +213,22 @@ def log_debug(message, include_memory=False):
 	"""Log debug message"""
 	if DEBUG_MODE:
 		log_entry(message, "DEBUG", include_memory)
+		
+def duration_message(seconds):
+	"""Convert seconds to a readable duration string"""
+	h, remainder = divmod(seconds, 3600)
+	m, s = divmod(remainder, 60)
+	
+	parts = []
+	if h > 0:
+		parts.append(f"{h} hour{'s' if h != 1 else ''}")
+	if m > 0:
+		parts.append(f"{m} minute{'s' if m != 1 else ''}")
+	if s > 0:
+		parts.append(f"{s} second{'s' if s != 1 else ''}")
+	
+	return " ".join(parts) if parts else "0 seconds"
+		
 
 ### HARDWARE INITIALIZATION ###
 
@@ -459,8 +475,8 @@ def fetch_weather_data():
 		}
 		
 		# Log successful weather fetch with current count
-		m, s = divmod(DISPLAY_CONFIG["weather_duration"], 60)
-		log_info(f"Displaying Weather for {m} minutes {s} seconds: {weather_data['weather_text']}, {weather_data['temperature']}°C (API #{api_call_count}/{MAX_API_CALLS_BEFORE_RESTART})", include_memory=True)
+		
+		log_info(f"Displaying Weather for {duration_message(DISPLAY_CONFIG["weather_duration"])}: {weather_data['weather_text']}, {weather_data['temperature']}°C (API #{api_call_count}/{MAX_API_CALLS_BEFORE_RESTART})", include_memory=True)
 		
 		# Reset failure tracking on success
 		consecutive_failures = 0
@@ -777,8 +793,7 @@ def show_weather_display(rtc, duration=DISPLAY_CONFIG["weather_duration"]):
 	if DISPLAY_CONFIG["dummy_weather"]:
 		weather_data = DUMMY_WEATHER_DATA
 		# Log successful weather fetch with current count
-		m, s = divmod(DISPLAY_CONFIG["weather_duration"], 60)
-		log_info(f"Displaying DUMMY Weather for {m} minutes {s} seconds: {weather_data['weather_text']}, {weather_data['temperature']}°C", include_memory=True)
+		log_info(f"Displaying DUMMY Weather for {duration_message(DISPLAY_CONFIG["weather_duration"])}: {weather_data['weather_text']}, {weather_data['temperature']}°C", include_memory=True)
 	else:
 		weather_data = fetch_weather_data()
 	
@@ -846,7 +861,7 @@ def show_weather_display(rtc, duration=DISPLAY_CONFIG["weather_duration"]):
 
 def show_clock_display(rtc, duration=DISPLAY_CONFIG["clock_fallback_duration"]):
 	"""Display clock as fallback when weather unavailable"""
-	log_warning("Displaying clock...", include_memory = True)
+	log_warning(f"Displaying clock for {duration_message(DISPLAY_CONFIG["clock_fallback_duration"])}...", include_memory = True)
 	clear_display()
 	
 	date_text = bitmap_label.Label(font, color=COLORS["DIMMEST_WHITE"], x=5, y=7)
@@ -890,7 +905,7 @@ def show_event_display(rtc, duration=DISPLAY_CONFIG["event_duration"]):
 		return False
 	
 	event_data = events[month_day]
-	log_info(f"Showing event: {event_data[1]}", include_memory = True)
+	log_info(f"Showing event: {event_data[1]}, for {duration_message(DISPLAY_CONFIG["event_duration"])}", include_memory = True)
 	clear_display()
 	
 	# Force garbage collection before loading images
