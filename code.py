@@ -24,12 +24,35 @@ gc.collect()
 
 ### CONSTANTS AND CONFIGURATION ###
 
+# Display Control Configuration
+DISPLAY_CONFIG = {
+	"weather": True,
+	"dummy_weather": False,
+	"events": True,
+	"clock_fallback": True,
+	"weather_duration": 300,
+	"event_duration": 30,
+	"clock_fallback_duration": 300
+}
+
 # Debugging
 ESTIMATED_TOTAL_MEMORY = 2000000
 DEBUG_MODE = False
 LOG_TO_FILE = False  # Set to True if filesystem becomes writable
 LOG_MEMORY_STATS = True  # Include memory info in logs
 LOG_FILE = "weather_log.txt"
+
+# Dummy Weather Control
+DUMMY_WEATHER_DATA = {
+	"weather_icon": 1),
+	"temperature": 0),
+	"feels_like": 0),
+	"feels_shade": 0),
+	"humidity": 0),
+	"uv_index":0),
+	"weather_text": "Unknown"),
+	"is_day_time": True),
+}
 
 # Base colors (standard RGB values)
 _BASE_COLORS = {
@@ -78,13 +101,8 @@ DAILY_RESET_ENABLED = True
 DAILY_RESET_HOUR = 3
 
 # Event Configuration
-EVENT_DISPLAY_DURATION = 30
 CSV_EVENTS_FILE = "events.csv"
 DEFAULT_EVENT_COLOR = "MINT"
-
-# Display Configuration  
-WEATHER_DISPLAY_DURATION = 300  # 5 minutes
-CLOCK_FALLBACK_DURATION = 300
 
 TIMEZONE_CONFIG = {
 	"timezone": "America/Chicago",
@@ -746,7 +764,7 @@ def add_indicator_bars(main_group, x_start, uv_index, humidity):
 				main_group.append(Line(x_start + i, 29, x_start + i, 29, BLACK))
 
 
-def show_weather_display(rtc, duration=WEATHER_DISPLAY_DURATION):
+def show_weather_display(rtc, duration=DISPLAY_CONFIG["weather_duration"]):
 	"""Display weather information and time"""
 	log_debug("Displaying weather...", include_memory = True)
 	
@@ -814,7 +832,7 @@ def show_weather_display(rtc, duration=WEATHER_DISPLAY_DURATION):
 		
 		time.sleep(1)
 
-def show_clock_display(rtc, duration=CLOCK_FALLBACK_DURATION):
+def show_clock_display(rtc, duration=DISPLAY_CONFIG["clock_fallback_duration"]):
 	"""Display clock as fallback when weather unavailable"""
 	log_warning("Displaying clock...", include_memory = True)
 	clear_display()
@@ -848,7 +866,7 @@ def show_clock_display(rtc, duration=CLOCK_FALLBACK_DURATION):
 		time.sleep(2)
 		supervisor.reload()
 
-def show_event_display(rtc, duration=EVENT_DISPLAY_DURATION):
+def show_event_display(rtc, duration=DISPLAY_CONFIG["event_duration"]):
 	"""Display special calendar events using cached CSV data"""
 	month_day = f"{rtc.datetime.tm_mon:02d}{rtc.datetime.tm_mday:02d}"
 	
@@ -980,6 +998,7 @@ def main():
 	log_info("=== WEATHER DISPLAY STARTUP ===", include_memory=True)
 	
 	try:
+		
 		# Initialize hardware
 		initialize_display()
 		
@@ -1013,13 +1032,20 @@ def main():
 				check_daily_reset(rtc)
 				
 				# Display weather (5 minutes)
-				show_weather_display(rtc, WEATHER_DISPLAY_DURATION)
+				if DISPLAY_CONFIG["weather"]:
+					show_weather_display(rtc, DISPLAY_CONFIG["weather_duration"])
+				else:
+					log_debug("Weather display disabled")
 				
 				# Show event if scheduled (30 seconds)
-				event_shown = show_event_display(rtc, EVENT_DISPLAY_DURATION)
+				if DISPLAY_CONFIG["events"]:
+					event_shown = show_event_display(rtc, DISPLAY_CONFIG["event_duration"])
+				else:
+					log_debug("event display disabled")
 				
 				# Brief pause if no event
 				if not event_shown:
+					log_info("No event to show today")
 					time.sleep(1)
 					
 			except Exception as e:
