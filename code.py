@@ -27,12 +27,13 @@ gc.collect()
 # Display Control Configuration
 DISPLAY_CONFIG = {
 	"weather": True,
-	"dummy_weather": False,
+	"dummy_weather": True,
+	"test_date": True,
 	"events": True,
 	"clock_fallback": True,
 	"color_test": False,
 	"weekday_color": True,
-	"weather_duration": 300,
+	"weather_duration": 10,
 	"event_duration": 30,
 	"clock_fallback_duration": 300,
 	"color_test_duration": 300
@@ -55,6 +56,13 @@ DUMMY_WEATHER_DATA = {
 	"uv_index":7,
 	"weather_text": "DUMMY",
 	"is_day_time": True,
+}
+
+# Hardcoded Time Control
+TEST_DATE_DATA = {
+	"new_year": 2025,
+	"new_month": 10,
+	"new_day": 31,
 }
 
 # Base colors use standard RGB (works correctly on type2)
@@ -904,7 +912,7 @@ def show_weather_display(rtc, duration=DISPLAY_CONFIG["weather_duration"]):
 	# Add day indicator
 	if DISPLAY_CONFIG["weekday_color"]:
 		add_day_indicator(main_group, rtc)
-		log_debug(f"Showing Weekday Color Indicator on Weather Display")
+		log_debug(f"Showing Weekday Color Indicator on Weather Display for {rtc.datetime.tm_wday}")
 	else:
 		log_debug("Weekday Color Indicator Disabled")
 
@@ -1135,6 +1143,95 @@ def check_daily_reset(rtc):
 		log_info(f"Daily restart triggered ({hours_running:.1f}h runtime)", include_memory = True)
 		time.sleep(2)
 		supervisor.reload()
+		
+def calculate_weekday(year, month, day):
+	"""
+	Calculate day of the week using Zeller's congruence algorithm
+	Returns: 0=Monday, 1=Tuesday, ..., 6=Sunday (to match tm_wday format)
+	"""
+	# Zeller's congruence requires January and February to be counted as months 13 and 14 of the previous year
+	if month < 3:
+		month += 12
+		year -= 1
+	
+	# Zeller's formula
+	q = day
+	m = month
+	k = year % 100
+	j = year // 100
+	
+	h = (q + ((13 * (m + 1)) // 5) + k + (k // 4) + (j // 4) - 2 * j) % 7
+	
+	# Convert Zeller's result (0=Saturday) to tm_wday format (0=Monday)
+	# Zeller: 0=Sat, 1=Sun, 2=Mon, 3=Tue, 4=Wed, 5=Thu, 6=Fri
+	# tm_wday: 0=Mon, 1=Tue, 2=Wed, 3=Thu, 4=Fri, 5=Sat, 6=Sun
+	weekday_conversion = {0: 5, 1: 6, 2: 0, 3: 1, 4: 2, 5: 3, 6: 4}
+	return weekday_conversion[h]
+		
+def calculate_yearday(year, month, day):
+	"""Calculate day of year (1-366)"""
+	days_in_month = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+	
+	# Check for leap year
+	if (year % 4 == 0 and year % 100 != 0) or (year % 400 == 0):
+		days_in_month[1] = 29
+	
+	return sum(days_in_month[:month-1]) + day
+		
+def update_rtc_date(rtc, new_year, new_month, new_day):
+	"""
+	Update only the year, month and day of the RTC, preserving all other values
+	
+	Args:
+		rtc: The DS3231 RTC instance
+		new_year: New year
+		new_month: New month (1-12)
+		new_day: New day (1-31)
+	"""
+	try:
+		# Get current datetime
+		current_dt = rtc.datetime
+		
+		# Validate inputs
+		if not (1 <= new_month <= 12):
+			log_error(f"Invalid month: {new_month}. Must be 1-12.")
+			return False
+			
+		if not (1 <= new_day <= 31):
+			log_error(f"Invalid day: {new_day}. Must be 1-31.")
+			return False
+			
+		# Calculate correct weekday and yearday
+		new_weekday = calculate_weekday(current_dt.tm_year, new_month, new_day)
+		new_yearday = calculate_yearday(current_dt.tm_year, new_month, new_day)
+		
+		# Create new datetime with updated month/day
+		import time
+		new_datetime = time.struct_time((
+			new_year,    # Keep current year
+			new_month,             # New month
+			new_day,               # New day
+			current_dt.tm_hour,    # Keep current hour
+			current_dt.tm_min,     # Keep current minute
+			current_dt.tm_sec,     # Keep current second
+			new_weekday,           # Calculated weekday
+			new_yearday,           # Calculated yearday
+			current_dt.tm_isdst    # Keep current DST flag
+		))
+		
+		# Update the RTC
+		rtc.datetime = new_datetime
+		
+		weekday_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+		weekday_name = weekday_names[new_weekday]
+			
+		log_info(f"RTC date MANUALLY updated to {new_year:04d}/{new_month:02d}/{new_day:02d} ({weekday_name})")
+		return True
+			
+	except Exception as e:
+		log_error(f"Failed to update RTC date: {e}")
+		return False
+
 
 ### MAIN PROGRAM ###
 
@@ -1160,12 +1257,17 @@ def main():
 		events = get_events()
 		log_debug(f"System initialized - {len(events)} events loaded")
 		
+		if DISPLAY_CONFIG["test_date"]:
+			update_rtc_date(rtc, TEST_DATE_DATA["new_year"], TEST_DATE_DATA["new_month"], TEST_DATE_DATA["new_day"])
+		
 		# Network operations (can be slower/fail)
 		wifi_connected = setup_wifi()
 		
-		if wifi_connected:
+		if wifi_connected and not DISPLAY_CONFIG["test_date"]:
 			sync_time_with_timezone(rtc)
 			log_info("Time synchronized with NTP")
+		elif DISPLAY_CONFIG["test_date"]:
+			log_debug(f"Skipping NTP sync - using test date: {rtc.datetime.tm_year:04d}/{rtc.datetime.tm_mon:02d}/{rtc.datetime.tm_mday:02d}")
 		else:
 			log_warning("Starting without WiFi - using RTC time only")
 		
