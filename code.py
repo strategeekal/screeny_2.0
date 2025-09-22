@@ -26,23 +26,34 @@ gc.collect()
 
 # Display Control Configuration
 DISPLAY_CONFIG = {
-	"weather": True,
-	"dummy_weather": True,
-	"test_date": False,
-	"events": True,
-	"clock_fallback": True,
-	"color_test": False,
-	"weekday_color": True,
-	"weather_duration": 10,
-	"event_duration": 10,
-	"minimum_event_duration": 10,
-	"clock_fallback_duration": 300,
-	"color_test_duration": 300
+	"weather": True,		  # Control show weather display
+	"fetch_current": True,    # Control current weather API
+	"fetch_forecast": True,   # Control forecast API
+	"dummy_weather": False,   # Use manual weather data instead of API calls [For testing and debugging]
+	"test_date": False,		  # Manual date setting for debugging and testing
+	"events": False,           # Control to include events display
+	"clock_fallback": True,   # Include date and time as fallback if weather is not working, then restart
+	"color_test": False,      # Show screen to test colors on different matrices
+	"weekday_color": True,	  # Include color flag showing which day of the week it is (For Tiago)
+	"weather_duration": 300,	  # Control, how long should the weather display be shown per loop
+	"event_duration": 10,	  # Control, how long should the event display be shown per loop
+	"minimum_event_duration": 10, # Control, minimum event display duration for when many events happen on the same day
+	"clock_fallback_duration": 300, # Control, how long should the clock display be shown before board restart
+	"color_test_duration": 300  # Control, how long should the color test display be shown per loop
 }
+
+API_CONFIG = {
+	"timeout": 30,  # Increased from default ~10s
+	"max_retries": 2,
+	"retry_delay": 2,  # Base delay for exponential backoff
+	"connection_reuse": True,
+}
+
+_global_requests_session = None
 
 # Debugging
 ESTIMATED_TOTAL_MEMORY = 2000000
-DEBUG_MODE = False
+DEBUG_MODE = True
 LOG_TO_FILE = False  # Set to True if filesystem becomes writable
 LOG_MEMORY_STATS = True  # Include memory info in logs
 LOG_FILE = "weather_log.txt"
@@ -108,7 +119,7 @@ COLORS = {}
 
 # API Configuration
 ACCUWEATHER_LOCATION_KEY = "2626571"
-MAX_API_CALLS_BEFORE_RESTART = 8
+MAX_API_CALLS_BEFORE_RESTART = 160
 
 # System Configuration
 DAILY_RESET_ENABLED = True
@@ -144,6 +155,8 @@ cached_events = None # Event cache - loaded once at startup
 
 # API tracking
 api_call_count = 0
+current_api_calls = 0
+forecast_api_calls = 0
 consecutive_failures = 0
 last_successful_weather = 0
 startup_time = 0
@@ -387,135 +400,336 @@ def cleanup_sockets():
 	for _ in range(3):
 		gc.collect()
 
-def fetch_weather_data():
-	"""Fetch current weather data with matrix-specific API keys"""
-	global consecutive_failures, last_successful_weather, api_call_count
+def get_requests_session():
+	"""Get or create a persistent requests session for connection reuse"""
+	global _global_requests_session
 	
-	# Increment API call counter
-	api_call_count += 1
+	if _global_requests_session is None:
+		try:
+			cleanup_sockets()
+			pool = socketpool.SocketPool(wifi.radio)
+			
+			# Optional: Configure socket timeout at pool level if supported
+			try:
+				# This may not be available in all CircuitPython versions
+				pool.socket_timeout = API_CONFIG["timeout"]
+			except (AttributeError, NotImplementedError):
+				log_debug("Socket timeout configuration not available")
+			
+			_global_requests_session = adafruit_requests.Session(
+				pool, 
+				ssl.create_default_context()
+			)
+			log_debug("Created new persistent requests session")
+		except Exception as e:
+			log_error(f"Failed to create requests session: {e}")
+			return None
+	
+	return _global_requests_session
+
+def cleanup_global_session():
+	"""Clean up the global session"""
+	global _global_requests_session
+	
+	if _global_requests_session:
+		try:
+			_global_requests_session.close()
+			del _global_requests_session
+			_global_requests_session = None
+			log_debug("Global session cleaned up")
+		except:
+			pass
+		
+		cleanup_sockets()
+
+def fetch_weather_with_retries(url, max_retries=None):
+	"""Fetch weather data with exponential backoff retry logic"""
+	if max_retries is None:
+		max_retries = API_CONFIG["max_retries"]
+	
+	for attempt in range(max_retries + 1):
+		try:
+			session = get_requests_session()
+			if not session:
+				log_error("No requests session available")
+				return None
+			
+			log_debug(f"API attempt {attempt + 1}/{max_retries + 1}")
+			
+			# Make the request - timeout is handled by the underlying socket
+			# adafruit_requests doesn't expose timeout parameter in get()
+			response = session.get(url)
+			
+			if response.status_code == 200:
+				return response.json()
+			elif response.status_code == 503:
+				# Service unavailable - worth retrying
+				log_warning(f"API service unavailable (503), attempt {attempt + 1}")
+				if attempt < max_retries:
+					delay = API_CONFIG["retry_delay"] * (2 ** attempt)  # Exponential backoff
+					log_debug(f"Retrying in {delay} seconds...")
+					time.sleep(delay)
+					continue
+			else:
+				log_error(f"API error: {response.status_code}")
+				return None
+				
+		except Exception as e:
+			log_warning(f"Request attempt {attempt + 1} failed: {e}")
+			if attempt < max_retries:
+				delay = API_CONFIG["retry_delay"] * (2 ** attempt)
+				log_debug(f"Retrying in {delay} seconds...")
+				time.sleep(delay)
+				continue
+			else:
+				log_error(f"All {max_retries + 1} attempts failed")
+				return None
+	
+	return None
+
+def fetch_current_and_forecast_weather():
+	"""Fetch current and/or forecast weather with individual controls and detailed tracking"""
+	global consecutive_failures, last_successful_weather, api_call_count, current_api_calls, forecast_api_calls
+	
+	# Check what to fetch based on config
+	fetch_current = DISPLAY_CONFIG.get("fetch_current", True)
+	fetch_forecast = DISPLAY_CONFIG.get("fetch_forecast", True)
+	
+	if not fetch_current and not fetch_forecast:
+		log_info("Both current and forecast APIs disabled in config")
+		return None, None
+	
+	# Count expected API calls
+	expected_calls = (1 if fetch_current else 0) + (1 if fetch_forecast else 0)
 	
 	# Monitor memory just before planned restart
-	if api_call_count >= MAX_API_CALLS_BEFORE_RESTART - 1:
-		log_warning(f"API call #{api_call_count} - restart imminent", include_memory = True)
-	
-	# Resource cleanup variables
-	pool = None
-	requests = None
-	response = None
+	if api_call_count + expected_calls >= MAX_API_CALLS_BEFORE_RESTART:
+		log_warning(f"API call #{api_call_count + expected_calls} - restart imminent", include_memory=True)
 	
 	try:
 		# Get matrix-specific API key
-		api_key = None
-		matrix_type = detect_matrix_type()
+		api_key = get_api_key()
+		if not api_key:
+			consecutive_failures += 1
+			return None, None
 		
-		# Define which API key variable to look for based on matrix type
-		if matrix_type == "type1":
-			api_key_name = "ACCUWEATHER_API_KEY_TYPE1"
-		elif matrix_type == "type2":
-			api_key_name = "ACCUWEATHER_API_KEY_TYPE2"
+		current_data = None
+		forecast_data = None
+		current_success = False
+		forecast_success = False
+		
+		# Fetch current weather if enabled
+		if fetch_current:
+			current_url = f"https://dataservice.accuweather.com/currentconditions/v1/{ACCUWEATHER_LOCATION_KEY}?apikey={api_key}&details=true"
+			
+			log_debug("Fetching current weather...")
+			current_json = fetch_weather_with_retries(current_url)
+			
+			if current_json:
+				current_api_calls += 1
+				api_call_count += 1
+				current_success = True
+				
+				# Process current weather
+				current = current_json[0]
+				temp_data = current.get("Temperature", {}).get("Metric", {})
+				realfeel_data = current.get("RealFeelTemperature", {}).get("Metric", {})
+				realfeel_shade_data = current.get("RealFeelTemperatureShade", {}).get("Metric", {})
+				
+				current_data = {
+					"weather_icon": current.get("WeatherIcon", 0),
+					"temperature": temp_data.get("Value", 0),
+					"feels_like": realfeel_data.get("Value", 0),
+					"feels_shade": realfeel_shade_data.get("Value", 0),
+					"humidity": current.get("RelativeHumidity", 0),
+					"uv_index": current.get("UVIndex", 0),
+					"weather_text": current.get("WeatherText", "Unknown"),
+					"is_day_time": current.get("IsDayTime", True),
+				}
+				
+				log_info(f"Current weather: {current_data['weather_text']}, {current_data['temperature']}°C")
+			else:
+				log_warning("Current weather fetch failed")
+		
+		# Fetch forecast weather if enabled and (current succeeded OR current disabled)
+		if fetch_forecast and (current_success or not fetch_current):
+			forecast_url = f"https://dataservice.accuweather.com/forecasts/v1/daily/1day/{ACCUWEATHER_LOCATION_KEY}?apikey={api_key}&details=true&metric=true"
+			
+			log_debug("Fetching forecast weather...")
+			forecast_json = fetch_weather_with_retries(forecast_url, max_retries=1)
+			
+			if forecast_json and len(forecast_json.get("DailyForecasts", [])) > 0:
+				forecast_api_calls += 1
+				api_call_count += 1
+				forecast_success = True
+				
+				# Process forecast weather
+				daily = forecast_json["DailyForecasts"][0]
+				forecast_data = {
+					"high_temp": daily.get("Temperature", {}).get("Maximum", {}).get("Value", 0),
+					"low_temp": daily.get("Temperature", {}).get("Minimum", {}).get("Value", 0),
+					"day_icon": daily.get("Day", {}).get("Icon", 0),
+					"night_icon": daily.get("Night", {}).get("Icon", 0),
+					"day_text": daily.get("Day", {}).get("IconPhrase", ""),
+					"night_text": daily.get("Night", {}).get("IconPhrase", ""),
+				}
+				
+				log_info(f"Forecast: High {forecast_data['high_temp']}°C, Low {forecast_data['low_temp']}°C")
+			else:
+				log_warning("Forecast weather fetch failed")
+		
+		# Log API call statistics
+		log_info(f"API Stats: Total={api_call_count}/{MAX_API_CALLS_BEFORE_RESTART}, Current={current_api_calls}, Forecast={forecast_api_calls}", include_memory=True)
+		
+		# Determine overall success
+		any_success = current_success or forecast_success
+		
+		if any_success:
+			# Reset failure tracking on any success
+			consecutive_failures = 0
+			last_successful_weather = time.monotonic()
 		else:
-			# Fallback to original key for unknown types
-			api_key_name = "ACCUWEATHER_API_KEY"
-		
-		# Read the appropriate API key from settings
-		try:
-			with open("settings.toml", "r") as f:
-				for line in f:
-					if line.startswith(api_key_name):
-						api_key = line.split("=")[1].strip().strip('"').strip("'")
-						log_debug(f"Using {api_key_name} for {matrix_type}")
-						break
-		except Exception as e:
-			log_warning(f"Failed to read API key: {e}")
-			
-		# Fallback to original key if matrix-specific key not found
-		if not api_key:
-			log_warning(f"{api_key_name} not found, trying fallback key")
-			try:
-				with open("settings.toml", "r") as f:
-					for line in f:
-						if line.startswith("ACCUWEATHER_API_KEY"):
-							api_key = line.split("=")[1].strip().strip('"').strip("'")
-							log_warning("Using fallback ACCUWEATHER_API_KEY")
-							break
-			except Exception as e:
-				log_error(f"Failed to read fallback API key: {e}")
-			
-		if not api_key:
-			log_error("No API key found")
 			consecutive_failures += 1
-			return None
-		
-		# Build request URL
-		url = f"https://dataservice.accuweather.com/currentconditions/v1/{ACCUWEATHER_LOCATION_KEY}?apikey={api_key}&details=true"
-		
-		# Setup and execute request
-		cleanup_sockets()
-		pool = socketpool.SocketPool(wifi.radio)
-		requests = adafruit_requests.Session(pool, ssl.create_default_context())
-		response = requests.get(url)
-		
-		if response.status_code != 200:
-			log_error(f"API error: {response.status_code}")
-			consecutive_failures += 1
-			return None
-		
-		# Parse response
-		weather_json = response.json()
-		if not weather_json:
-			log_warning("Empty weather response")
-			consecutive_failures += 1
-			return None
-		
-		# Extract weather data
-		current = weather_json[0]
-		temp_data = current.get("Temperature", {}).get("Metric", {})
-		realfeel_data = current.get("RealFeelTemperature", {}).get("Metric", {})
-		realfeel_shade_data = current.get("RealFeelTemperatureShade", {}).get("Metric", {})
-		
-		weather_data = {
-			"weather_icon": current.get("WeatherIcon", 0),
-			"temperature": temp_data.get("Value", 0),
-			"feels_like": realfeel_data.get("Value", 0),
-			"feels_shade": realfeel_shade_data.get("Value", 0),
-			"humidity": current.get("RelativeHumidity", 0),
-			"uv_index": current.get("UVIndex", 0),
-			"weather_text": current.get("WeatherText", "Unknown"),
-			"is_day_time": current.get("IsDayTime", True),
-		}
-		
-		# Log successful weather fetch with current count
-		
-		log_info(f"Displaying Weather for {duration_message(DISPLAY_CONFIG["weather_duration"])}: {weather_data['weather_text']}, {weather_data['temperature']}°C (API #{api_call_count}/{MAX_API_CALLS_BEFORE_RESTART})", include_memory=True)
-		
-		# Reset failure tracking on success
-		consecutive_failures = 0
-		last_successful_weather = time.monotonic()
 		
 		# Check for preventive restart
 		if api_call_count >= MAX_API_CALLS_BEFORE_RESTART:
 			log_warning(f"Preventive restart after {api_call_count} API calls", include_memory=True)
+			cleanup_global_session()
 			time.sleep(2)
 			supervisor.reload()
 		
-		return weather_data
+		return current_data, forecast_data
 		
 	except Exception as e:
 		log_error(f"Weather fetch error: {e}")
 		consecutive_failures += 1
-		return None
+		return None, None
+
+def get_api_key():
+	"""Extract API key logic into separate function"""
+	matrix_type = detect_matrix_type()
+	
+	if matrix_type == "type1":
+		api_key_name = "ACCUWEATHER_API_KEY_TYPE1"
+	elif matrix_type == "type2":
+		api_key_name = "ACCUWEATHER_API_KEY_TYPE2"
+	else:
+		api_key_name = "ACCUWEATHER_API_KEY"
+	
+	# Read the appropriate API key
+	try:
+		with open("settings.toml", "r") as f:
+			for line in f:
+				if line.startswith(api_key_name):
+					api_key = line.split("=")[1].strip().strip('"').strip("'")
+					log_debug(f"Using {api_key_name} for {matrix_type}")
+					return api_key
+	except Exception as e:
+		log_warning(f"Failed to read API key: {e}")
 		
-	finally:
-		# Cleanup resources in reverse order
-		for resource in [response, requests, pool]:
-			if resource:
-				try:
-					if hasattr(resource, 'close'):
-						resource.close()
-					del resource
-				except:
-					pass
-		cleanup_sockets()
+	# Fallback to original key
+	try:
+		with open("settings.toml", "r") as f:
+			for line in f:
+				if line.startswith("ACCUWEATHER_API_KEY"):
+					api_key = line.split("=")[1].strip().strip('"').strip("'")
+					log_warning("Using fallback ACCUWEATHER_API_KEY")
+					return api_key
+	except Exception as e:
+		log_error(f"Failed to read fallback API key: {e}")
+	
+	return None
+
+def fetch_weather_data():
+	"""Updated wrapper to use new concurrent fetching with detailed feedback"""
+	if DISPLAY_CONFIG["dummy_weather"]:
+		log_info("Using dummy weather data (API calls disabled)")
+		return DUMMY_WEATHER_DATA, None  # Return tuple: (current, forecast)
+	
+	current_data, forecast_data = fetch_current_and_forecast_weather()
+	
+	# Log what was actually retrieved
+	if current_data and forecast_data:
+		log_info("✓ Current weather and forecast retrieved")
+	elif current_data:
+		log_info("✓ Current weather retrieved (forecast unavailable)")
+	elif forecast_data:
+		log_info("✓ Forecast retrieved (current weather unavailable)")
+	else:
+		log_warning("✗ No weather data retrieved")
+	
+	# For backward compatibility, return just current weather
+	# You can modify this later to return both
+	return current_data
+
+def get_forecast_data():
+	"""Helper function to get just the forecast data when needed"""
+	if DISPLAY_CONFIG["dummy_weather"]:
+		return None
+	
+	# You could store forecast_data globally or fetch it separately
+	# For now, this would trigger a new API call - implement caching if needed
+	_, forecast_data = fetch_current_and_forecast_weather()
+	return forecast_data
+
+def has_forecast_data():
+	"""Check if forecast data is available without making API calls"""
+	# This is a placeholder - you could implement forecast data caching
+	return DISPLAY_CONFIG.get("fetch_forecast", True) and not DISPLAY_CONFIG["dummy_weather"]
+
+def get_api_call_stats():
+	"""Get detailed API call statistics"""
+	global api_call_count, current_api_calls, forecast_api_calls
+	
+	return {
+		"total_calls": api_call_count,
+		"current_calls": current_api_calls,
+		"forecast_calls": forecast_api_calls,
+		"remaining_calls": MAX_API_CALLS_BEFORE_RESTART - api_call_count,
+		"restart_threshold": MAX_API_CALLS_BEFORE_RESTART
+	}
+
+def print_api_stats():
+	"""Print formatted API statistics for debugging"""
+	stats = get_api_call_stats()
+	log_info(f"=== API Call Statistics ===")
+	log_info(f"Total API calls: {stats['total_calls']}/{stats['restart_threshold']}")
+	log_info(f"Current weather calls: {stats['current_calls']}")
+	log_info(f"Forecast calls: {stats['forecast_calls']}")
+	log_info(f"Remaining before restart: {stats['remaining_calls']}")
+	
+def reset_api_counters():
+	"""Reset API call counters (useful for testing)"""
+	global api_call_count, current_api_calls, forecast_api_calls
+	
+	old_total = api_call_count
+	api_call_count = 0
+	current_api_calls = 0 
+	forecast_api_calls = 0
+	
+	log_info(f"API counters reset (was {old_total} total calls)")
+
+# Configuration helper functions
+def enable_current_weather():
+	"""Enable current weather API calls"""
+	DISPLAY_CONFIG["fetch_current"] = True
+	log_info("Current weather API enabled")
+
+def disable_current_weather():
+	"""Disable current weather API calls"""
+	DISPLAY_CONFIG["fetch_current"] = False
+	log_info("Current weather API disabled")
+
+def enable_forecast_weather():
+	"""Enable forecast weather API calls"""
+	DISPLAY_CONFIG["fetch_forecast"] = True
+	log_info("Forecast weather API enabled")
+
+def disable_forecast_weather():
+	"""Disable forecast weather API calls"""
+	DISPLAY_CONFIG["fetch_forecast"] = False
+	log_info("Forecast weather API disabled")
+
 
 ### DISPLAY UTILITIES ###
 
