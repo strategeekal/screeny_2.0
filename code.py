@@ -28,7 +28,7 @@ gc.collect()
 DISPLAY_CONFIG = {
 	"weather": True,
 	"dummy_weather": True,
-	"test_date": True,
+	"test_date": False,
 	"events": True,
 	"clock_fallback": True,
 	"color_test": False,
@@ -60,9 +60,9 @@ DUMMY_WEATHER_DATA = {
 
 # Hardcoded Time Control
 TEST_DATE_DATA = {
-	"new_year": 2025,
-	"new_month": 10,
-	"new_day": 31,
+	"new_year": 2026,
+	"new_month": 7,
+	"new_day": 4,
 }
 
 # Base colors use standard RGB (works correctly on type2)
@@ -1202,8 +1202,8 @@ def update_rtc_date(rtc, new_year, new_month, new_day):
 			return False
 			
 		# Calculate correct weekday and yearday
-		new_weekday = calculate_weekday(current_dt.tm_year, new_month, new_day)
-		new_yearday = calculate_yearday(current_dt.tm_year, new_month, new_day)
+		new_weekday = calculate_weekday(new_year, new_month, new_day)
+		new_yearday = calculate_yearday(new_year, new_month, new_day)
 		
 		# Create new datetime with updated month/day
 		import time
