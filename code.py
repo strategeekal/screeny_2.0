@@ -34,7 +34,8 @@ DISPLAY_CONFIG = {
 	"color_test": False,
 	"weekday_color": True,
 	"weather_duration": 10,
-	"event_duration": 30,
+	"event_duration": 10,
+	"minimum_event_duration": 10,
 	"clock_fallback_duration": 300,
 	"color_test_duration": 300
 }
@@ -682,25 +683,6 @@ def load_events_from_csv():
 			"1127": [["Thanksgiving", "Happy", "thanksgiving.bmp", "BUGAMBILIA"]],
 			"1225": [["X-MAS", "Merry", "xmas.bmp", "BUGAMBILIA"]],
 		}
-			
-	except Exception as e:
-		log_warning(f"Failed to load events.csv: {e}")
-		log_warning("Using fallback hardcoded events")
-		# Return your current hardcoded events as fallback
-		return {
-			"0101": ["New Year", "Happy", "new_year.bmp", "BUGAMBILIA"],
-			"0210": ["Emilio", "Birthday", "cake.bmp", "MINT"],
-			"0703": ["Gaby", "Birthday", "cake.bmp", "MINT"],
-			"0704": ["July", "4th of", "us_flag.bmp", "BUGAMBILIA"],
-			"0825": ["Diego", "Birthday", "cake.bmp", "MINT"],
-			"0916": ["Mexico", "Viva", "mexico_flag_v3.bmp", "BUGAMBILIA"],
-			"0922": ["Puchis", "Cumple", "panzon.bmp", "MINT"],
-			"1031": ["Halloween", "Happy", "halloween.bmp", "BUGAMBILIA"],
-			"1101": ["Muertos", "Dia de", "day_of_the_death.bmp", "BUGAMBILIA"],
-			"1109": ["Tiago", "Birthday", "cake.bmp", "MINT"],
-			"1127": ["Thanksgiving", "Happy", "thanksgiving.bmp", "BUGAMBILIA"],
-			"1225": ["X-MAS", "Merry", "xmas.bmp", "BUGAMBILIA"],
-		}
 		
 def get_events():
 	"""Get cached events - loads from CSV only once"""
@@ -995,7 +977,7 @@ def show_event_display(rtc, duration=DISPLAY_CONFIG["event_duration"]):
 			_display_single_event(event_data, rtc, duration)
 		else:
 			# Multiple events - split time between them
-			event_duration = duration // num_events
+			event_duration = max(duration // num_events,DISPLAY_CONFIG["minimum_event_duration"])
 			log_info(f"Showing {num_events} events, {duration_message(event_duration)} each", include_memory=True)
 			
 			for i, event_data in enumerate(event_list):
