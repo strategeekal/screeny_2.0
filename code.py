@@ -26,20 +26,22 @@ gc.collect()
 
 # Display Control Configuration
 DISPLAY_CONFIG = {
-	"weather": True,		  # Control show weather display
-	"fetch_current": True,    # Control current weather API
-	"fetch_forecast": True,   # Control forecast API
-	"dummy_weather": False,   # Use manual weather data instead of API calls [For testing and debugging]
-	"test_date": False,		  # Manual date setting for debugging and testing
+	"weather": False,		  # Control show weather display
+	"fetch_current": False,    # Control current weather API
+	"fetch_forecast": False,   # Control forecast API
+	"dummy_weather": True,   # Use manual weather data instead of API calls [For testing and debugging]
+	"test_date": True,		  # Manual date setting for debugging and testing
 	"events": False,           # Control to include events display
-	"clock_fallback": True,   # Include date and time as fallback if weather is not working, then restart
+	"clock_fallback": False,   # Include date and time as fallback if weather is not working, then restart
 	"color_test": False,      # Show screen to test colors on different matrices
-	"weekday_color": True,	  # Include color flag showing which day of the week it is (For Tiago)
+	"weekday_color": False,	  # Include color flag showing which day of the week it is (For Tiago)
+	"forecast": True,
 	"weather_duration": 300,	  # Control, how long should the weather display be shown per loop
 	"event_duration": 10,	  # Control, how long should the event display be shown per loop
 	"minimum_event_duration": 10, # Control, minimum event display duration for when many events happen on the same day
 	"clock_fallback_duration": 300, # Control, how long should the clock display be shown before board restart
-	"color_test_duration": 300  # Control, how long should the color test display be shown per loop
+	"color_test_duration": 300,  # Control, how long should the color test display be shown per loop
+	"forecast_duration": 3600,
 }
 
 API_CONFIG = {
@@ -53,7 +55,7 @@ _global_requests_session = None
 
 # Debugging
 ESTIMATED_TOTAL_MEMORY = 2000000
-DEBUG_MODE = True
+DEBUG_MODE = False
 LOG_TO_FILE = False  # Set to True if filesystem becomes writable
 LOG_MEMORY_STATS = True  # Include memory info in logs
 LOG_FILE = "weather_log.txt"
@@ -68,6 +70,16 @@ DUMMY_WEATHER_DATA = {
 	"uv_index":7,
 	"weather_text": "DUMMY",
 	"is_day_time": True,
+	"column1": {
+		"weather_icon": 1,
+		"temperature": 12,
+		"feels_like": 13.6,
+		"feels_shade": 14.6,
+		"humidity": 90,
+		"uv_index":7,
+		"weather_text": "DUMMY",
+		"is_day_time": True,
+	}
 }
 
 # Hardcoded Time Control
@@ -547,7 +559,7 @@ def fetch_current_and_forecast_weather():
 					"is_day_time": current.get("IsDayTime", True),
 				}
 				
-				log_info(f"Current weather: {current_data['weather_text']}, {current_data['temperature']}°C")
+				log_info(f"Displaying Current Weather for {duration_message(DISPLAY_CONFIG["weather_duration"])}: {weather_data['weather_text']}, {weather_data['temperature']}°C (API #{api_call_count}/{MAX_API_CALLS_BEFORE_RESTART})", include_memory=True)
 			else:
 				log_warning("Current weather fetch failed")
 		
@@ -1314,6 +1326,97 @@ def show_color_test_display(duration=DISPLAY_CONFIG["color_test_duration"]):
 	time.sleep(duration)
 	gc.collect()
 	return True
+	
+def show_forecast_display(duration=DISPLAY_CONFIG["forecast_duration"]):
+	log_info(f"Displaying Forecast for {duration_message(DISPLAY_CONFIG["forecast_duration"])}", include_memory=True)
+	clear_display()
+	gc.collect()
+	
+	try:
+		bitmap, palette = load_bmp_image("img/weather/columns/1.bmp")
+		col_1_img = displayio.TileGrid(bitmap, pixel_shader=palette)
+		main_group.append(col_1_img)
+		
+		# Position 25px wide image at top right
+		col_1_img.x = 4  # Right-aligned for 25px wide image
+		col_1_img.y = 9   # Start at y = 2 as requested
+		
+		divider_1 = Line(21, 2, 21, 29, COLORS["DIMMEST_WHITE"])
+		#main_group.append(divider_1)
+		
+		bitmap, palette = load_bmp_image("img/weather/columns/2.bmp")
+		col_2_img = displayio.TileGrid(bitmap, pixel_shader=palette)
+		main_group.append(col_2_img)
+		
+		# Position 25px wide image at top right
+		col_2_img.x = 26  # Right-aligned for 25px wide image
+		col_2_img.y = 9   # Start at y = 2 as requested
+		
+		divider_2 = Line(43, 2, 43, 29, COLORS["DIMMEST_WHITE"])
+		#main_group.append(divider_2)
+		
+		bitmap, palette = load_bmp_image("img/weather/columns/3.bmp")
+		col_3_img = displayio.TileGrid(bitmap, pixel_shader=palette)
+		main_group.append(col_3_img)
+		
+		# Position 25px wide image at top right
+		col_3_img.x = 48  # Right-aligned for 25px wide image
+		col_3_img.y = 9   # Start at y = 2 as requested
+		
+		text1 = bitmap_label.Label(
+					font,
+					color=COLORS["DIMMEST_WHITE"],
+					text="Now",
+					x=3, y=1
+				)
+		main_group.append(text1)
+		
+		text2 = bitmap_label.Label(
+					font,
+					color=COLORS["DIMMEST_WHITE"],
+					text="12P",
+					x=27, y=1
+				)
+		main_group.append(text2)
+		
+		text3 = bitmap_label.Label(
+					font,
+					color=COLORS["DIMMEST_WHITE"],
+					text="1PM",
+					x=46, y=1
+				)
+		main_group.append(text3)
+		
+		text4 = bitmap_label.Label(
+					font,
+					color=COLORS["DIMMEST_WHITE"],
+					text="-12°",
+					x=3, y=25
+				)
+		main_group.append(text4)
+		
+		text5 = bitmap_label.Label(
+					font,
+					color=COLORS["DIMMEST_WHITE"],
+					text="-14°",
+					x=25, y=25
+				)
+		main_group.append(text5)
+		
+		text6 = bitmap_label.Label(
+					font,
+					color=COLORS["DIMMEST_WHITE"],
+					text="-32°",
+					x=45, y=25
+				)
+		main_group.append(text6)
+	
+	except Exception as e:
+		log_error(f"Forecast display error: {e}")
+	
+	time.sleep(duration)
+	gc.collect()
+	return True
 
 ### SYSTEM MANAGEMENT ###
 
@@ -1495,6 +1598,12 @@ def main():
 						
 				else:
 					log_debug("event display disabled")
+					
+				# Show forecast
+				if DISPLAY_CONFIG["forecast"]:
+					show_forecast_display(DISPLAY_CONFIG["forecast_duration"])
+				else:
+					log_debug("Forecast Disabled")
 					
 				# Show color test
 				if DISPLAY_CONFIG["color_test"]:
