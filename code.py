@@ -26,22 +26,23 @@ gc.collect()
 
 # Display Control Configuration
 DISPLAY_CONFIG = {
-	"weather": False,		  # Control show weather display
-	"fetch_current": False,    # Control current weather API
-	"fetch_forecast": False,   # Control forecast API
-	"dummy_weather": True,   # Use manual weather data instead of API calls [For testing and debugging]
-	"test_date": True,		  # Manual date setting for debugging and testing
-	"events": False,           # Control to include events display
-	"clock_fallback": False,   # Include date and time as fallback if weather is not working, then restart
-	"color_test": False,      # Show screen to test colors on different matrices
-	"weekday_color": False,	  # Include color flag showing which day of the week it is (For Tiago)
+	"weather": True,		  
+	"fetch_current": True,    
+	"fetch_forecast": True,   
+	"dummy_weather": False,   
+	"test_date": False,		  
+	"events": True,           
+	"clock_fallback": True,   
 	"forecast": True,
-	"weather_duration": 300,	  # Control, how long should the weather display be shown per loop
-	"event_duration": 10,	  # Control, how long should the event display be shown per loop
-	"minimum_event_duration": 10, # Control, minimum event display duration for when many events happen on the same day
-	"clock_fallback_duration": 300, # Control, how long should the clock display be shown before board restart
-	"color_test_duration": 300,  # Control, how long should the color test display be shown per loop
-	"forecast_duration": 3600,
+	"color_test": False,      
+	"weekday_color": False,	  
+	"cycle_duration": 300,     
+	"forecast_duration": 30,  
+	"event_duration": 30,	  
+	"minimum_event_duration": 10, 
+	"clock_fallback_duration": 300, 
+	"color_test_duration": 300,
+	"forecast_duration": 290,
 }
 
 API_CONFIG = {
@@ -55,7 +56,7 @@ _global_requests_session = None
 
 # Debugging
 ESTIMATED_TOTAL_MEMORY = 2000000
-DEBUG_MODE = False
+DEBUG_MODE = True
 LOG_TO_FILE = False  # Set to True if filesystem becomes writable
 LOG_MEMORY_STATS = True  # Include memory info in logs
 LOG_FILE = "weather_log.txt"
@@ -559,36 +560,39 @@ def fetch_current_and_forecast_weather():
 					"is_day_time": current.get("IsDayTime", True),
 				}
 				
-				log_info(f"Displaying Current Weather for {duration_message(DISPLAY_CONFIG["weather_duration"])}: {weather_data['weather_text']}, {weather_data['temperature']}°C (API #{api_call_count}/{MAX_API_CALLS_BEFORE_RESTART})", include_memory=True)
+				log_info(f"Current weather: {current_data['weather_text']}, {current_data['temperature']}°C (API #{api_call_count}/{MAX_API_CALLS_BEFORE_RESTART})", include_memory=True)
+
 			else:
 				log_warning("Current weather fetch failed")
 		
 		# Fetch forecast weather if enabled and (current succeeded OR current disabled)
 		if fetch_forecast and (current_success or not fetch_current):
-			forecast_url = f"https://dataservice.accuweather.com/forecasts/v1/daily/1day/{ACCUWEATHER_LOCATION_KEY}?apikey={api_key}&details=true&metric=true"
+			forecast_url = f"https://dataservice.accuweather.com/forecasts/v1/hourly/12hour/{ACCUWEATHER_LOCATION_KEY}?apikey={api_key}&metric=true"
 			
 			log_debug("Fetching forecast weather...")
 			forecast_json = fetch_weather_with_retries(forecast_url, max_retries=1)
 			
-			if forecast_json and len(forecast_json.get("DailyForecasts", [])) > 0:
-				forecast_api_calls += 1
-				api_call_count += 1
-				forecast_success = True
+			if forecast_json and len(forecast_json) >= 3:
+				# Extract first 3 hours of forecast data
+				forecast_data = []
+				for i in range(3):
+					hour_data = forecast_json[i]
+					forecast_data.append({
+						"temperature": hour_data.get("Temperature", {}).get("Value", 0),
+						"weather_icon": hour_data.get("WeatherIcon", 1),
+						"weather_text": hour_data.get("IconPhrase", "Unknown"),
+						"datetime": hour_data.get("DateTime", ""),
+						"has_precipitation": hour_data.get("HasPrecipitation", False)
+					})
 				
-				# Process forecast weather
-				daily = forecast_json["DailyForecasts"][0]
-				forecast_data = {
-					"high_temp": daily.get("Temperature", {}).get("Maximum", {}).get("Value", 0),
-					"low_temp": daily.get("Temperature", {}).get("Minimum", {}).get("Value", 0),
-					"day_icon": daily.get("Day", {}).get("Icon", 0),
-					"night_icon": daily.get("Night", {}).get("Icon", 0),
-					"day_text": daily.get("Day", {}).get("IconPhrase", ""),
-					"night_text": daily.get("Night", {}).get("IconPhrase", ""),
-				}
-				
-				log_info(f"Forecast: High {forecast_data['high_temp']}°C, Low {forecast_data['low_temp']}°C")
+				log_info(f"12-hour forecast: {len(forecast_data)} hours processed")
+				if len(forecast_data) >= 3:
+					log_debug(f"Hour 0: {forecast_data[0]['temperature']}°C, Icon {forecast_data[0]['weather_icon']}")
+					log_debug(f"Hour 1: {forecast_data[1]['temperature']}°C, Icon {forecast_data[1]['weather_icon']}")  
+					log_debug(f"Hour 2: {forecast_data[2]['temperature']}°C, Icon {forecast_data[2]['weather_icon']}")
 			else:
-				log_warning("Forecast weather fetch failed")
+				log_warning("12-hour forecast fetch failed or insufficient data")
+				forecast_data = None
 		
 		# Log API call statistics
 		log_info(f"API Stats: Total={api_call_count}/{MAX_API_CALLS_BEFORE_RESTART}, Current={current_api_calls}, Forecast={forecast_api_calls}", include_memory=True)
@@ -1006,6 +1010,22 @@ def add_day_indicator(main_group, rtc):
 	for x in range(59, 64):  # Include the corner pixel at (59,4)
 		black_pixel = Line(x, 4, x, 4, COLORS["BLACK"])
 		main_group.append(black_pixel)
+		
+def calculate_display_durations():
+	"""Calculate current weather duration based on cycle and forecast times"""
+	cycle_time = DISPLAY_CONFIG["cycle_duration"]
+	forecast_time = DISPLAY_CONFIG["forecast_duration"] 
+	event_time = DISPLAY_CONFIG["event_duration"]
+	
+	# Current weather gets the remaining time
+	current_weather_time = cycle_time - forecast_time - event_time
+	
+	# Ensure minimum time for current weather
+	if current_weather_time < 30:
+		current_weather_time = 30
+		log_warning(f"Current weather time adjusted to minimum: {current_weather_time}s")
+	
+	return current_weather_time, forecast_time, event_time
 
 def calculate_uv_bar_length(uv_index):
 	"""Calculate UV bar length with spacing for readability"""
@@ -1060,7 +1080,7 @@ def add_indicator_bars(main_group, x_start, uv_index, humidity):
 				main_group.append(Line(x_start + i, 29, x_start + i, 29, COLORS["BLACK"]))
 
 
-def show_weather_display(rtc, duration=DISPLAY_CONFIG["weather_duration"]):
+def show_weather_display(rtc, duration):
 	"""Display weather information and time"""
 	log_debug("Displaying weather...", include_memory = True)
 	
@@ -1068,7 +1088,7 @@ def show_weather_display(rtc, duration=DISPLAY_CONFIG["weather_duration"]):
 	if DISPLAY_CONFIG["dummy_weather"]:
 		weather_data = DUMMY_WEATHER_DATA
 		# Log successful weather fetch with current count
-		log_info(f"Displaying DUMMY Weather for {duration_message(DISPLAY_CONFIG["weather_duration"])}: {weather_data['weather_text']}, {weather_data['temperature']}°C", include_memory=True)
+		log_info(f"Displaying DUMMY Weather for {duration_message(duration)}: {weather_data['weather_text']}, {weather_data['temperature']}°C", include_memory=True)
 	else:
 		weather_data = fetch_weather_data()
 	
@@ -1182,7 +1202,7 @@ def show_clock_display(rtc, duration=DISPLAY_CONFIG["clock_fallback_duration"]):
 		time.sleep(2)
 		supervisor.reload()
 		
-def show_event_display(rtc, duration=DISPLAY_CONFIG["event_duration"]):
+def show_event_display(rtc, duration):
 		"""Display special calendar events - cycles through multiple events if present"""
 		month_day = f"{rtc.datetime.tm_mon:02d}{rtc.datetime.tm_mday:02d}"
 		
@@ -1204,7 +1224,7 @@ def show_event_display(rtc, duration=DISPLAY_CONFIG["event_duration"]):
 		else:
 			# Multiple events - split time between them
 			event_duration = max(duration // num_events,DISPLAY_CONFIG["minimum_event_duration"])
-			log_info(f"Showing {num_events} events, {duration_message(event_duration)} each", include_memory=True)
+			log_info(f"Showing {num_events} events, {duration_message(duration)} each", include_memory=True)
 			
 			for i, event_data in enumerate(event_list):
 				log_info(f"Event {i+1}/{num_events}: {event_data[1]}")
@@ -1327,52 +1347,49 @@ def show_color_test_display(duration=DISPLAY_CONFIG["color_test_duration"]):
 	gc.collect()
 	return True
 	
-def show_forecast_display(forecast_data=None, duration=DISPLAY_CONFIG.get("forecast_duration", 30)):
-	"""Display 3-column forecast: Now, +1 hour, +2 hours"""
+def show_forecast_display(current_data=None, forecast_data=None, duration=30):
+	"""Display 3-column forecast: Current time, +1 hour, +2 hours"""
 	log_info(f"Displaying Forecast for {duration_message(duration)}", include_memory=True)
 	clear_display()
 	gc.collect()
 	
 	try:
-		# Validate forecast_data type and content
-		valid_forecast_data = False
-		if forecast_data is not None:
-			# Check if it's a list/array and has enough items
-			if hasattr(forecast_data, '__len__') and len(forecast_data) >= 3:
-				valid_forecast_data = True
-				log_debug(f"Using valid forecast data with {len(forecast_data)} items")
-			else:
-				log_debug(f"Invalid forecast data: type={type(forecast_data)}, treating as None")
-				forecast_data = None
-		
-		# Generate dynamic data from forecast or use defaults
-		if valid_forecast_data:
-			# Extract temperatures from forecast data
-			col1_temp = f"{round(forecast_data[0].get('Temperature', {}).get('Value', -12))}°"
-			col2_temp = f"{round(forecast_data[1].get('Temperature', {}).get('Value', -14))}°" 
-			col3_temp = f"{round(forecast_data[2].get('Temperature', {}).get('Value', -32))}°"
-			
-			# Extract weather icons from forecast data
-			col1_icon = f"{forecast_data[0].get('WeatherIcon', 1)}.bmp"
-			col2_icon = f"{forecast_data[1].get('WeatherIcon', 2)}.bmp"
-			col3_icon = f"{forecast_data[2].get('WeatherIcon', 3)}.bmp"
-			
-			log_debug(f"Using forecast data: Icons {forecast_data[0].get('WeatherIcon')}, {forecast_data[1].get('WeatherIcon')}, {forecast_data[2].get('WeatherIcon')}")
+		# Column 1: Use current weather data
+		if current_data:
+			col1_temp = f"{round(current_data['temperature'])}°"
+			col1_icon = f"{current_data['weather_icon']}.bmp"
+			log_debug(f"Column 1: Current weather {current_data['temperature']}°C, icon {current_data['weather_icon']}")
 		else:
-			# Use static defaults when no forecast data
-			col1_temp, col2_temp, col3_temp = "-12°", "-14°", "-32°"
-			col1_icon, col2_icon, col3_icon = "1.bmp", "2.bmp", "3.bmp"
-			log_debug("Using default forecast data")
+			col1_temp, col1_icon = "-12°", "1.bmp"
+			log_debug("Column 1: Using fallback data")
 		
-		# Generate dynamic time labels based on current hour
+		# Columns 2 & 3: Use forecast data (hours +1 and +2)
+		if forecast_data and len(forecast_data) >= 3:
+			# Use hours 1 and 2 from the forecast array (hour 0 is current-ish)
+			col2_temp = f"{round(forecast_data[1]['temperature'])}°"
+			col3_temp = f"{round(forecast_data[2]['temperature'])}°"
+			col2_icon = f"{forecast_data[1]['weather_icon']}.bmp"
+			col3_icon = f"{forecast_data[2]['weather_icon']}.bmp"
+			log_debug(f"Column 2: Forecast +1hr {forecast_data[1]['temperature']}°C, icon {forecast_data[1]['weather_icon']}")
+			log_debug(f"Column 3: Forecast +2hr {forecast_data[2]['temperature']}°C, icon {forecast_data[2]['weather_icon']}")
+		else:
+			col2_temp, col3_temp = "-14°", "-32°"
+			col2_icon, col3_icon = "2.bmp", "3.bmp"
+			log_debug("Columns 2&3: Using fallback data")
+		
+		# Generate time labels
 		if rtc_instance:
 			current_hour = rtc_instance.datetime.tm_hour
+			current_minute = rtc_instance.datetime.tm_min
 			
-			# Calculate next two hours
+			# Column 1: Current time (e.g., "2:35P")
+			display_hour = current_hour % 12 if current_hour % 12 != 0 else 12
+			col1_time = f"{display_hour}:{current_minute:02d}"
+			
+			# Columns 2 & 3: Next two full hours (e.g., "3P", "4P")
 			hour_plus_1 = (current_hour + 1) % 24
 			hour_plus_2 = (current_hour + 2) % 24
 			
-			# Format as 12-hour time
 			def format_hour(hour):
 				if hour == 0:
 					return "12A"
@@ -1385,15 +1402,17 @@ def show_forecast_display(forecast_data=None, duration=DISPLAY_CONFIG.get("forec
 			
 			col2_time = format_hour(hour_plus_1)
 			col3_time = format_hour(hour_plus_2)
+			
+			log_debug(f"Time labels: '{col1_time}', '{col2_time}', '{col3_time}'")
 		else:
 			# Fallback time labels
+			col1_time = "Now"
 			col2_time = "12P"
 			col3_time = "1PM"
 		
-		# Forecast column configuration with dynamic data
-		# Images are 13x13 pixels, evenly spaced across 64px width
+		# Column configuration with real data
 		columns = [
-			{"image": col1_icon, "x": 3, "time": "Now", "temp": col1_temp},
+			{"image": col1_icon, "x": 3, "time": col1_time, "temp": col1_temp},
 			{"image": col2_icon, "x": 25, "time": col2_time, "temp": col2_temp},
 			{"image": col3_icon, "x": 48, "time": col3_time, "temp": col3_temp}
 		]
@@ -1407,15 +1426,13 @@ def show_forecast_display(forecast_data=None, duration=DISPLAY_CONFIG.get("forec
 		# Load and position weather icon columns
 		for i, col in enumerate(columns):
 			try:
-				# Try weather icons first, fallback to column images
+				# Try to load actual weather icons first
 				try:
-					if valid_forecast_data:
-						bitmap, palette = load_bmp_image(f"img/weather/{col['image']}")
-					else:
-						bitmap, palette = load_bmp_image(f"img/weather/columns/{col['image']}")
+					bitmap, palette = load_bmp_image(f"img/weather/columns/{col['image']}")
 				except:
 					# Fallback to column images if weather icon fails
 					bitmap, palette = load_bmp_image(f"img/weather/columns/{i+1}.bmp")
+					log_warning(f"Used fallback column image for column {i+1}")
 				
 				col_img = displayio.TileGrid(bitmap, pixel_shader=palette)
 				col_img.x = col["x"]
@@ -1451,6 +1468,11 @@ def show_forecast_display(forecast_data=None, duration=DISPLAY_CONFIG.get("forec
 				y=temp_y
 			)
 			main_group.append(temp_label)
+		
+		# Add day indicator if enabled
+		if DISPLAY_CONFIG["weekday_color"]:
+			add_day_indicator(main_group, rtc_instance)
+			log_debug("Showing Weekday Color Indicator on Forecast Display")
 	
 	except Exception as e:
 		log_error(f"Forecast display error: {e}")
@@ -1623,38 +1645,37 @@ def main():
 				# System maintenance
 				check_daily_reset(rtc)
 				
-				# Display weather
+				# Calculate display durations
+				current_duration, forecast_duration, event_duration = calculate_display_durations()
+				
+				# NEW ORDER: Forecast first
+				if DISPLAY_CONFIG["forecast"]:
+					current_data, forecast_data = fetch_current_and_forecast_weather()
+					show_forecast_display(current_data, forecast_data, forecast_duration)
+				else:
+					log_debug("Forecast display disabled")
+				
+				# Then current weather (with calculated duration)
 				if DISPLAY_CONFIG["weather"]:
-					show_weather_display(rtc, DISPLAY_CONFIG["weather_duration"])
+					show_weather_display(rtc, current_duration)
 				else:
 					log_debug("Weather display disabled")
 				
-				# Show event if scheduled
+				# Finally events
 				if DISPLAY_CONFIG["events"]:
-					event_shown = show_event_display(rtc, DISPLAY_CONFIG["event_duration"])
-					
-					# Brief pause if no event
+					event_shown = show_event_display(rtc, event_duration)
 					if not event_shown:
 						time.sleep(1)
-						
 				else:
-					log_debug("event display disabled")
-					
-				# Show forecast
-				if DISPLAY_CONFIG["forecast"]:
-					show_forecast_display(DISPLAY_CONFIG["forecast_duration"])
-				else:
-					log_debug("Forecast Disabled")
-					
-				# Show color test
+					log_debug("Event display disabled")
+				
+				# Remove color test from main loop or keep it separate
 				if DISPLAY_CONFIG["color_test"]:
 					show_color_test_display(DISPLAY_CONFIG["color_test_duration"])
-				else:
-					log_debug("Color Test Disabled")
 					
 			except Exception as e:
-				log_error(f"Display loop error: {e}", include_memory = True)
-				time.sleep(5)  # Brief recovery pause
+				log_error(f"Display loop error: {e}", include_memory=True)
+				time.sleep(5)
 				
 	except Exception as e:
 		log_error(f"Critical system error: {e}", include_memory = True)
