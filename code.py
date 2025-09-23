@@ -1393,7 +1393,7 @@ def show_forecast_display(forecast_data=None, duration=DISPLAY_CONFIG.get("forec
 		# Forecast column configuration with dynamic data
 		# Images are 13x13 pixels, evenly spaced across 64px width
 		columns = [
-			{"image": col1_icon, "x": 2, "time": "Now", "temp": col1_temp},
+			{"image": col1_icon, "x": 3, "time": "Now", "temp": col1_temp},
 			{"image": col2_icon, "x": 25, "time": col2_time, "temp": col2_temp},
 			{"image": col3_icon, "x": 48, "time": col3_time, "temp": col3_temp}
 		]
