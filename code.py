@@ -730,6 +730,626 @@ def disable_forecast_weather():
 	DISPLAY_CONFIG["fetch_forecast"] = False
 	log_info("Forecast weather API disabled")
 
+PRECIPITATION_CONFIG = {
+		"forecast_hours": 12,  # Look ahead 12 hours
+		"check_on_startup": True,  # Run precipitation check at startup
+		"timezone_offset": -6,  # Central Time offset (adjust for DST as needed)
+	}
+	
+def find_precipitation_period(forecast_data):
+	"""Find the start and end of the first precipitation period in the next 12 hours"""
+	if not forecast_data:
+		return None
+	
+	log_info("=== CHECKING NEXT 12 HOURS FOR PRECIPITATION ===")
+	
+	precipitation_start = None
+	precipitation_end = None
+	
+	for hour_index, hour_data in enumerate(forecast_data):
+		try:
+			# Check if this hour has precipitation
+			has_precipitation = hour_data.get("HasPrecipitation", False)
+			
+			if has_precipitation and precipitation_start is None:
+				# Found the start of precipitation
+				datetime_str = hour_data.get("DateTime", "")
+				weather_icon = hour_data.get("WeatherIcon", 0)
+				icon_phrase = hour_data.get("IconPhrase", "Unknown")
+				precip_type = hour_data.get("PrecipitationType", "Unknown")
+				precip_intensity = hour_data.get("PrecipitationIntensity", "Unknown")
+				temperature = hour_data.get("Temperature", {}).get("Value", 0)
+				precip_probability = hour_data.get("PrecipitationProbability", 0)
+				
+				precipitation_start = {
+					"hours_from_now": hour_index,
+					"datetime": datetime_str,
+					"weather_icon": weather_icon,
+					"description": icon_phrase,
+					"precipitation_type": precip_type,
+					"intensity": precip_intensity,
+					"temperature": temperature,
+					"probability": precip_probability
+				}
+				
+				log_warning(f"Hour +{hour_index}: PRECIPITATION STARTS - {precip_type} ({precip_intensity})")
+				
+			elif not has_precipitation and precipitation_start is not None and precipitation_end is None:
+				# Found the end of precipitation
+				datetime_str = hour_data.get("DateTime", "")
+				icon_phrase = hour_data.get("IconPhrase", "Unknown")
+				
+				precipitation_end = {
+					"hours_from_now": hour_index,
+					"datetime": datetime_str,
+					"description": icon_phrase
+				}
+				
+				log_info(f"Hour +{hour_index}: PRECIPITATION ENDS - {icon_phrase}")
+				break  # We found the complete precipitation period
+				
+			# Log status for reference
+			datetime_str = hour_data.get("DateTime", "")
+			icon_phrase = hour_data.get("IconPhrase", "Unknown")
+			temperature = hour_data.get("Temperature", {}).get("Value", 0)
+			status = "PRECIPITATION" if has_precipitation else "Clear"
+			log_info(f"Hour +{hour_index}: {status} - {icon_phrase}, {temperature}°C")
+			
+		except Exception as e:
+			log_error(f"Error processing hour {hour_index}: {e}")
+			continue
+	
+	if precipitation_start is None:
+		# No precipitation found
+		log_info("=== NO PRECIPITATION EXPECTED ===")
+		log_info("Clear weather for the next 12 hours")
+		return None
+	
+	# Build the result
+	result = {
+		"start": precipitation_start,
+		"end": precipitation_end,
+		"duration_hours": None
+	}
+	
+	if precipitation_end:
+		result["duration_hours"] = precipitation_end["hours_from_now"] - precipitation_start["hours_from_now"]
+		
+		log_warning("=== PRECIPITATION PERIOD ===")
+		log_warning(f"Starts in: {precipitation_start['hours_from_now']} hours")
+		log_warning(f"Ends in: {precipitation_end['hours_from_now']} hours")
+		log_warning(f"Duration: {result['duration_hours']} hours")
+		log_warning(f"Type: {precipitation_start['precipitation_type']} ({precipitation_start['intensity']})")# Simplified precipitation configuration
+PRECIPITATION_CONFIG = {
+	"forecast_hours": 12,  # Look ahead 12 hours
+	"check_on_startup": True,  # Run precipitation check at startup
+}
+
+def fetch_simple_12_hour_forecast():
+	"""Fetch 12-hour forecast without details for precipitation check"""
+	global api_call_count, forecast_api_calls
+	
+	try:
+		api_key = get_api_key()
+		if not api_key:
+			log_error("No API key available for forecast")
+			return None
+		
+		# Use 12-hour forecast without details but with metric
+		forecast_url = f"https://dataservice.accuweather.com/forecasts/v1/hourly/12hour/{ACCUWEATHER_LOCATION_KEY}?apikey={api_key}&metric=true"
+		
+		log_info("Fetching 12-hour forecast for precipitation check...")
+		forecast_json = fetch_weather_with_retries(forecast_url)
+		
+		if forecast_json:
+			forecast_api_calls += 1
+			api_call_count += 1
+			log_info(f"12-hour forecast retrieved (API #{api_call_count}/{MAX_API_CALLS_BEFORE_RESTART})")
+			return forecast_json
+		else:
+			log_error("Failed to fetch 12-hour forecast")
+			return None
+			
+	except Exception as e:
+		log_error(f"12-hour forecast fetch error: {e}")
+		return None
+
+# Simplified precipitation configuration
+PRECIPITATION_CONFIG = {
+	"forecast_hours": 12,  # Look ahead 12 hours
+	"check_on_startup": True,  # Run precipitation check at startup
+}
+
+def extract_time_from_forecast(datetime_str):
+	"""Extract readable time from AccuWeather datetime string"""
+	try:
+		# Extract time from format: "2025-09-23T03:00:00-05:00"
+		# Since AccuWeather provides local time, just extract the time portion
+		time_part = datetime_str.split('T')[1].split(':')
+		hour = int(time_part[0])
+		minute = time_part[1]
+		
+		# Convert to 12-hour format
+		if hour == 0:
+			return f"12:{minute} AM"
+		elif hour < 12:
+			return f"{hour}:{minute} AM"
+		elif hour == 12:
+			return f"12:{minute} PM"
+		else:
+			return f"{hour-12}:{minute} PM"
+	except Exception as e:
+		log_debug(f"Time extraction error: {e}")
+		return datetime_str
+
+def fetch_simple_12_hour_forecast():
+	"""Fetch 12-hour forecast without details for precipitation check"""
+	global api_call_count, forecast_api_calls
+	
+	try:
+		api_key = get_api_key()
+		if not api_key:
+			log_error("No API key available for forecast")
+			return None
+		
+		# Use 12-hour forecast without details but with metric
+		forecast_url = f"https://dataservice.accuweather.com/forecasts/v1/hourly/12hour/{ACCUWEATHER_LOCATION_KEY}?apikey={api_key}&metric=true"
+		
+		log_info("Fetching 12-hour forecast for precipitation check...")
+		forecast_json = fetch_weather_with_retries(forecast_url)
+		
+		if forecast_json:
+			forecast_api_calls += 1
+			api_call_count += 1
+			log_info(f"12-hour forecast retrieved (API #{api_call_count}/{MAX_API_CALLS_BEFORE_RESTART})")
+			return forecast_json
+		else:
+			log_error("Failed to fetch 12-hour forecast")
+			return None
+			
+	except Exception as e:
+		log_error(f"12-hour forecast fetch error: {e}")
+		return None
+
+def find_precipitation_end_time(forecast_data):
+	"""Find when current precipitation will end by checking when HasPrecipitation becomes false"""
+	if not forecast_data:
+		return None
+	
+	log_info("=== CHECKING WHEN CURRENT PRECIPITATION ENDS ===")
+	
+	for hour_index, hour_data in enumerate(forecast_data):
+		try:
+			has_precipitation = hour_data.get("HasPrecipitation", False)
+			datetime_str = hour_data.get("DateTime", "")
+			icon_phrase = hour_data.get("IconPhrase", "Unknown")
+			temperature = hour_data.get("Temperature", {}).get("Value", 0)
+			
+			log_info(f"Hour +{hour_index}: {'RAIN CONTINUES' if has_precipitation else 'RAIN ENDS'} - {icon_phrase}, {temperature}°C")
+			
+			if not has_precipitation:
+				# Found when precipitation ends
+				end_time = {
+					"hours_from_now": hour_index,
+					"datetime": datetime_str,
+					"local_time": extract_time_from_forecast(datetime_str),
+					"description": icon_phrase
+				}
+				
+				log_warning(f"PRECIPITATION ENDS in {hour_index} hours at {end_time['local_time']}")
+				return end_time
+				
+		except Exception as e:
+			log_error(f"Error processing hour {hour_index}: {e}")
+			continue
+	
+	# Precipitation continues beyond 12 hours
+	log_warning("PRECIPITATION CONTINUES beyond 12 hours")
+	return None
+
+def find_next_precipitation_period(forecast_data):
+	"""Find when the next precipitation starts AND ends"""
+	if not forecast_data:
+		return None
+	
+	log_info("=== CHECKING NEXT PRECIPITATION PERIOD ===")
+	
+	precipitation_start = None
+	precipitation_end = None
+	
+	for hour_index, hour_data in enumerate(forecast_data):
+		try:
+			has_precipitation = hour_data.get("HasPrecipitation", False)
+			
+			if has_precipitation and precipitation_start is None:
+				# Found the start of precipitation
+				datetime_str = hour_data.get("DateTime", "")
+				weather_icon = hour_data.get("WeatherIcon", 0)
+				icon_phrase = hour_data.get("IconPhrase", "Unknown")
+				precip_type = hour_data.get("PrecipitationType", "Unknown")
+				precip_intensity = hour_data.get("PrecipitationIntensity", "Unknown")
+				temperature = hour_data.get("Temperature", {}).get("Value", 0)
+				precip_probability = hour_data.get("PrecipitationProbability", 0)
+				
+				precipitation_start = {
+					"hours_from_now": hour_index,
+					"datetime": datetime_str,
+					"local_time": extract_time_from_forecast(datetime_str),
+					"weather_icon": weather_icon,
+					"description": icon_phrase,
+					"precipitation_type": precip_type,
+					"intensity": precip_intensity,
+					"temperature": temperature,
+					"probability": precip_probability
+				}
+				
+				log_warning(f"PRECIPITATION STARTS in {hour_index} hours at {precipitation_start['local_time']}")
+				log_warning(f"Type: {precip_type} ({precip_intensity}) | Temp: {temperature}°C")
+				
+			elif not has_precipitation and precipitation_start is not None and precipitation_end is None:
+				# Found the end of precipitation
+				datetime_str = hour_data.get("DateTime", "")
+				icon_phrase = hour_data.get("IconPhrase", "Unknown")
+				
+				precipitation_end = {
+					"hours_from_now": hour_index,
+					"datetime": datetime_str,
+					"local_time": extract_time_from_forecast(datetime_str),
+					"description": icon_phrase
+				}
+				
+				log_info(f"PRECIPITATION ENDS in {hour_index} hours at {precipitation_end['local_time']}")
+				break  # Found complete period
+				
+			# Log status for reference
+			datetime_str = hour_data.get("DateTime", "")
+			icon_phrase = hour_data.get("IconPhrase", "Unknown")
+			temperature = hour_data.get("Temperature", {}).get("Value", 0)
+			status = "RAIN CONTINUES" if has_precipitation and precipitation_start else "RAIN" if has_precipitation else "Clear"
+			log_info(f"Hour +{hour_index}: {status} - {icon_phrase}, {temperature}°C")
+			
+		except Exception as e:
+			log_error(f"Error processing hour {hour_index}: {e}")
+			continue
+	
+	if precipitation_start is None:
+		log_info("=== NO PRECIPITATION EXPECTED ===")
+		log_info("Clear weather for the next 12 hours")
+		return None
+	
+	# Build result with duration if we have both start and end
+	result = {
+		"start": precipitation_start,
+		"end": precipitation_end,
+		"duration_hours": None
+	}
+	
+	if precipitation_end:
+		result["duration_hours"] = precipitation_end["hours_from_now"] - precipitation_start["hours_from_now"]
+		log_warning(f"PRECIPITATION DURATION: {result['duration_hours']} hours")
+	else:
+		log_warning("PRECIPITATION CONTINUES beyond 12 hours")
+	
+	return result
+
+def startup_precipitation_check(rtc):
+	"""Check current precipitation and forecast for complete precipitation periods"""
+	log_info("=== STARTUP PRECIPITATION CHECK ===")
+	
+	try:
+		# Step 1: Get current weather and check HasPrecipitation flag
+		log_info("Checking current conditions...")
+		if DISPLAY_CONFIG["dummy_weather"]:
+			current_data = DUMMY_WEATHER_DATA
+			log_info("Using dummy current weather")
+			currently_precipitating = False
+			current_details = None
+		else:
+			# Fetch current weather only
+			DISPLAY_CONFIG["fetch_current"] = True
+			DISPLAY_CONFIG["fetch_forecast"] = False
+			current_data, _ = fetch_current_and_forecast_weather()
+			
+			if current_data:
+				# Check HasPrecipitation from the current weather API response
+				currently_precipitating = current_data.get("HasPrecipitation", False)
+				
+				current_details = {
+					"weather_text": current_data.get("weather_text", "Unknown"),
+					"weather_icon": current_data.get("weather_icon", 0),
+					"temperature": current_data.get("temperature", 0),
+					"precipitation_type": current_data.get("precipitation_type", None),
+					"precipitation_intensity": current_data.get("precipitation_intensity", None)
+				} if currently_precipitating else None
+				
+				log_info(f"Current weather: {current_data.get('weather_text', 'Unknown')}")
+				log_info(f"HasPrecipitation: {currently_precipitating}")
+			else:
+				currently_precipitating = False
+				current_details = None
+		
+		# Step 2: Get 12-hour forecast
+		if DISPLAY_CONFIG["dummy_weather"]:
+			log_info("Skipping forecast check - dummy weather mode")
+			forecast_result = None
+		else:
+			forecast_data = fetch_simple_12_hour_forecast()
+			
+			if currently_precipitating:
+				# Currently raining - find when it stops
+				forecast_result = find_precipitation_end_time(forecast_data)
+			else:
+				# Not currently raining - find complete precipitation period (start AND end)
+				forecast_result = find_next_precipitation_period(forecast_data)
+		
+		# Step 3: Build comprehensive result
+		result = {
+			"currently_precipitating": currently_precipitating,
+			"current_details": current_details,
+			"forecast_result": forecast_result,
+			"scenario": "currently_raining" if currently_precipitating else "rain_expected" if forecast_result else "clear",
+			"needs_umbrella": currently_precipitating or (forecast_result is not None)
+		}
+		
+		# Step 4: Print user-friendly summary
+		log_info("=== PRECIPITATION SUMMARY ===")
+		
+		if result["currently_precipitating"]:
+			log_warning("RIGHT NOW: Precipitation in progress")
+			if current_details:
+				log_warning(f"Current: {current_details['weather_text']} | {current_details['temperature']}°C")
+			
+			if forecast_result:
+				log_warning(f"RAIN STOPS: In {forecast_result['hours_from_now']} hours at {forecast_result['local_time']}")
+			else:
+				log_warning("RAIN CONTINUES: Beyond next 12 hours")
+				
+		elif forecast_result:
+			# Handle both single start event and complete period
+			if isinstance(forecast_result, dict) and "start" in forecast_result:
+				# Complete precipitation period
+				start = forecast_result["start"]
+				end = forecast_result["end"]
+				
+				log_warning(f"UPCOMING: {start['precipitation_type']} in {start['hours_from_now']} hours")
+				log_warning(f"Starts: {start['local_time']} | {start['intensity']} | {start['temperature']}°C")
+				
+				if end:
+					log_warning(f"Ends: {end['local_time']} | Duration: {forecast_result['duration_hours']} hours")
+				else:
+					log_warning("Duration: Continues beyond 12 hours")
+			else:
+				# Single precipitation start (fallback)
+				log_warning(f"UPCOMING: {forecast_result['precipitation_type']} in {forecast_result['hours_from_now']} hours")
+				log_warning(f"Starts: {forecast_result['local_time']} | {forecast_result['intensity']} | {forecast_result['temperature']}°C")
+		
+		if result["needs_umbrella"]:
+			log_warning("RECOMMENDATION: Take umbrella/rain gear")
+		else:
+			log_info("RECOMMENDATION: No rain gear needed for next 12 hours")
+		
+		return result
+		
+	except Exception as e:
+		log_error(f"Precipitation check failed: {e}")
+		return {
+			"currently_precipitating": False,
+			"current_details": None,
+			"forecast_result": None,
+			"scenario": "error",
+			"needs_umbrella": False
+		}
+
+# Global variable to store precipitation check results
+startup_precipitation_result = None
+
+# Helper function for testing
+def test_precipitation_check():
+	"""Test the precipitation check system"""
+	global rtc_instance
+	
+	log_info("=== TESTING PRECIPITATION CHECK ===")
+	result = startup_precipitation_check(rtc_instance)
+	
+	if result["needs_umbrella"]:
+		log_warning("TEST RESULT: Weather alert should be displayed")
+	else:
+		log_info("TEST RESULT: Normal weather display")
+	
+	return result
+	
+# Enhanced weather configuration for intelligent forecast scheduling
+WEATHER_FORECAST_CONFIG = {
+	"normal_forecast_interval": 1800,  # 30 minutes when no precipitation
+	"precipitation_forecast_interval": 300,  # 5 minutes when actively precipitating
+	"check_precipitation_end": True,  # Update forecast to track when rain stops
+}
+
+# Global tracking for forecast scheduling
+last_forecast_update = 0
+last_precipitation_status = False  # Track if it was precipitating on last check
+
+def should_update_forecast(current_weather_data):
+	"""Determine if forecast should be updated based on current conditions and timing"""
+	global last_forecast_update, last_precipitation_status
+	
+	current_time = time.monotonic()
+	currently_precipitating = current_weather_data.get("HasPrecipitation", False) if current_weather_data else False
+	
+	# Check if precipitation status changed
+	precipitation_status_changed = currently_precipitating != last_precipitation_status
+	
+	# Determine appropriate interval based on current conditions
+	if currently_precipitating:
+		required_interval = WEATHER_FORECAST_CONFIG["precipitation_forecast_interval"]
+		reason = "actively precipitating"
+	else:
+		required_interval = WEATHER_FORECAST_CONFIG["normal_forecast_interval"] 
+		reason = "normal conditions"
+	
+	# Check if enough time has passed
+	time_since_last = current_time - last_forecast_update
+	time_requirement_met = time_since_last >= required_interval
+	
+	# Decision logic
+	should_update = (
+		last_forecast_update == 0 or  # First run
+		precipitation_status_changed or  # Status changed
+		time_requirement_met  # Time interval met
+	)
+	
+	if should_update:
+		if precipitation_status_changed:
+			log_info(f"Forecast update triggered: precipitation status changed to {'active' if currently_precipitating else 'clear'}")
+		elif time_requirement_met:
+			log_debug(f"Forecast update triggered: {required_interval//60}-minute interval for {reason}")
+		else:
+			log_debug("Forecast update triggered: first run")
+	else:
+		remaining_time = required_interval - time_since_last
+		log_debug(f"Forecast update not needed: {remaining_time//60} minutes until next {reason} update")
+	
+	return should_update, currently_precipitating
+
+def intelligent_weather_fetch(rtc):
+	"""Intelligently fetch current weather and conditionally update forecast"""
+	global last_forecast_update, last_precipitation_status
+	
+	current_time = time.monotonic()
+	
+	# Always fetch current weather
+	log_debug("Fetching current weather...")
+	DISPLAY_CONFIG["fetch_current"] = True
+	DISPLAY_CONFIG["fetch_forecast"] = False
+	
+	current_data, _ = fetch_current_and_forecast_weather()
+	
+	if not current_data:
+		log_warning("Current weather fetch failed")
+		return current_data, None
+	
+	# Check if we should update forecast
+	should_update, currently_precipitating = should_update_forecast(current_data)
+	
+	forecast_data = None
+	if should_update:
+		log_info("Updating precipitation forecast...")
+		
+		# Fetch forecast data
+		forecast_data = fetch_simple_12_hour_forecast()
+		
+		if forecast_data:
+			# Analyze based on current precipitation status
+			if currently_precipitating:
+				# Find when current precipitation ends
+				forecast_analysis = find_precipitation_end_time(forecast_data)
+				if forecast_analysis:
+					log_warning(f"PRECIPITATION UPDATE: Rain stops in {forecast_analysis['hours_from_now']} hours at {forecast_analysis['local_time']}")
+				else:
+					log_warning("PRECIPITATION UPDATE: Rain continues beyond 12 hours")
+			else:
+				# Find next precipitation period
+				forecast_analysis = find_next_precipitation_period(forecast_data)
+				if forecast_analysis and "start" in forecast_analysis:
+					start = forecast_analysis["start"]
+					end = forecast_analysis["end"]
+					log_warning(f"FORECAST UPDATE: {start['precipitation_type']} in {start['hours_from_now']} hours")
+					if end:
+						log_warning(f"Duration: {forecast_analysis['duration_hours']} hours")
+				else:
+					log_info("FORECAST UPDATE: No precipitation expected in next 12 hours")
+			
+			# Update tracking variables
+			last_forecast_update = current_time
+			last_precipitation_status = currently_precipitating
+			
+		else:
+			log_error("Forecast update failed")
+	
+	return current_data, forecast_data
+
+def enhanced_show_weather_display(rtc, duration=DISPLAY_CONFIG["weather_duration"]):
+	"""Enhanced weather display with intelligent forecast updating"""
+	log_debug("Displaying weather with intelligent forecast...", include_memory=True)
+	
+	# Use intelligent weather fetching
+	if DISPLAY_CONFIG["dummy_weather"]:
+		weather_data = DUMMY_WEATHER_DATA
+		forecast_data = None
+		log_info(f"Displaying DUMMY Weather for {duration_message(duration)}: {weather_data['weather_text']}, {weather_data['temperature']}°C", include_memory=True)
+	else:
+		weather_data, forecast_data = intelligent_weather_fetch(rtc)
+	
+	if not weather_data:
+		log_warning("Weather unavailable, showing clock")
+		show_clock_display(rtc, duration)
+		return
+	
+	# Continue with your existing weather display logic
+	clear_display()
+	
+	# Create display elements (your existing code)
+	temp_text = bitmap_label.Label(bg_font, color=COLORS["DIMMEST_WHITE"], x=2, y=20, background_color=COLORS["BLACK"], padding_top=-5, padding_bottom=1, padding_left=1)
+	feels_like_text = bitmap_label.Label(font, color=COLORS["DIMMEST_WHITE"], y=16, background_color=COLORS["BLACK"], padding_top=-5, padding_bottom=-2, padding_left=1)
+	feels_shade_text = bitmap_label.Label(font, color=COLORS["DIMMEST_WHITE"], y=24, background_color=COLORS["BLACK"], padding_top=-5, padding_bottom=-2, padding_left=1)
+	time_text = bitmap_label.Label(font, color=COLORS["DIMMEST_WHITE"], x=15, y=24, background_color=COLORS["BLACK"], padding_top=-5, padding_bottom=-2, padding_left=1)
+	
+	# Load weather icon
+	try:
+		bitmap, palette = load_bmp_image(f"img/weather/{weather_data['weather_icon']}.bmp")
+		image_grid = displayio.TileGrid(bitmap, pixel_shader=palette)
+		main_group.append(image_grid)
+	except Exception as e:
+		log_warning(f"Icon load failed: {e}")
+	
+	# Setup temperature display
+	temp_text.text = f"{round(weather_data['temperature'])}°"
+	main_group.append(temp_text)
+	
+	# Add UV and humidity indicator bars
+	add_indicator_bars(main_group, temp_text.x, weather_data['uv_index'], weather_data['humidity'])
+	
+	# Add feels-like temperatures if different
+	temp_rounded = round(weather_data['temperature'])
+	feels_like_rounded = round(weather_data['feels_like'])
+	feels_shade_rounded = round(weather_data['feels_shade'])
+	
+	if feels_like_rounded != temp_rounded:
+		feels_like_text.text = f"{feels_like_rounded}°"
+		feels_like_text.x = 64 - 1 - get_text_width(feels_like_text.text, font)
+		main_group.append(feels_like_text)
+	
+	if feels_shade_rounded != feels_like_rounded:
+		feels_shade_text.text = f"{feels_shade_rounded}°"
+		feels_shade_text.x = 64 - 1 - get_text_width(feels_shade_text.text, font)
+		main_group.append(feels_shade_text)
+	
+	main_group.append(time_text)
+	
+	# Add day indicator
+	if DISPLAY_CONFIG["weekday_color"]:
+		add_day_indicator(main_group, rtc)
+		currently_precipitating = weather_data.get("HasPrecipitation", False)
+		log_debug(f"Showing Weekday Color Indicator on Weather Display for {rtc.datetime.tm_wday} {'(RAIN ACTIVE)' if currently_precipitating else ''}")
+	else:
+		log_debug("Weekday Color Indicator Disabled")
+
+	# Display update loop
+	start_time = time.monotonic()
+	while time.monotonic() - start_time < duration:
+		# Update time display
+		hour = rtc.datetime.tm_hour
+		display_hour = hour % 12 if hour % 12 != 0 else 12
+		current_time = f"{display_hour}:{rtc.datetime.tm_min:02d}"
+		time_text.text = current_time
+		
+		# Position time text
+		if feels_shade_rounded != feels_like_rounded:
+			time_text.x = (64 - get_text_width(current_time, font)) // 2
+		else:
+			time_text.x = 64 - 1 - get_text_width(current_time, font)
+		
+		time.sleep(1)
 
 ### DISPLAY UTILITIES ###
 
@@ -1471,6 +2091,13 @@ def main():
 		startup_time = time.monotonic()
 		last_successful_weather = startup_time
 		
+		if wifi_connected and PRECIPITATION_CONFIG["check_on_startup"]:
+			log_info("Running startup precipitation check...")
+			startup_precipitation_result = startup_precipitation_check(rtc)
+		else:
+			log_info("Skipping precipitation check (no WiFi or disabled)")
+			startup_precipitation_result = {"needs_umbrella": False}
+		
 		log_info("Entering main display loop", include_memory=True)
 		
 		# Main display loop
@@ -1481,7 +2108,8 @@ def main():
 				
 				# Display weather
 				if DISPLAY_CONFIG["weather"]:
-					show_weather_display(rtc, DISPLAY_CONFIG["weather_duration"])
+					#show_weather_display(rtc, DISPLAY_CONFIG["weather_duration"])
+					enhanced_show_weather_display(rtc, DISPLAY_CONFIG["weather_duration"])
 				else:
 					log_debug("Weather display disabled")
 				
