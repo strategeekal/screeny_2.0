@@ -1391,15 +1391,16 @@ def show_forecast_display(forecast_data=None, duration=DISPLAY_CONFIG.get("forec
 			col3_time = "1PM"
 		
 		# Forecast column configuration with dynamic data
+		# Images are 13x13 pixels, evenly spaced across 64px width
 		columns = [
-			{"image": col1_icon, "x": 4, "time": "Now", "temp": col1_temp},
-			{"image": col2_icon, "x": 26, "time": col2_time, "temp": col2_temp},
+			{"image": col1_icon, "x": 2, "time": "Now", "temp": col1_temp},
+			{"image": col2_icon, "x": 25, "time": col2_time, "temp": col2_temp},
 			{"image": col3_icon, "x": 48, "time": col3_time, "temp": col3_temp}
 		]
 		
-		# Column positioning
+		# Column positioning - 13px wide images with proper spacing
 		column_y = 9
-		column_width = 22  # Width of each column space
+		column_width = 13  # Actual image width
 		time_y = 1
 		temp_y = 25
 		
