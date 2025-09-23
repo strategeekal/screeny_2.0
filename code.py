@@ -29,7 +29,8 @@ DISPLAY_CONFIG = {
 	"weather": True,		  
 	"fetch_current": True,    
 	"fetch_forecast": True,   
-	"dummy_weather": False,   
+	"dummy_weather": False,
+	"dummy_forecast": False,   
 	"test_date": False,		  
 	"events": True,           
 	"clock_fallback": True,   
@@ -82,6 +83,13 @@ DUMMY_WEATHER_DATA = {
 		"is_day_time": True,
 	}
 }
+
+# Update DUMMY_WEATHER_DATA with forecast structure:
+DUMMY_FORECAST_DATA = [
+	{"temperature": 23, "weather_icon": 6, "weather_text": "Mostly cloudy", "datetime": ""},
+	{"temperature": 22, "weather_icon": 7, "weather_text": "Cloudy", "datetime": ""},
+	{"temperature": 21, "weather_icon": 8, "weather_text": "Overcast", "datetime": ""}
+]
 
 # Hardcoded Time Control
 TEST_DATE_DATA = {
@@ -1349,44 +1357,36 @@ def show_color_test_display(duration=DISPLAY_CONFIG["color_test_duration"]):
 	
 def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 	"""Display 3-column forecast: Current time, +1 hour, +2 hours"""
-	log_info(f"Displaying Forecast for {duration_message(duration)}", include_memory=True)
+	
+	# Check if we have real data - skip display if not
+	if not current_data or not forecast_data or len(forecast_data) < 3:
+		log_warning(f"Skipping forecast display - insufficient data (current: {current_data is not None}, forecast: {forecast_data is not None and len(forecast_data) >= 3 if forecast_data else False})")
+		return False
+	
+	# Log with real data
+	log_info(f"Displaying Forecast for {duration_message(duration)}: Current {current_data['temperature']}°C, +1hr {forecast_data[1]['temperature']}°C, +2hr {forecast_data[2]['temperature']}°C", include_memory=True)
+	
 	clear_display()
 	gc.collect()
 	
 	try:
-		# Column 1: Use current weather data
-		if current_data:
-			col1_temp = f"{round(current_data['temperature'])}°"
-			col1_icon = f"{current_data['weather_icon']}.bmp"
-			log_debug(f"Column 1: Current weather {current_data['temperature']}°C, icon {current_data['weather_icon']}")
-		else:
-			col1_temp, col1_icon = "-12°", "1.bmp"
-			log_debug("Column 1: Using fallback data")
+		# Use real data only (no fallbacks)
+		col1_temp = f"{round(current_data['temperature'])}°"
+		col1_icon = f"{current_data['weather_icon']}.bmp"
 		
-		# Columns 2 & 3: Use forecast data (hours +1 and +2)
-		if forecast_data and len(forecast_data) >= 3:
-			# Use hours 1 and 2 from the forecast array (hour 0 is current-ish)
-			col2_temp = f"{round(forecast_data[1]['temperature'])}°"
-			col3_temp = f"{round(forecast_data[2]['temperature'])}°"
-			col2_icon = f"{forecast_data[1]['weather_icon']}.bmp"
-			col3_icon = f"{forecast_data[2]['weather_icon']}.bmp"
-			log_debug(f"Column 2: Forecast +1hr {forecast_data[1]['temperature']}°C, icon {forecast_data[1]['weather_icon']}")
-			log_debug(f"Column 3: Forecast +2hr {forecast_data[2]['temperature']}°C, icon {forecast_data[2]['weather_icon']}")
-		else:
-			col2_temp, col3_temp = "-14°", "-32°"
-			col2_icon, col3_icon = "2.bmp", "3.bmp"
-			log_debug("Columns 2&3: Using fallback data")
+		col2_temp = f"{round(forecast_data[1]['temperature'])}°"
+		col3_temp = f"{round(forecast_data[2]['temperature'])}°"
+		col2_icon = f"{forecast_data[1]['weather_icon']}.bmp"
+		col3_icon = f"{forecast_data[2]['weather_icon']}.bmp"
 		
-		# Generate time labels
+		# Generate time labels (keep this logic)
 		if rtc_instance:
 			current_hour = rtc_instance.datetime.tm_hour
 			current_minute = rtc_instance.datetime.tm_min
 			
-			# Column 1: Current time (e.g., "2:35P")
 			display_hour = current_hour % 12 if current_hour % 12 != 0 else 12
 			col1_time = f"{display_hour}:{current_minute:02d}"
 			
-			# Columns 2 & 3: Next two full hours (e.g., "3P", "4P")
 			hour_plus_1 = (current_hour + 1) % 24
 			hour_plus_2 = (current_hour + 2) % 24
 			
@@ -1402,13 +1402,17 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 			
 			col2_time = format_hour(hour_plus_1)
 			col3_time = format_hour(hour_plus_2)
-			
-			log_debug(f"Time labels: '{col1_time}', '{col2_time}', '{col3_time}'")
 		else:
-			# Fallback time labels
 			col1_time = "Now"
 			col2_time = "12P"
 			col3_time = "1PM"
+		
+		# Rest of display logic unchanged...
+		columns = [
+			{"image": col1_icon, "x": 3, "time": col1_time, "temp": col1_temp},
+			{"image": col2_icon, "x": 25, "time": col2_time, "temp": col2_temp},
+			{"image": col3_icon, "x": 48, "time": col3_time, "temp": col3_temp}
+		]
 		
 		# Column configuration with real data
 		columns = [
@@ -1648,20 +1652,31 @@ def main():
 				# Calculate display durations
 				current_duration, forecast_duration, event_duration = calculate_display_durations()
 				
-				# NEW ORDER: Forecast first
+				# Try forecast first - skip if API fails
 				if DISPLAY_CONFIG["forecast"]:
-					current_data, forecast_data = fetch_current_and_forecast_weather()
-					show_forecast_display(current_data, forecast_data, forecast_duration)
+					if DISPLAY_CONFIG["dummy_forecast"]:
+						# Use dummy data for testing
+						forecast_shown = show_forecast_display(DUMMY_WEATHER_DATA, DUMMY_FORECAST_DATA, forecast_duration)
+						log_info("Using dummy forecast data for testing")
+					else:
+						# Use real API data
+						current_data, forecast_data = fetch_current_and_forecast_weather()
+						forecast_shown = show_forecast_display(current_data, forecast_data, forecast_duration)
+					
+					if not forecast_shown:
+						log_info("Forecast skipped due to API failure - extending current weather time")
+						# Add forecast time to current weather time
+						current_duration += forecast_duration
 				else:
 					log_debug("Forecast display disabled")
 				
-				# Then current weather (with calculated duration)
+				# Current weather (with potentially extended duration)
 				if DISPLAY_CONFIG["weather"]:
 					show_weather_display(rtc, current_duration)
 				else:
 					log_debug("Weather display disabled")
 				
-				# Finally events
+				# Events
 				if DISPLAY_CONFIG["events"]:
 					event_shown = show_event_display(rtc, event_duration)
 					if not event_shown:
