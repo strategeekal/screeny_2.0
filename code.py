@@ -762,7 +762,7 @@ def find_precipitation_period(forecast_data):
 				precip_probability = hour_data.get("PrecipitationProbability", 0)
 				
 				precipitation_start = {
-					"hours_from_now": hour_index,
+					"hours_from_now": calculate_actual_hours_from_forecast(hour_index),
 					"datetime": datetime_str,
 					"weather_icon": weather_icon,
 					"description": icon_phrase,
@@ -772,7 +772,7 @@ def find_precipitation_period(forecast_data):
 					"probability": precip_probability
 				}
 				
-				log_warning(f"Hour +{hour_index}: PRECIPITATION STARTS - {precip_type} ({precip_intensity})")
+				log_warning(f"Hour +{calculate_actual_hours_from_forecast(hour_index):.1f} : PRECIPITATION STARTS - {precip_type} ({precip_intensity})")
 				
 			elif not has_precipitation and precipitation_start is not None and precipitation_end is None:
 				# Found the end of precipitation
@@ -780,12 +780,12 @@ def find_precipitation_period(forecast_data):
 				icon_phrase = hour_data.get("IconPhrase", "Unknown")
 				
 				precipitation_end = {
-					"hours_from_now": hour_index,
+					"hours_from_now": calculate_actual_hours_from_forecast(hour_index),
 					"datetime": datetime_str,
 					"description": icon_phrase
 				}
 				
-				log_info(f"Hour +{hour_index}: PRECIPITATION ENDS - {icon_phrase}")
+				log_info(f"Hour +{calculate_actual_hours_from_forecast(hour_index):.1f} : PRECIPITATION ENDS - {icon_phrase}")
 				break  # We found the complete precipitation period
 				
 			# Log status for reference
@@ -793,10 +793,10 @@ def find_precipitation_period(forecast_data):
 			icon_phrase = hour_data.get("IconPhrase", "Unknown")
 			temperature = hour_data.get("Temperature", {}).get("Value", 0)
 			status = "PRECIPITATION" if has_precipitation else "Clear"
-			log_info(f"Hour +{hour_index}: {status} - {icon_phrase}, {temperature}°C")
+			log_info(f"Hour +{calculate_actual_hours_from_forecast(hour_index):.1f} : {status} - {icon_phrase}, {temperature}°C")
 			
 		except Exception as e:
-			log_error(f"Error processing hour {hour_index}: {e}")
+			log_error(f"Error processing hour {calculate_actual_hours_from_forecast(hour_index):.1f} : {e}")
 			continue
 	
 	if precipitation_start is None:
@@ -881,6 +881,36 @@ def extract_time_from_forecast(datetime_str):
 	except Exception as e:
 		log_debug(f"Time extraction error: {e}")
 		return datetime_str
+		
+def calculate_actual_hours_from_forecast(forecast_hour_index):
+	"""Calculate actual hours from now, accounting for current time within the hour"""
+	global rtc_instance
+	
+	try:
+		# Get current time
+		current_time = rtc_instance.datetime
+		current_minute = current_time.tm_min
+		
+		# Forecast hours are typically for the top of each hour
+		# If it's currently 1:30 AM, hour +0 in forecast represents 2:00 AM
+		# So we need to add the fraction of the current hour remaining
+		minutes_until_next_hour = 60 - current_minute
+		hours_until_next_hour = minutes_until_next_hour / 60.0
+		
+		# The forecast hour index represents hours from the next full hour
+		# So actual time = hours until next hour + forecast hour index
+		actual_hours_from_now = hours_until_next_hour + forecast_hour_index
+		
+		log_debug(f"Current time: {current_time.tm_hour:02d}:{current_time.tm_min:02d}")
+		log_debug(f"Minutes until next hour: {minutes_until_next_hour}")
+		log_debug(f"Forecast hour +{forecast_hour_index} = {actual_hours_from_now:.1f} hours from now")
+		
+		return actual_hours_from_now
+		
+	except Exception as e:
+		log_error(f"Error calculating actual hours: {e}")
+		# Fallback to forecast hour index if calculation fails
+		return float(forecast_hour_index)
 
 def fetch_simple_12_hour_forecast():
 	"""Fetch 12-hour forecast without details for precipitation check"""
@@ -925,22 +955,22 @@ def find_precipitation_end_time(forecast_data):
 			icon_phrase = hour_data.get("IconPhrase", "Unknown")
 			temperature = hour_data.get("Temperature", {}).get("Value", 0)
 			
-			log_info(f"Hour +{hour_index}: {'RAIN CONTINUES' if has_precipitation else 'RAIN ENDS'} - {icon_phrase}, {temperature}°C")
+			log_info(f"Hour +{calculate_actual_hours_from_forecast(hour_index):.1f} : {'RAIN CONTINUES' if has_precipitation else 'RAIN ENDS'} - {icon_phrase}, {temperature}°C")
 			
 			if not has_precipitation:
 				# Found when precipitation ends
 				end_time = {
-					"hours_from_now": hour_index,
+					"hours_from_now": calculate_actual_hours_from_forecast(hour_index),
 					"datetime": datetime_str,
 					"local_time": extract_time_from_forecast(datetime_str),
 					"description": icon_phrase
 				}
 				
-				log_warning(f"PRECIPITATION ENDS in {hour_index} hours at {end_time['local_time']}")
+				log_warning(f"PRECIPITATION ENDS in {calculate_actual_hours_from_forecast(hour_index):.1f}  hours at {end_time['local_time']}")
 				return end_time
 				
 		except Exception as e:
-			log_error(f"Error processing hour {hour_index}: {e}")
+			log_error(f"Error processing hour {calculate_actual_hours_from_forecast(hour_index):.1f} : {e}")
 			continue
 	
 	# Precipitation continues beyond 12 hours
@@ -972,7 +1002,7 @@ def find_next_precipitation_period(forecast_data):
 				precip_probability = hour_data.get("PrecipitationProbability", 0)
 				
 				precipitation_start = {
-					"hours_from_now": hour_index,
+					"hours_from_now": calculate_actual_hours_from_forecast(hour_index),
 					"datetime": datetime_str,
 					"local_time": extract_time_from_forecast(datetime_str),
 					"weather_icon": weather_icon,
@@ -983,7 +1013,7 @@ def find_next_precipitation_period(forecast_data):
 					"probability": precip_probability
 				}
 				
-				log_warning(f"PRECIPITATION STARTS in {hour_index} hours at {precipitation_start['local_time']}")
+				log_warning(f"PRECIPITATION STARTS in {calculate_actual_hours_from_forecast(hour_index):.1f}  hours at {precipitation_start['local_time']}")
 				log_warning(f"Type: {precip_type} ({precip_intensity}) | Temp: {temperature}°C")
 				
 			elif not has_precipitation and precipitation_start is not None and precipitation_end is None:
@@ -992,13 +1022,13 @@ def find_next_precipitation_period(forecast_data):
 				icon_phrase = hour_data.get("IconPhrase", "Unknown")
 				
 				precipitation_end = {
-					"hours_from_now": hour_index,
+					"hours_from_now": calculate_actual_hours_from_forecast(hour_index),
 					"datetime": datetime_str,
 					"local_time": extract_time_from_forecast(datetime_str),
 					"description": icon_phrase
 				}
 				
-				log_info(f"PRECIPITATION ENDS in {hour_index} hours at {precipitation_end['local_time']}")
+				log_info(f"PRECIPITATION ENDS in {calculate_actual_hours_from_forecast(hour_index):.1f}  hours at {precipitation_end['local_time']}")
 				break  # Found complete period
 				
 			# Log status for reference
@@ -1006,10 +1036,10 @@ def find_next_precipitation_period(forecast_data):
 			icon_phrase = hour_data.get("IconPhrase", "Unknown")
 			temperature = hour_data.get("Temperature", {}).get("Value", 0)
 			status = "RAIN CONTINUES" if has_precipitation and precipitation_start else "RAIN" if has_precipitation else "Clear"
-			log_info(f"Hour +{hour_index}: {status} - {icon_phrase}, {temperature}°C")
+			log_info(f"Hour +{calculate_actual_hours_from_forecast(hour_index):.1f} : {status} - {icon_phrase}, {temperature}°C")
 			
 		except Exception as e:
-			log_error(f"Error processing hour {hour_index}: {e}")
+			log_error(f"Error processing hour {calculate_actual_hours_from_forecast(hour_index):.1f} : {e}")
 			continue
 	
 	if precipitation_start is None:
@@ -1350,6 +1380,8 @@ def enhanced_show_weather_display(rtc, duration=DISPLAY_CONFIG["weather_duration
 			time_text.x = 64 - 1 - get_text_width(current_time, font)
 		
 		time.sleep(1)
+		
+
 
 ### DISPLAY UTILITIES ###
 
