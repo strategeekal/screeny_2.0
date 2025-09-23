@@ -1327,89 +1327,129 @@ def show_color_test_display(duration=DISPLAY_CONFIG["color_test_duration"]):
 	gc.collect()
 	return True
 	
-def show_forecast_display(duration=DISPLAY_CONFIG["forecast_duration"]):
-	log_info(f"Displaying Forecast for {duration_message(DISPLAY_CONFIG["forecast_duration"])}", include_memory=True)
+def show_forecast_display(forecast_data=None, duration=DISPLAY_CONFIG.get("forecast_duration", 30)):
+	"""Display 3-column forecast: Now, +1 hour, +2 hours"""
+	log_info(f"Displaying Forecast for {duration_message(duration)}", include_memory=True)
 	clear_display()
 	gc.collect()
 	
 	try:
-		bitmap, palette = load_bmp_image("img/weather/columns/1.bmp")
-		col_1_img = displayio.TileGrid(bitmap, pixel_shader=palette)
-		main_group.append(col_1_img)
+		# Validate forecast_data type and content
+		valid_forecast_data = False
+		if forecast_data is not None:
+			# Check if it's a list/array and has enough items
+			if hasattr(forecast_data, '__len__') and len(forecast_data) >= 3:
+				valid_forecast_data = True
+				log_debug(f"Using valid forecast data with {len(forecast_data)} items")
+			else:
+				log_debug(f"Invalid forecast data: type={type(forecast_data)}, treating as None")
+				forecast_data = None
 		
-		# Position 25px wide image at top right
-		col_1_img.x = 4  # Right-aligned for 25px wide image
-		col_1_img.y = 9   # Start at y = 2 as requested
+		# Generate dynamic data from forecast or use defaults
+		if valid_forecast_data:
+			# Extract temperatures from forecast data
+			col1_temp = f"{round(forecast_data[0].get('Temperature', {}).get('Value', -12))}°"
+			col2_temp = f"{round(forecast_data[1].get('Temperature', {}).get('Value', -14))}°" 
+			col3_temp = f"{round(forecast_data[2].get('Temperature', {}).get('Value', -32))}°"
+			
+			# Extract weather icons from forecast data
+			col1_icon = f"{forecast_data[0].get('WeatherIcon', 1)}.bmp"
+			col2_icon = f"{forecast_data[1].get('WeatherIcon', 2)}.bmp"
+			col3_icon = f"{forecast_data[2].get('WeatherIcon', 3)}.bmp"
+			
+			log_debug(f"Using forecast data: Icons {forecast_data[0].get('WeatherIcon')}, {forecast_data[1].get('WeatherIcon')}, {forecast_data[2].get('WeatherIcon')}")
+		else:
+			# Use static defaults when no forecast data
+			col1_temp, col2_temp, col3_temp = "-12°", "-14°", "-32°"
+			col1_icon, col2_icon, col3_icon = "1.bmp", "2.bmp", "3.bmp"
+			log_debug("Using default forecast data")
 		
-		divider_1 = Line(21, 2, 21, 29, COLORS["DIMMEST_WHITE"])
-		#main_group.append(divider_1)
+		# Generate dynamic time labels based on current hour
+		if rtc_instance:
+			current_hour = rtc_instance.datetime.tm_hour
+			
+			# Calculate next two hours
+			hour_plus_1 = (current_hour + 1) % 24
+			hour_plus_2 = (current_hour + 2) % 24
+			
+			# Format as 12-hour time
+			def format_hour(hour):
+				if hour == 0:
+					return "12A"
+				elif hour < 12:
+					return f"{hour}A"
+				elif hour == 12:
+					return "12P"
+				else:
+					return f"{hour-12}P"
+			
+			col2_time = format_hour(hour_plus_1)
+			col3_time = format_hour(hour_plus_2)
+		else:
+			# Fallback time labels
+			col2_time = "12P"
+			col3_time = "1PM"
 		
-		bitmap, palette = load_bmp_image("img/weather/columns/2.bmp")
-		col_2_img = displayio.TileGrid(bitmap, pixel_shader=palette)
-		main_group.append(col_2_img)
+		# Forecast column configuration with dynamic data
+		columns = [
+			{"image": col1_icon, "x": 4, "time": "Now", "temp": col1_temp},
+			{"image": col2_icon, "x": 26, "time": col2_time, "temp": col2_temp},
+			{"image": col3_icon, "x": 48, "time": col3_time, "temp": col3_temp}
+		]
 		
-		# Position 25px wide image at top right
-		col_2_img.x = 26  # Right-aligned for 25px wide image
-		col_2_img.y = 9   # Start at y = 2 as requested
+		# Column positioning
+		column_y = 9
+		column_width = 22  # Width of each column space
+		time_y = 1
+		temp_y = 25
 		
-		divider_2 = Line(43, 2, 43, 29, COLORS["DIMMEST_WHITE"])
-		#main_group.append(divider_2)
+		# Load and position weather icon columns
+		for i, col in enumerate(columns):
+			try:
+				# Try weather icons first, fallback to column images
+				try:
+					if valid_forecast_data:
+						bitmap, palette = load_bmp_image(f"img/weather/{col['image']}")
+					else:
+						bitmap, palette = load_bmp_image(f"img/weather/columns/{col['image']}")
+				except:
+					# Fallback to column images if weather icon fails
+					bitmap, palette = load_bmp_image(f"img/weather/columns/{i+1}.bmp")
+				
+				col_img = displayio.TileGrid(bitmap, pixel_shader=palette)
+				col_img.x = col["x"]
+				col_img.y = column_y
+				main_group.append(col_img)
+			except Exception as e:
+				log_warning(f"Failed to load column {i+1} image: {e}")
 		
-		bitmap, palette = load_bmp_image("img/weather/columns/3.bmp")
-		col_3_img = displayio.TileGrid(bitmap, pixel_shader=palette)
-		main_group.append(col_3_img)
+		# Add time labels with dynamic centering
+		for col in columns:
+			time_text_width = get_text_width(col["time"], font)
+			centered_x = col["x"] + (column_width - time_text_width) // 2
+			
+			time_label = bitmap_label.Label(
+				font,
+				color=COLORS["DIMMEST_WHITE"],
+				text=col["time"],
+				x=centered_x,
+				y=time_y
+			)
+			main_group.append(time_label)
 		
-		# Position 25px wide image at top right
-		col_3_img.x = 48  # Right-aligned for 25px wide image
-		col_3_img.y = 9   # Start at y = 2 as requested
-		
-		text1 = bitmap_label.Label(
-					font,
-					color=COLORS["DIMMEST_WHITE"],
-					text="Now",
-					x=3, y=1
-				)
-		main_group.append(text1)
-		
-		text2 = bitmap_label.Label(
-					font,
-					color=COLORS["DIMMEST_WHITE"],
-					text="12P",
-					x=27, y=1
-				)
-		main_group.append(text2)
-		
-		text3 = bitmap_label.Label(
-					font,
-					color=COLORS["DIMMEST_WHITE"],
-					text="1PM",
-					x=46, y=1
-				)
-		main_group.append(text3)
-		
-		text4 = bitmap_label.Label(
-					font,
-					color=COLORS["DIMMEST_WHITE"],
-					text="-12°",
-					x=3, y=25
-				)
-		main_group.append(text4)
-		
-		text5 = bitmap_label.Label(
-					font,
-					color=COLORS["DIMMEST_WHITE"],
-					text="-14°",
-					x=25, y=25
-				)
-		main_group.append(text5)
-		
-		text6 = bitmap_label.Label(
-					font,
-					color=COLORS["DIMMEST_WHITE"],
-					text="-32°",
-					x=45, y=25
-				)
-		main_group.append(text6)
+		# Add temperature labels with dynamic centering
+		for col in columns:
+			temp_text_width = get_text_width(col["temp"], font)
+			centered_x = col["x"] + (column_width - temp_text_width) // 2
+			
+			temp_label = bitmap_label.Label(
+				font,
+				color=COLORS["DIMMEST_WHITE"],
+				text=col["temp"],
+				x=centered_x,
+				y=temp_y
+			)
+			main_group.append(temp_label)
 	
 	except Exception as e:
 		log_error(f"Forecast display error: {e}")
