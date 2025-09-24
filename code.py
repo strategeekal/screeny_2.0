@@ -775,6 +775,7 @@ def should_fetch_forecast():
 	"""Check if forecast data needs to be refreshed"""
 	global last_forecast_fetch
 	current_time = time.monotonic()  # 15 minutes
+	log_debug(f"LAST FORECAST FETCH: {last_forecast_fetch} seconds ago. Needs Refresh? = {(current_time - last_forecast_fetch) >= FORECAST_UPDATE_INTERVAL}")
 	return (current_time - last_forecast_fetch) >= FORECAST_UPDATE_INTERVAL
 
 
@@ -1392,7 +1393,7 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 		return False
 	
 	# Log with real data
-	log_info(f"Displaying Forecast for {duration_message(duration)}: Current {current_data['temperature']}°C, +1hr {forecast_data[1]['temperature']}°C, +2hr {forecast_data[2]['temperature']}°C", include_memory=True)
+	log_info(f"Displaying Forecast for {duration_message(duration)}: Current {current_data['temperature']}°C, +1hr {forecast_data[0]['temperature']}°C, +2hr {forecast_data[1]['temperature']}°C", include_memory=True)
 	
 	clear_display()
 	gc.collect()
@@ -1402,10 +1403,10 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 		col1_temp = f"{round(current_data['temperature'])}°"
 		col1_icon = f"{current_data['weather_icon']}.bmp"
 		
-		col2_temp = f"{round(forecast_data[1]['temperature'])}°"
-		col3_temp = f"{round(forecast_data[2]['temperature'])}°"
-		col2_icon = f"{forecast_data[1]['weather_icon']}.bmp"
-		col3_icon = f"{forecast_data[2]['weather_icon']}.bmp"
+		col2_temp = f"{round(forecast_data[0]['temperature'])}°"
+		col3_temp = f"{round(forecast_data[1]['temperature'])}°"
+		col2_icon = f"{forecast_data[0]['weather_icon']}.bmp"
+		col3_icon = f"{forecast_data[1]['weather_icon']}.bmp"
 		
 		# Generate time labels FIRST
 		if rtc_instance:
@@ -1648,10 +1649,6 @@ def update_rtc_date(rtc, new_year, new_month, new_day):
 def main():
 	"""Main program execution"""
 	global last_successful_weather, startup_time, last_forecast_fetch, cached_forecast_data
-	
-	# Initialize forecast caching variables
-	last_forecast_fetch = 0
-	cached_forecast_data = None
 	
 	# Initialize RTC FIRST for proper timestamps
 	rtc = setup_rtc()
