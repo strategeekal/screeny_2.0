@@ -55,6 +55,10 @@ API_CONFIG = {
 
 _global_requests_session = None
 
+last_forecast_fetch = 0
+cached_forecast_data = None
+FORECAST_UPDATE_INTERVAL = 900  
+
 # Debugging
 ESTIMATED_TOTAL_MEMORY = 2000000
 DEBUG_MODE = True
@@ -298,6 +302,12 @@ def initialize_display():
 	display.root_group = main_group
 	log_info("Display initiated successfully")
 
+def interruptible_sleep(duration):
+	"""Sleep that can be interrupted more easily"""
+	end_time = time.monotonic() + duration
+	while time.monotonic() < end_time:
+		time.sleep(0.1)  # Short sleep allows more interrupt opportunities
+
 def setup_rtc():
 	"""Initialize RTC with retry logic"""
 	global rtc_instance
@@ -312,7 +322,7 @@ def setup_rtc():
 		except Exception as e:
 			log_warning(f"RTC attempt {attempt + 1} failed: {e}")
 			if attempt < 4:
-				time.sleep(2)
+				interruptible_sleep(2)
 	
 	log_error("RTC initialization failed, restarting...")
 	supervisor.reload()
@@ -339,7 +349,7 @@ def setup_wifi():
 		except ConnectionError as e:
 			log_warning(f"WiFi attempt {attempt + 1} failed")
 			if attempt < 2:
-				time.sleep(2)
+				interruptible_sleep(2)
 	
 	log_error("WiFi connection failed")
 	return False
@@ -489,7 +499,7 @@ def fetch_weather_with_retries(url, max_retries=None):
 				if attempt < max_retries:
 					delay = API_CONFIG["retry_delay"] * (2 ** attempt)  # Exponential backoff
 					log_debug(f"Retrying in {delay} seconds...")
-					time.sleep(delay)
+					interruptible_sleep(delay)
 					continue
 			else:
 				log_error(f"API error: {response.status_code}")
@@ -500,7 +510,7 @@ def fetch_weather_with_retries(url, max_retries=None):
 			if attempt < max_retries:
 				delay = API_CONFIG["retry_delay"] * (2 ** attempt)
 				log_debug(f"Retrying in {delay} seconds...")
-				time.sleep(delay)
+				interruptible_sleep(delay)
 				continue
 			else:
 				log_error(f"All {max_retries + 1} attempts failed")
@@ -580,6 +590,10 @@ def fetch_current_and_forecast_weather():
 			log_debug("Fetching forecast weather...")
 			forecast_json = fetch_weather_with_retries(forecast_url, max_retries=1)
 			
+			if forecast_json:  # Count the API call even if processing fails later
+				forecast_api_calls += 1
+				api_call_count += 1
+			
 			if forecast_json and len(forecast_json) >= 3:
 				# Extract first 3 hours of forecast data
 				forecast_data = []
@@ -598,6 +612,9 @@ def fetch_current_and_forecast_weather():
 					log_debug(f"Hour 0: {forecast_data[0]['temperature']}°C, Icon {forecast_data[0]['weather_icon']}")
 					log_debug(f"Hour 1: {forecast_data[1]['temperature']}°C, Icon {forecast_data[1]['weather_icon']}")  
 					log_debug(f"Hour 2: {forecast_data[2]['temperature']}°C, Icon {forecast_data[2]['weather_icon']}")
+				
+				forecast_success = True
+			
 			else:
 				log_warning("12-hour forecast fetch failed or insufficient data")
 				forecast_data = None
@@ -619,7 +636,7 @@ def fetch_current_and_forecast_weather():
 		if api_call_count >= MAX_API_CALLS_BEFORE_RESTART:
 			log_warning(f"Preventive restart after {api_call_count} API calls", include_memory=True)
 			cleanup_global_session()
-			time.sleep(2)
+			interruptible_sleep(2)
 			supervisor.reload()
 		
 		return current_data, forecast_data
@@ -753,6 +770,12 @@ def disable_forecast_weather():
 	"""Disable forecast weather API calls"""
 	DISPLAY_CONFIG["fetch_forecast"] = False
 	log_info("Forecast weather API disabled")
+
+def should_fetch_forecast():
+	"""Check if forecast data needs to be refreshed"""
+	global last_forecast_fetch
+	current_time = time.monotonic()  # 15 minutes
+	return (current_time - last_forecast_fetch) >= FORECAST_UPDATE_INTERVAL
 
 
 ### DISPLAY UTILITIES ###
@@ -1088,23 +1111,28 @@ def add_indicator_bars(main_group, x_start, uv_index, humidity):
 				main_group.append(Line(x_start + i, 29, x_start + i, 29, COLORS["BLACK"]))
 
 
-def show_weather_display(rtc, duration):
+def show_weather_display(rtc, duration, weather_data=None):
 	"""Display weather information and time"""
-	log_debug("Displaying weather...", include_memory = True)
+	log_debug("Displaying weather...", include_memory=True)
 	
-	# Fetch fresh weather data
-	if DISPLAY_CONFIG["dummy_weather"]:
-		weather_data = DUMMY_WEATHER_DATA
-		# Log successful weather fetch with current count
-		log_info(f"Displaying DUMMY Weather for {duration_message(duration)}: {weather_data['weather_text']}, {weather_data['temperature']}°C", include_memory=True)
-	else:
-		weather_data = fetch_weather_data()
+	# Use provided data or fetch fresh data
+	if weather_data is None:
+		# Fetch fresh weather data (existing behavior)
+		if DISPLAY_CONFIG["dummy_weather"]:
+			weather_data = DUMMY_WEATHER_DATA
+		else:
+			weather_data = fetch_weather_data()
+	
+	# Log with duration information
+	if weather_data:
+		log_info(f"Displaying Current Weather for {duration_message(duration)}: {weather_data['weather_text']}, {weather_data['temperature']}°C", include_memory=True)
 	
 	if not weather_data:
 		log_warning("Weather unavailable, showing clock")
 		show_clock_display(rtc, duration)
 		return
 	
+	# Rest of your existing function code stays exactly the same...
 	clear_display()
 	
 	# Create display elements
@@ -1167,7 +1195,7 @@ def show_weather_display(rtc, duration):
 		else:
 			time_text.x = 64 - 1 - get_text_width(current_time, font)
 		
-		time.sleep(1)
+		interruptible_sleep(1)
 
 def show_clock_display(rtc, duration=DISPLAY_CONFIG["clock_fallback_duration"]):
 	"""Display clock as fallback when weather unavailable"""
@@ -1201,13 +1229,13 @@ def show_clock_display(rtc, duration=DISPLAY_CONFIG["clock_fallback_duration"]):
 		
 		date_text.text = date_str
 		time_text.text = time_str
-		time.sleep(1)
+		interruptible_sleep(1)
 	
 	# Check for restart conditions
 	time_since_success = time.monotonic() - last_successful_weather
 	if consecutive_failures >= 3 or time_since_success > 600:  # 10 minutes
 		log_warning("Restarting due to weather failures")
-		time.sleep(2)
+		interruptible_sleep(2)
 		supervisor.reload()
 		
 def show_event_display(rtc, duration):
@@ -1317,7 +1345,7 @@ def _display_single_event(event_data, rtc, duration):
 			log_error(f"Event display error: {e}")
 		
 		# Wait for specified duration
-		time.sleep(duration)
+		interruptible_sleep(duration)
 		
 		# Optional: Clean up after event display
 		gc.collect()
@@ -1351,7 +1379,7 @@ def show_color_test_display(duration=DISPLAY_CONFIG["color_test_duration"]):
 		log_error(f"Color Test display error: {e}")
 	
 	log_info(key_text)
-	time.sleep(duration)
+	interruptible_sleep(duration)
 	gc.collect()
 	return True
 	
@@ -1379,7 +1407,7 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 		col2_icon = f"{forecast_data[1]['weather_icon']}.bmp"
 		col3_icon = f"{forecast_data[2]['weather_icon']}.bmp"
 		
-		# Generate time labels (keep this logic)
+		# Generate time labels FIRST
 		if rtc_instance:
 			current_hour = rtc_instance.datetime.tm_hour
 			current_minute = rtc_instance.datetime.tm_min
@@ -1407,34 +1435,28 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 			col2_time = "12P"
 			col3_time = "1PM"
 		
-		# Rest of display logic unchanged...
+		# NOW define columns with all the data
 		columns = [
 			{"image": col1_icon, "x": 3, "time": col1_time, "temp": col1_temp},
 			{"image": col2_icon, "x": 25, "time": col2_time, "temp": col2_temp},
 			{"image": col3_icon, "x": 48, "time": col3_time, "temp": col3_temp}
 		]
 		
-		# Column configuration with real data
-		columns = [
-			{"image": col1_icon, "x": 3, "time": col1_time, "temp": col1_temp},
-			{"image": col2_icon, "x": 25, "time": col2_time, "temp": col2_temp},
-			{"image": col3_icon, "x": 48, "time": col3_time, "temp": col3_temp}
-		]
-		
-		# Column positioning - 13px wide images with proper spacing
+		# Column positioning
 		column_y = 9
-		column_width = 13  # Actual image width
+		column_width = 13
 		time_y = 1
 		temp_y = 25
+		first_time_label = None
 		
 		# Load and position weather icon columns
 		for i, col in enumerate(columns):
 			try:
-				# Try to load actual weather icons first
+				# Try actual weather icons first
 				try:
 					bitmap, palette = load_bmp_image(f"img/weather/columns/{col['image']}")
 				except:
-					# Fallback to column images if weather icon fails
+					# Fallback to column images
 					bitmap, palette = load_bmp_image(f"img/weather/columns/{i+1}.bmp")
 					log_warning(f"Used fallback column image for column {i+1}")
 				
@@ -1446,7 +1468,7 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 				log_warning(f"Failed to load column {i+1} image: {e}")
 		
 		# Add time labels with dynamic centering
-		for col in columns:
+		for i, col in enumerate(columns):
 			time_text_width = get_text_width(col["time"], font)
 			centered_x = col["x"] + (column_width - time_text_width) // 2
 			
@@ -1458,6 +1480,10 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 				y=time_y
 			)
 			main_group.append(time_label)
+			
+			# Store reference to first column's time label
+			if i == 0:
+				first_time_label = time_label
 		
 		# Add temperature labels with dynamic centering
 		for col in columns:
@@ -1477,11 +1503,29 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 		if DISPLAY_CONFIG["weekday_color"]:
 			add_day_indicator(main_group, rtc_instance)
 			log_debug("Showing Weekday Color Indicator on Forecast Display")
+		
+		# Display update loop with live time - REMOVE duplicate sleep
+		start_time = time.monotonic()
+		while time.monotonic() - start_time < duration:
+			# Update first column time every second
+			if rtc_instance and first_time_label:
+				current_hour = rtc_instance.datetime.tm_hour
+				current_minute = rtc_instance.datetime.tm_min
+				display_hour = current_hour % 12 if current_hour % 12 != 0 else 12
+				new_time = f"{display_hour}:{current_minute:02d}"
+				
+				if first_time_label.text != new_time:
+					first_time_label.text = new_time
+					# Recenter the text
+					time_text_width = get_text_width(new_time, font)
+					first_time_label.x = columns[0]["x"] + (column_width - time_text_width) // 2
+			
+			interruptible_sleep(1)
 	
 	except Exception as e:
 		log_error(f"Forecast display error: {e}")
+		return False
 	
-	time.sleep(duration)
 	gc.collect()
 	return True
 
@@ -1507,7 +1551,7 @@ def check_daily_reset(rtc):
 	
 	if should_restart:
 		log_info(f"Daily restart triggered ({hours_running:.1f}h runtime)", include_memory = True)
-		time.sleep(2)
+		interruptible_sleep(2)
 		supervisor.reload()
 		
 def calculate_weekday(year, month, day):
@@ -1603,7 +1647,11 @@ def update_rtc_date(rtc, new_year, new_month, new_day):
 
 def main():
 	"""Main program execution"""
-	global last_successful_weather, startup_time
+	global last_successful_weather, startup_time, last_forecast_fetch, cached_forecast_data
+	
+	# Initialize forecast caching variables
+	last_forecast_fetch = 0
+	cached_forecast_data = None
 	
 	# Initialize RTC FIRST for proper timestamps
 	rtc = setup_rtc()
@@ -1611,7 +1659,6 @@ def main():
 	log_info("=== WEATHER DISPLAY STARTUP ===", include_memory=True)
 	
 	try:
-		
 		# Initialize hardware
 		initialize_display()
 		
@@ -1641,7 +1688,7 @@ def main():
 		startup_time = time.monotonic()
 		last_successful_weather = startup_time
 		
-		log_info("Entering main display loop", include_memory=True)
+		log_info("Entering main display loop (Press CTRL+C to stop)", include_memory=True)
 		
 		# Main display loop
 		while True:
@@ -1652,27 +1699,42 @@ def main():
 				# Calculate display durations
 				current_duration, forecast_duration, event_duration = calculate_display_durations()
 				
-				# Try forecast first - skip if API fails
+				# Initialize variables to avoid "referenced before assignment" error
+				forecast_shown = False
+				current_data = None
+				forecast_data = None
+				
+				# Forecast caching logic
 				if DISPLAY_CONFIG["forecast"]:
-					if DISPLAY_CONFIG["dummy_forecast"]:
-						# Use dummy data for testing
-						forecast_shown = show_forecast_display(DUMMY_WEATHER_DATA, DUMMY_FORECAST_DATA, forecast_duration)
-						log_info("Using dummy forecast data for testing")
-					else:
-						# Use real API data
+					if should_fetch_forecast():
+						# Fetch both current and forecast
 						current_data, forecast_data = fetch_current_and_forecast_weather()
+						if forecast_data:  # Only cache if successful
+							cached_forecast_data = forecast_data
+							last_forecast_fetch = time.monotonic()
+							log_debug("Fetched fresh forecast data")
+					else:
+						# Fetch only current weather, use cached forecast
+						DISPLAY_CONFIG["fetch_forecast"] = False
+						current_data, _ = fetch_current_and_forecast_weather()  # FIXED THIS LINE
+						DISPLAY_CONFIG["fetch_forecast"] = True  # Reset for next time
+						forecast_data = cached_forecast_data
+						log_debug("Using cached forecast data")
+					
+					if current_data and forecast_data:
 						forecast_shown = show_forecast_display(current_data, forecast_data, forecast_duration)
 					
 					if not forecast_shown:
-						log_info("Forecast skipped due to API failure - extending current weather time")
-						# Add forecast time to current weather time
+						log_info("Forecast skipped - extending current weather time")
 						current_duration += forecast_duration
 				else:
 					log_debug("Forecast display disabled")
 				
 				# Current weather (with potentially extended duration)
 				if DISPLAY_CONFIG["weather"]:
-					show_weather_display(rtc, current_duration)
+					if not current_data:  # Only fetch if we don't already have it
+						current_data = fetch_weather_data()
+					show_weather_display(rtc, current_duration, current_data)
 				else:
 					log_debug("Weather display disabled")
 				
@@ -1680,7 +1742,7 @@ def main():
 				if DISPLAY_CONFIG["events"]:
 					event_shown = show_event_display(rtc, event_duration)
 					if not event_shown:
-						time.sleep(1)
+						interruptible_sleep(1)
 				else:
 					log_debug("Event display disabled")
 				
@@ -1690,12 +1752,21 @@ def main():
 					
 			except Exception as e:
 				log_error(f"Display loop error: {e}", include_memory=True)
-				time.sleep(5)
+				interruptible_sleep(5)
 				
+	except KeyboardInterrupt:
+		log_info("Program interrupted by user")
+	
 	except Exception as e:
-		log_error(f"Critical system error: {e}", include_memory = True)
+		log_error(f"Critical system error: {e}", include_memory=True)
 		time.sleep(10)
 		supervisor.reload()
+	
+	finally:
+		# Cleanup code
+		log_info("Cleaning up before exit...")
+		clear_display()
+		cleanup_global_session()
 
 # Program entry point
 if __name__ == "__main__":
