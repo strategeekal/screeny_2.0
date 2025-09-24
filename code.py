@@ -44,7 +44,7 @@ DISPLAY_CONFIG = {
 	"clock_fallback_duration": 300, 
 	"color_test_duration": 300,
 	"forecast_duration": 290,
-	"forecast_hours_to_fetch": 12,  # Max 12
+	"forecast_hours_to_fetch": 3,  # Max 12
 }
 
 API_CONFIG = {
@@ -170,6 +170,8 @@ TIMEZONE_OFFSETS = {
 	"Asia/Tokyo": {"std": 9, "dst": 9, "dst_start": None, "dst_end": None},  # No DST
 }
 
+MONTHS = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
 ### GLOBAL STATE ###
 
 # Hardware instances
@@ -278,6 +280,36 @@ def duration_message(seconds):
 	
 	return " ".join(parts) if parts else "0 seconds"
 		
+
+### PARSING FUNCTIONS ###
+
+def parse_iso_datetime(iso_string):
+	# Parse "2025-09-25T01:00:00-05:00"
+	date_part, time_part = iso_string.split('T')
+	
+	# Parse date
+	year, month, day = map(int, date_part.split('-'))
+	
+	# Parse time (ignoring timezone for now)
+	time_with_tz = time_part.split('-')[0] if '-' in time_part else time_part.split('+')[0]
+	hour, minute, second = map(int, time_with_tz.split(':'))
+	
+	return year, month, day, hour, minute, second
+	
+def format_datetime(iso_string):
+	year, month, day, hour, minute, second = parse_iso_datetime(iso_string)
+			
+	# Format time
+	if hour == 0:
+		time_str = "12am"
+	elif hour < 12:
+		time_str = f"{hour}am"
+	elif hour == 12:
+		time_str = "12pm"
+	else:
+		time_str = f"{hour - 12}pm"
+	
+	return f"{MONTHS[month]} {day}, {time_str}"
 
 ### HARDWARE INITIALIZATION ###
 
@@ -616,7 +648,7 @@ def fetch_current_and_forecast_weather():
 				if len(forecast_data) >= forecast_fetch_length:
 					h = 0
 					for item in forecast_data:
-						log_debug(f"Hour {h+1} ({forecast_data[h]['datetime'][6:13]}): {forecast_data[h]['temperature']}°C, Icon {forecast_data[h]['weather_icon']} ({forecast_data[h]['weather_text']})")
+						log_debug(f"Hour {h+1} ({format_datetime(forecast_data[h]['datetime'])}): {forecast_data[h]['temperature']}°C, {forecast_data[h]['weather_text']} (Icon {forecast_data[h]['weather_icon']})")
 						h += 1
 				
 				forecast_success = True
