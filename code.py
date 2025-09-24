@@ -576,7 +576,9 @@ def fetch_current_and_forecast_weather():
 					"uv_index": current.get("UVIndex", 0),
 					"weather_text": current.get("WeatherText", "Unknown"),
 					"is_day_time": current.get("IsDayTime", True),
+					"has_precipitation": current.get("HasPrecipitation:", False),
 				}
+				log_debug(f"CURRENT DATA: {current_data}")
 				
 				log_info(f"Current weather: {current_data['weather_text']}, {current_data['temperature']}°C (API #{api_call_count}/{MAX_API_CALLS_BEFORE_RESTART})", include_memory=True)
 
