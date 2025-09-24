@@ -44,6 +44,7 @@ DISPLAY_CONFIG = {
 	"clock_fallback_duration": 300, 
 	"color_test_duration": 300,
 	"forecast_duration": 290,
+	"forecast_hours_to_fetch": 12,  # Max 12
 }
 
 API_CONFIG = {
@@ -595,11 +596,13 @@ def fetch_current_and_forecast_weather():
 			if forecast_json:  # Count the API call even if processing fails later
 				forecast_api_calls += 1
 				api_call_count += 1
+				
+			forecast_fetch_length = min(DISPLAY_CONFIG["forecast_hours_to_fetch"],12)
 			
-			if forecast_json and len(forecast_json) >= 3:
+			if forecast_json and len(forecast_json) >= forecast_fetch_length:
 				# Extract first 3 hours of forecast data
 				forecast_data = []
-				for i in range(3):
+				for i in range(forecast_fetch_length):
 					hour_data = forecast_json[i]
 					forecast_data.append({
 						"temperature": hour_data.get("Temperature", {}).get("Value", 0),
@@ -610,10 +613,11 @@ def fetch_current_and_forecast_weather():
 					})
 				
 				log_info(f"12-hour forecast: {len(forecast_data)} hours processed")
-				if len(forecast_data) >= 3:
-					log_debug(f"Hour 0: {forecast_data[0]['temperature']}°C, Icon {forecast_data[0]['weather_icon']}")
-					log_debug(f"Hour 1: {forecast_data[1]['temperature']}°C, Icon {forecast_data[1]['weather_icon']}")  
-					log_debug(f"Hour 2: {forecast_data[2]['temperature']}°C, Icon {forecast_data[2]['weather_icon']}")
+				if len(forecast_data) >= forecast_fetch_length:
+					h = 0
+					for item in forecast_data:
+						log_debug(f"Hour {h+1} ({forecast_data[h]['datetime'][6:13]}): {forecast_data[h]['temperature']}°C, Icon {forecast_data[h]['weather_icon']} ({forecast_data[h]['weather_text']})")
+						h += 1
 				
 				forecast_success = True
 			
