@@ -1312,6 +1312,9 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 		col2_icon = f"{forecast_data[0]['weather_icon']}.bmp"
 		col3_icon = f"{forecast_data[1]['weather_icon']}.bmp"
 		
+		hour_plus_1 = int(forecast_data[0]['datetime'][12:13]) % 24
+		hour_plus_2 = int(forecast_data[1]['datetime'][12:13]) % 24
+		
 		# Generate time labels FIRST
 		if rtc_instance:
 			current_hour = rtc_instance.datetime.tm_hour
@@ -1319,9 +1322,6 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 			
 			display_hour = current_hour % 12 if current_hour % 12 != 0 else 12
 			col1_time = f"{display_hour}:{current_minute:02d}"
-			
-			hour_plus_1 = (current_hour + 1) % 24
-			hour_plus_2 = (current_hour + 2) % 24
 			
 			def format_hour(hour):
 				if hour == 0:
@@ -1336,9 +1336,7 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 			col2_time = format_hour(hour_plus_1)
 			col3_time = format_hour(hour_plus_2)
 		else:
-			col1_time = "Now"
-			col2_time = "12P"
-			col3_time = "1PM"
+			log_error("RTC ERROR - No data to show forecast headers")
 		
 		# NOW define columns with all the data
 		columns = [
