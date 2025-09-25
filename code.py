@@ -55,9 +55,9 @@ API_CONFIG = {
 
 _global_requests_session = None
 
-last_forecast_fetch = 0
 cached_forecast_data = None
-FORECAST_UPDATE_INTERVAL = 900  
+FORECAST_UPDATE_INTERVAL = 900 
+last_forecast_fetch = -FORECAST_UPDATE_INTERVAL 
 
 # Debugging
 ESTIMATED_TOTAL_MEMORY = 2000000
@@ -1312,8 +1312,8 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 		col2_icon = f"{forecast_data[0]['weather_icon']}.bmp"
 		col3_icon = f"{forecast_data[1]['weather_icon']}.bmp"
 		
-		hour_plus_1 = int(forecast_data[0]['datetime'][12:13]) % 24
-		hour_plus_2 = int(forecast_data[1]['datetime'][12:13]) % 24
+		hour_plus_1 = int(forecast_data[0]['datetime'][11:13]) % 24
+		hour_plus_2 = int(forecast_data[1]['datetime'][11:13]) % 24
 		
 		# Generate time labels FIRST
 		if rtc_instance:
