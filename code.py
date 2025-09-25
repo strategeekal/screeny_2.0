@@ -62,9 +62,7 @@ FORECAST_UPDATE_INTERVAL = 900
 # Debugging
 ESTIMATED_TOTAL_MEMORY = 2000000
 DEBUG_MODE = True
-LOG_TO_FILE = False  # Set to True if filesystem becomes writable
 LOG_MEMORY_STATS = True  # Include memory info in logs
-LOG_FILE = "weather_log.txt"
 
 # Dummy Weather Control
 DUMMY_WEATHER_DATA = {
@@ -76,24 +74,9 @@ DUMMY_WEATHER_DATA = {
 	"uv_index":7,
 	"weather_text": "DUMMY",
 	"is_day_time": True,
-	"column1": {
-		"weather_icon": 1,
-		"temperature": 12,
-		"feels_like": 13.6,
-		"feels_shade": 14.6,
-		"humidity": 90,
-		"uv_index":7,
-		"weather_text": "DUMMY",
-		"is_day_time": True,
-	}
+	"has_precipitation": False,
 }
 
-# Update DUMMY_WEATHER_DATA with forecast structure:
-DUMMY_FORECAST_DATA = [
-	{"temperature": 23, "weather_icon": 6, "weather_text": "Mostly cloudy", "datetime": ""},
-	{"temperature": 22, "weather_icon": 7, "weather_text": "Cloudy", "datetime": ""},
-	{"temperature": 21, "weather_icon": 8, "weather_text": "Overcast", "datetime": ""}
-]
 
 # Hardcoded Time Control
 TEST_DATE_DATA = {
@@ -144,7 +127,7 @@ COLORS = {}
 
 # API Configuration
 ACCUWEATHER_LOCATION_KEY = "2626571"
-MAX_API_CALLS_BEFORE_RESTART = 160
+MAX_API_CALLS_BEFORE_RESTART = 204
 
 # System Configuration
 DAILY_RESET_ENABLED = True
@@ -164,9 +147,6 @@ TIMEZONE_OFFSETS = {
 	"America/Chicago": {"std": -6, "dst": -5, "dst_start": (3, 8), "dst_end": (11, 7)},
 	"America/Denver": {"std": -7, "dst": -6, "dst_start": (3, 8), "dst_end": (11, 7)},
 	"America/Los_Angeles": {"std": -8, "dst": -7, "dst_start": (3, 8), "dst_end": (11, 7)},
-	"Europe/London": {"std": 0, "dst": 1, "dst_start": (3, 25), "dst_end": (10, 25)},
-	"Europe/Paris": {"std": 1, "dst": 2, "dst_start": (3, 25), "dst_end": (10, 25)},
-	"Asia/Tokyo": {"std": 9, "dst": 9, "dst_start": None, "dst_end": None},  # No DST
 }
 
 MONTHS = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
@@ -234,16 +214,6 @@ def log_entry(message, level="INFO", include_memory=False):
 		
 		print(log_line)
 		
-		# File logging if enabled
-		if LOG_TO_FILE:
-			try:
-				with open(LOG_FILE, "a") as f:
-					f.write(f"{log_line}\n")
-			except OSError:
-				if not hasattr(log_entry, '_fs_warning_shown'):
-					print("[LOG] Warning: Filesystem read-only, file logging disabled")
-					log_entry._fs_warning_shown = True
-	
 	except Exception as e:
 		print(f"[LOG-ERROR] Failed to log: {message} (Error: {e})")
 
@@ -718,38 +688,6 @@ def get_api_key():
 	
 	return None
 
-def fetch_weather_data():
-	"""Updated wrapper to use new concurrent fetching with detailed feedback"""
-	if DISPLAY_CONFIG["dummy_weather"]:
-		log_info("Using dummy weather data (API calls disabled)")
-		return DUMMY_WEATHER_DATA, None  # Return tuple: (current, forecast)
-	
-	current_data, forecast_data = fetch_current_and_forecast_weather()
-	
-	# Log what was actually retrieved
-	if current_data and forecast_data:
-		log_info("✓ Current weather and forecast retrieved")
-	elif current_data:
-		log_info("✓ Current weather retrieved (forecast unavailable)")
-	elif forecast_data:
-		log_info("✓ Forecast retrieved (current weather unavailable)")
-	else:
-		log_warning("✗ No weather data retrieved")
-	
-	# For backward compatibility, return just current weather
-	# You can modify this later to return both
-	return current_data
-
-def get_forecast_data():
-	"""Helper function to get just the forecast data when needed"""
-	if DISPLAY_CONFIG["dummy_weather"]:
-		return None
-	
-	# You could store forecast_data globally or fetch it separately
-	# For now, this would trigger a new API call - implement caching if needed
-	_, forecast_data = fetch_current_and_forecast_weather()
-	return forecast_data
-
 def has_forecast_data():
 	"""Check if forecast data is available without making API calls"""
 	# This is a placeholder - you could implement forecast data caching
@@ -766,48 +704,7 @@ def get_api_call_stats():
 		"remaining_calls": MAX_API_CALLS_BEFORE_RESTART - api_call_count,
 		"restart_threshold": MAX_API_CALLS_BEFORE_RESTART
 	}
-
-def print_api_stats():
-	"""Print formatted API statistics for debugging"""
-	stats = get_api_call_stats()
-	log_info(f"=== API Call Statistics ===")
-	log_info(f"Total API calls: {stats['total_calls']}/{stats['restart_threshold']}")
-	log_info(f"Current weather calls: {stats['current_calls']}")
-	log_info(f"Forecast calls: {stats['forecast_calls']}")
-	log_info(f"Remaining before restart: {stats['remaining_calls']}")
 	
-def reset_api_counters():
-	"""Reset API call counters (useful for testing)"""
-	global api_call_count, current_api_calls, forecast_api_calls
-	
-	old_total = api_call_count
-	api_call_count = 0
-	current_api_calls = 0 
-	forecast_api_calls = 0
-	
-	log_info(f"API counters reset (was {old_total} total calls)")
-
-# Configuration helper functions
-def enable_current_weather():
-	"""Enable current weather API calls"""
-	DISPLAY_CONFIG["fetch_current"] = True
-	log_info("Current weather API enabled")
-
-def disable_current_weather():
-	"""Disable current weather API calls"""
-	DISPLAY_CONFIG["fetch_current"] = False
-	log_info("Current weather API disabled")
-
-def enable_forecast_weather():
-	"""Enable forecast weather API calls"""
-	DISPLAY_CONFIG["fetch_forecast"] = True
-	log_info("Forecast weather API enabled")
-
-def disable_forecast_weather():
-	"""Disable forecast weather API calls"""
-	DISPLAY_CONFIG["fetch_forecast"] = False
-	log_info("Forecast weather API disabled")
-
 def should_fetch_forecast():
 	"""Check if forecast data needs to be refreshed"""
 	global last_forecast_fetch
@@ -849,17 +746,6 @@ def get_matrix_colors():
 		colors.update(_COLOR_CORRECTIONS[matrix_type])
 	
 	return colors
-
-# Initialize colors after matrix detection (this will be called in main())
-def initialize_colors():
-	"""Initialize all color constants based on matrix type"""
-	global COLORS, DEFAULT_TEXT_COLOR
-	
-	COLORS = get_matrix_colors()
-	DEFAULT_TEXT_COLOR = COLORS["DIMMEST_WHITE"]
-	
-	log_debug(f"Colors initialized for matrix type: {detect_matrix_type()}")
-	log_debug(f"MINT color: 0x{COLORS['MINT']:06X}")
 
 def convert_bmp_palette(palette):
 	"""Convert BMP palette for RGB matrix display"""
@@ -1045,6 +931,12 @@ def clear_display():
 
 ### DISPLAY FUNCTIONS ###
 
+def right_align_text(text, font, right_edge):
+	return right_edge - get_text_width(text, font)
+
+def center_text(text, font, area_x, area_width):  
+	return area_x + (area_width - get_text_width(text, font)) // 2
+
 def get_day_color(rtc):
 	"""Get color for day of week indicator"""
 	day_colors = {
@@ -1079,22 +971,6 @@ def add_day_indicator(main_group, rtc):
 	for x in range(59, 64):  # Include the corner pixel at (59,4)
 		black_pixel = Line(x, 4, x, 4, COLORS["BLACK"])
 		main_group.append(black_pixel)
-		
-def calculate_display_durations():
-	"""Calculate current weather duration based on cycle and forecast times"""
-	cycle_time = DISPLAY_CONFIG["cycle_duration"]
-	forecast_time = DISPLAY_CONFIG["forecast_duration"] 
-	event_time = DISPLAY_CONFIG["event_duration"]
-	
-	# Current weather gets the remaining time
-	current_weather_time = cycle_time - forecast_time - event_time
-	
-	# Ensure minimum time for current weather
-	if current_weather_time < 30:
-		current_weather_time = 30
-		log_warning(f"Current weather time adjusted to minimum: {current_weather_time}s")
-	
-	return current_weather_time, forecast_time, event_time
 
 def calculate_uv_bar_length(uv_index):
 	"""Calculate UV bar length with spacing for readability"""
@@ -1201,12 +1077,12 @@ def show_weather_display(rtc, duration, weather_data=None):
 	
 	if feels_like_rounded != temp_rounded:
 		feels_like_text.text = f"{feels_like_rounded}°"
-		feels_like_text.x = 64 - 1 - get_text_width(feels_like_text.text, font)
+		feels_like_text.x = right_align_text(feels_like_text.text, font, 63)
 		main_group.append(feels_like_text)
 	
 	if feels_shade_rounded != feels_like_rounded:
 		feels_shade_text.text = f"{feels_shade_rounded}°"
-		feels_shade_text.x = 64 - 1 - get_text_width(feels_shade_text.text, font)
+		feels_shade_text.x = right_align_text(feels_shade_text.text, font, 63)
 		main_group.append(feels_shade_text)
 	
 	main_group.append(time_text)
@@ -1229,9 +1105,9 @@ def show_weather_display(rtc, duration, weather_data=None):
 		
 		# Position time text
 		if feels_shade_rounded != feels_like_rounded:
-			time_text.x = (64 - get_text_width(current_time, font)) // 2
+			time_text.x = center_text(current_time, font, 0, 64)
 		else:
-			time_text.x = 64 - 1 - get_text_width(current_time, font)
+			time_text.x = right_align_text(current_time, font, 63)
 		
 		interruptible_sleep(1)
 
@@ -1245,9 +1121,6 @@ def show_clock_display(rtc, duration=DISPLAY_CONFIG["clock_fallback_duration"]):
 	
 	main_group.append(date_text)
 	main_group.append(time_text)
-	
-	months = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-			  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 			  
 	# Add day indicator after other elements
 	if DISPLAY_CONFIG["weekday_color"]:
@@ -1259,7 +1132,7 @@ def show_clock_display(rtc, duration=DISPLAY_CONFIG["clock_fallback_duration"]):
 	start_time = time.monotonic()
 	while time.monotonic() - start_time < duration:
 		dt = rtc.datetime
-		date_str = f"{months[dt.tm_mon].upper()} {dt.tm_mday:02d}"
+		date_str = f"{MONTHS[dt.tm_mon].upper()} {dt.tm_mday:02d}"
 		
 		hour = dt.tm_hour
 		display_hour = hour % 12 if hour % 12 != 0 else 12
@@ -1507,8 +1380,7 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 		
 		# Add time labels with dynamic centering
 		for i, col in enumerate(columns):
-			time_text_width = get_text_width(col["time"], font)
-			centered_x = col["x"] + (column_width - time_text_width) // 2
+			centered_x = center_text(col["time"], font, col["x"], column_width)  + 1
 			
 			time_label = bitmap_label.Label(
 				font,
@@ -1525,8 +1397,7 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 		
 		# Add temperature labels with dynamic centering
 		for col in columns:
-			temp_text_width = get_text_width(col["temp"], font)
-			centered_x = col["x"] + (column_width - temp_text_width) // 2
+			centered_x = center_text(col["temp"], font, col["x"], column_width) + 1
 			
 			temp_label = bitmap_label.Label(
 				font,
@@ -1557,6 +1428,7 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 					# Recenter the text
 					time_text_width = get_text_width(new_time, font)
 					first_time_label.x = columns[0]["x"] + (column_width - time_text_width) // 2
+					first_time_label.x = center_text(new_time, font, col["x"], column_width) + 1
 			
 			interruptible_sleep(1)
 	
@@ -1566,6 +1438,22 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 	
 	gc.collect()
 	return True
+	
+def calculate_display_durations():
+	"""Calculate current weather duration based on cycle and forecast times"""
+	cycle_time = DISPLAY_CONFIG["cycle_duration"]
+	forecast_time = DISPLAY_CONFIG["forecast_duration"] 
+	event_time = DISPLAY_CONFIG["event_duration"]
+	
+	# Current weather gets the remaining time
+	current_weather_time = cycle_time - forecast_time - event_time
+	
+	# Ensure minimum time for current weather
+	if current_weather_time < 30:
+		current_weather_time = 30
+		log_warning(f"Current weather time adjusted to minimum: {current_weather_time}s")
+	
+	return current_weather_time, forecast_time, event_time
 
 ### SYSTEM MANAGEMENT ###
 
@@ -1685,7 +1573,7 @@ def update_rtc_date(rtc, new_year, new_month, new_day):
 
 def main():
 	"""Main program execution"""
-	global last_successful_weather, startup_time, last_forecast_fetch, cached_forecast_data
+	global last_successful_weather, startup_time, last_forecast_fetch, cached_forecast_data, COLORS
 	
 	# Initialize RTC FIRST for proper timestamps
 	rtc = setup_rtc()
@@ -1698,7 +1586,7 @@ def main():
 		
 		# Detect matrix type and initialize colors
 		matrix_type = detect_matrix_type()
-		initialize_colors()
+		COLORS = get_matrix_colors()
 		
 		# Load events
 		events = get_events()
