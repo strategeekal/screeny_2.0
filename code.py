@@ -38,12 +38,11 @@ DISPLAY_CONFIG = {
 	"color_test": False,      
 	"weekday_color": False,	  
 	"cycle_duration": 300,     
-	"forecast_duration": 30,  
+	"forecast_duration": 60,  
 	"event_duration": 30,	  
 	"minimum_event_duration": 10, 
 	"clock_fallback_duration": 300, 
 	"color_test_duration": 300,
-	"forecast_duration": 290,
 	"forecast_hours_to_fetch": 3,  # Max 12
 }
 
