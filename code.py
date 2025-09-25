@@ -666,23 +666,17 @@ def get_api_key():
 	
 	# Read the appropriate API key
 	try:
-		with open("settings.toml", "r") as f:
-			for line in f:
-				if line.startswith(api_key_name):
-					api_key = line.split("=")[1].strip().strip('"').strip("'")
-					log_debug(f"Using {api_key_name} for {matrix_type}")
-					return api_key
+		api_key = os.getenv(api_key_name)
+		log_debug(f"Using key with ending: {api_key[-5:]} for {matrix_type}")
+		return api_key
 	except Exception as e:
 		log_warning(f"Failed to read API key: {e}")
 		
 	# Fallback to original key
 	try:
-		with open("settings.toml", "r") as f:
-			for line in f:
-				if line.startswith("ACCUWEATHER_API_KEY"):
-					api_key = line.split("=")[1].strip().strip('"').strip("'")
-					log_warning("Using fallback ACCUWEATHER_API_KEY")
-					return api_key
+		api_key = os.getenv(api_key_name)
+		log_warning(f"Using fallback ACCUWEATHER_API_KEY. Ending: {api_key[-5:]}")
+		return api_key
 	except Exception as e:
 		log_error(f"Failed to read fallback API key: {e}")
 	
@@ -1380,7 +1374,7 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 		
 		# Add time labels with dynamic centering
 		for i, col in enumerate(columns):
-			centered_x = center_text(col["time"], font, col["x"], column_width)  + 1
+			centered_x = max(center_text(col["time"], font, col["x"], column_width),1)
 			
 			time_label = bitmap_label.Label(
 				font,
@@ -1426,9 +1420,8 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 				if first_time_label.text != new_time:
 					first_time_label.text = new_time
 					# Recenter the text
-					time_text_width = get_text_width(new_time, font)
-					first_time_label.x = columns[0]["x"] + (column_width - time_text_width) // 2
-					first_time_label.x = center_text(new_time, font, col["x"], column_width) + 1
+					first_time_label.x = max(center_text(new_time, font, columns[0]["x"], column_width),1)
+					log_debug(f"FORECAST TIME X = {first_time_label.x}")
 			
 			interruptible_sleep(1)
 	
