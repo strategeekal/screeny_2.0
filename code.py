@@ -36,8 +36,8 @@ DISPLAY_CONFIG = {
 	"clock_fallback": True,   
 	"forecast": True,
 	"color_test": False,      
-	"weekday_color": False,	  
-	"cycle_duration": 300,     
+	"weekday_color": True,	  
+	"cycle_duration": 330,     
 	"forecast_duration": 60,  
 	"event_duration": 30,	  
 	"minimum_event_duration": 10, 
@@ -1084,7 +1084,7 @@ def show_weather_display(rtc, duration, weather_data=None):
 	# Add day indicator
 	if DISPLAY_CONFIG["weekday_color"]:
 		add_day_indicator(main_group, rtc)
-		log_debug(f"Showing Weekday Color Indicator on Weather Display for {rtc.datetime.tm_wday}")
+		log_debug(f"Showing Weekday Color Indicator on Weather Display for {get_day_color(rtc)}")
 	else:
 		log_debug("Weekday Color Indicator Disabled")
 
