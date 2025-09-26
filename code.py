@@ -1,6 +1,6 @@
-##### TIME AND WEATHER SCREENY - OPTIMIZED #####
+##### PANTALLITA #####
 
-### Import Libraries ###
+# === LIBRARIES ===
 import board
 import os
 import supervisor
@@ -22,9 +22,11 @@ import adafruit_ntp
 
 gc.collect()
 
-### CONSTANTS AND CONFIGURATION ###
+# === CONSTANTS ===
 
-# Display Control Configuration
+
+
+
 DISPLAY_CONFIG = {
 	"weather": True,		  
 	"fetch_current": True,    
