@@ -24,8 +24,222 @@ gc.collect()
 
 # === CONSTANTS ===
 
+## Display Hardware 
 
+class Display:
+	WIDTH = 64
+	HEIGHT = 32
+	BIT_DEPTH = 6
 
+## Layout & Positioning
+
+class Layout:
+	RIGHT_EDGE = 63           # 64 - 1
+	UV_BAR_Y = 27
+	HUMIDITY_BAR_Y = 29
+	
+	# Current Layout
+	WEATHER_TEMP_X = 2
+	WEATHER_TEMP_Y = 20
+	WEATHER_TIME_X = 15
+	WEATHER_TIME_Y = 24
+	CLOCK_DATE_X = 5
+	CLOCK_DATE_Y = 7
+	CLOCK_TIME_X = 5
+	CLOCK_TIME_Y = 20
+	FEELSLIKE_Y = 16
+	FEELSLIKE_SHADE_Y = 24
+	BG_PADDING_TOP = -5
+	
+	# Forecast layout
+	FORECAST_COLUMN_Y = 9
+	FORECAST_COLUMN_WIDTH = 13
+	FORECAST_TIME_Y = 1
+	FORECAST_TEMP_Y = 25
+	FORECAST_COL1_X = 3
+	FORECAST_COL2_X = 25
+	FORECAST_COL3_X = 48
+	
+	# Event image positioning
+	EVENT_IMAGE_X = 37        # Right-aligned for 25px wide image
+	EVENT_IMAGE_Y = 2
+	EVENT_TEXT_X = 2
+	COLOR_TEST_TEXT_X = 2
+	COLOR_TEST_TEXT_Y = 2
+	
+	# Text margins
+	TEXT_MARGIN = 2
+	LINE_SPACING = 1
+	BOTTOM_MARGIN = 2
+	DESCENDER_EXTRA_MARGIN = 2
+	
+	
+class DayIndicator:
+	SIZE = 4
+	X = 60              # 64 - 4
+	Y = 0
+	MARGIN_LEFT_X = 59  # X - 1
+	MARGIN_BOTTOM_Y = 4 # Y + SIZE
+	
+## Timing (all in seconds)
+
+class Timing:
+	DEFAULT_CYCLE = 330         # DISPLAY_CONFIG["cycle_duration"]
+	DEFAULT_FORECAST = 60       # DISPLAY_CONFIG["forecast_duration"]
+	DEFAULT_EVENT = 30          # DISPLAY_CONFIG["event_duration"]
+	MIN_EVENT_DURATION = 10     # DISPLAY_CONFIG["minimum_event_duration"]
+	CLOCK_FALLBACK = 300      
+	COLOR_TEST = 300            # DISPLAY_CONFIG["color_test_duration"]
+	
+	FORECAST_UPDATE_INTERVAL = 900  # 15 minutes
+	DAILY_RESET_HOUR = 3
+	CLOCK_FALLBACK_THRESHOLD = 600  # 10 minutes   DUPLICATED?
+	INTERRUPTIBLE_SLEEP_INTERVAL = 0.1
+	
+	# Retry delays
+	RTC_RETRY_DELAY = 2
+	WIFI_RETRY_DELAY = 2
+	
+	SLEEP_BETWEEN_ERRORS = 5
+	RESTART_DELAY = 10
+	
+# Timezone offset table
+TIMEZONE_OFFSETS = {
+		"America/New_York": {"std": -5, "dst": -4, "dst_start": (3, 8), "dst_end": (11, 7)},
+		"America/Chicago": {"std": -6, "dst": -5, "dst_start": (3, 8), "dst_end": (11, 7)},
+		"America/Denver": {"std": -7, "dst": -6, "dst_start": (3, 8), "dst_end": (11, 7)},
+		"America/Los_Angeles": {"std": -8, "dst": -7, "dst_start": (3, 8), "dst_end": (11, 7)},
+	}
+	
+MONTHS = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+## API Configuration
+class API:
+	TIMEOUT = 30                        
+	MAX_RETRIES = 2                     
+	RETRY_DELAY = 2                     
+	MAX_CALLS_BEFORE_RESTART = 204      
+	
+	MAX_FORECAST_HOURS = 12
+	DEFAULT_FORECAST_HOURS = 12          
+	
+	# URLs (base parts)
+	BASE_URL = "https://dataservice.accuweather.com"
+	CURRENT_ENDPOINT = "currentconditions/v1"
+	FORECAST_ENDPOINT = "forecasts/v1/hourly/12hour"
+	
+	# HTTP Status codes
+	HTTP_OK = 200
+	HTTP_SERVICE_UNAVAILABLE = 503
+	HTTP_BAD_REQUEST = 400
+	HTTP_UNAUTHORIZED = 401
+	HTTP_FORBIDDEN = 403
+	HTTP_NOT_FOUND = 404
+	HTTP_TOO_MANY_REQUESTS = 429
+	HTTP_INTERNAL_SERVER_ERROR = 500
+	
+## Memory Management
+
+class Memory:
+	ESTIMATED_TOTAL = 2000000           # ESTIMATED_TOTAL_MEMORY
+	SOCKET_CLEANUP_CYCLES = 3
+
+## File Paths
+
+class Paths:
+	EVENTS_CSV = "events.csv"           # CSV_EVENTS_FILE
+	FONT_BIG = "fonts/bigbit10-16.bdf"
+	FONT_SMALL = "fonts/tinybit6-16.bdf"
+	
+	WEATHER_ICONS = "img/weather"
+	EVENT_IMAGES = "img/events"
+	COLUMN_IMAGES = "img/weather/columns"
+	FALLBACK_EVENT_IMAGE = "img/events/blank_sq.bmp"
+	BIRTHDAY_IMAGE = "img/events/cake.bmp"
+	
+## Colors & Visual
+
+class Visual:
+	# UV bar calculation breakpoints
+	UV_BREAKPOINT_1 = 3
+	UV_BREAKPOINT_2 = 6  
+	UV_BREAKPOINT_3 = 9
+	
+	# UV spacing positions
+	UV_SPACING_POSITIONS = [3, 7, 11]
+	
+	# Humidity calculation
+	HUMIDITY_PERCENT_PER_PIXEL = 10    # 10% per pixel
+	HUMIDITY_SPACING_POSITIONS = [2, 5, 8, 11]  # Every 20%
+	
+	# Color test grid
+	COLOR_TEST_GRID_COLS = 3      # From: col = i // 3
+	COLOR_TEST_COL_SPACING = 16   # From: x=2 + col * 16
+	COLOR_TEST_ROW_SPACING = 11   # From: y=2 + row * 11
+	
+## System_constants
+
+class System:
+	MAX_RTC_ATTEMPTS = 5
+	MAX_WIFI_ATTEMPTS = 3
+	MAX_LOG_FAILURES_BEFORE_RESTART = 3
+	HOURS_BEFORE_DAILY_RESTART = 24
+	RESTART_GRACE_MINUTES = 5          # rtc.datetime.tm_min < 5
+	
+	# Matrix device mappings
+	DEVICE_TYPE1_ID = os.getenv("MATRIX1")
+	DEVICE_TYPE2_ID = os.getenv("MATRIX2")
+	
+	# Hour format constants
+	HOURS_IN_DAY = 24
+	HOURS_IN_HALF_DAY = 12
+	
+## Test Data Constants
+
+class TestData:
+	# Move TEST_DATE_DATA values here
+	TEST_YEAR = 2026                    # TEST_DATE_DATA["new_year"]
+	TEST_MONTH = 7                      # TEST_DATE_DATA["new_month"] 
+	TEST_DAY = 4                        # TEST_DATE_DATA["new_day"]
+	
+	# Dummy weather values
+	DUMMY_WEATHER_DATA = {
+		"weather_icon": 19,
+		"temperature": -12,
+		"feels_like": -13.6,
+		"feels_shade": -14.6,
+		"humidity": 90,
+		"uv_index": 7,
+		"weather_text": "DUMMY",
+		"is_day_time": True,
+		"has_precipitation": False,
+	}
+	
+## String Constants
+
+class Strings:
+	DEFAULT_EVENT_COLOR = "MINT"
+	TIMEZONE_DEFAULT = "America/Chicago"    # TIMEZONE_CONFIG["timezone"]
+	
+	# API key names
+	API_KEY_TYPE1 = "ACCUWEATHER_API_KEY_TYPE1"
+	API_KEY_TYPE2 = "ACCUWEATHER_API_KEY_TYPE2"
+	API_KEY_FALLBACK = "ACCUWEATHER_API_KEY"
+	API_LOCATION_KEY = "ACCUWEATHER_LOCATION_KEY"
+	
+	# Environment variables
+	WIFI_SSID_VAR = "CIRCUITPY_WIFI_SSID"
+	WIFI_PASSWORD_VAR = "CIRCUITPY_WIFI_PASSWORD"
+	
+	# Font test characters
+	FONT_METRICS_TEST_CHARS = "Aygjpq"
+	DESCENDER_CHARS = {'g', 'j', 'p', 'q', 'y'}
+	
+	# Time format strings:
+	AM_SUFFIX = "A"
+	PM_SUFFIX = "P"
+	NOON_12AM = "12A"
+	NOON_12PM = "12P"
 
 DISPLAY_CONFIG = {
 	"weather": True,		  
@@ -39,53 +253,16 @@ DISPLAY_CONFIG = {
 	"forecast": True,
 	"color_test": False,      
 	"weekday_color": True,	  
-	"cycle_duration": 330,     
-	"forecast_duration": 60,  
-	"event_duration": 30,	  
-	"minimum_event_duration": 10, 
-	"clock_fallback_duration": 300, 
-	"color_test_duration": 300,
-	"forecast_hours_to_fetch": 3,  # Max 12
-}
-
-API_CONFIG = {
-	"timeout": 30,  # Increased from default ~10s
-	"max_retries": 2,
-	"retry_delay": 2,  # Base delay for exponential backoff
-	"connection_reuse": True,
 }
 
 _global_requests_session = None
 
 cached_forecast_data = None
-FORECAST_UPDATE_INTERVAL = 900 
-last_forecast_fetch = -FORECAST_UPDATE_INTERVAL 
+last_forecast_fetch = - Timing.FORECAST_UPDATE_INTERVAL 
 
 # Debugging
-ESTIMATED_TOTAL_MEMORY = 2000000
 DEBUG_MODE = True
 LOG_MEMORY_STATS = True  # Include memory info in logs
-
-# Dummy Weather Control
-DUMMY_WEATHER_DATA = {
-	"weather_icon": 19,
-	"temperature": -12,
-	"feels_like": -13.6,
-	"feels_shade": -14.6,
-	"humidity": 90,
-	"uv_index":7,
-	"weather_text": "DUMMY",
-	"is_day_time": True,
-	"has_precipitation": False,
-}
-
-
-# Hardcoded Time Control
-TEST_DATE_DATA = {
-	"new_year": 2026,
-	"new_month": 7,
-	"new_day": 4,
-}
 
 # Base colors use standard RGB (works correctly on type2)
 _BASE_COLORS = {
@@ -127,31 +304,8 @@ _COLOR_CORRECTIONS = {
 # Global Colors Object
 COLORS = {}
 
-# API Configuration
-ACCUWEATHER_LOCATION_KEY = "2626571"
-MAX_API_CALLS_BEFORE_RESTART = 204
-
 # System Configuration
 DAILY_RESET_ENABLED = True
-DAILY_RESET_HOUR = 3
-
-# Event Configuration
-CSV_EVENTS_FILE = "events.csv"
-DEFAULT_EVENT_COLOR = "MINT"
-
-TIMEZONE_CONFIG = {
-	"timezone": "America/Chicago",
-}
-
-# Timezone offset table
-TIMEZONE_OFFSETS = {
-	"America/New_York": {"std": -5, "dst": -4, "dst_start": (3, 8), "dst_end": (11, 7)},
-	"America/Chicago": {"std": -6, "dst": -5, "dst_start": (3, 8), "dst_end": (11, 7)},
-	"America/Denver": {"std": -7, "dst": -6, "dst_start": (3, 8), "dst_end": (11, 7)},
-	"America/Los_Angeles": {"std": -8, "dst": -7, "dst_start": (3, 8), "dst_end": (11, 7)},
-}
-
-MONTHS = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
 ### GLOBAL STATE ###
 
@@ -171,8 +325,8 @@ last_successful_weather = 0
 startup_time = 0
 
 # Load fonts once at startup
-bg_font = bitmap_font.load_font("fonts/bigbit10-16.bdf")
-font = bitmap_font.load_font("fonts/tinybit6-16.bdf")
+bg_font = bitmap_font.load_font(Paths.FONT_BIG)
+font = bitmap_font.load_font(Paths.FONT_SMALL)
 
 ### LOGGING UTILITIES ###
 
@@ -211,7 +365,7 @@ def log_entry(message, level="INFO", include_memory=False):
 		if include_memory and LOG_MEMORY_STATS:
 			import gc
 			free_mem = gc.mem_free()
-			mem_percent = ((ESTIMATED_TOTAL_MEMORY - free_mem) / ESTIMATED_TOTAL_MEMORY) * 100
+			mem_percent = ((Memory.ESTIMATED_TOTAL - free_mem) / Memory.ESTIMATED_TOTAL) * 100
 			log_line += f" (Mem: {free_mem//1024}KB/{mem_percent:.1f}%)"
 		
 		print(log_line)
@@ -291,7 +445,7 @@ def initialize_display():
 	displayio.release_displays()
 	
 	matrix = rgbmatrix.RGBMatrix(
-		width=64, height=32, bit_depth=6,
+		width=Display.WIDTH, height=Display.HEIGHT, bit_depth=Display.BIT_DEPTH,
 		rgb_pins=[board.MTX_R1, board.MTX_G1, board.MTX_B1, 
 				 board.MTX_R2, board.MTX_G2, board.MTX_B2],
 		addr_pins=[board.MTX_ADDRA, board.MTX_ADDRB, 
@@ -310,13 +464,13 @@ def interruptible_sleep(duration):
 	"""Sleep that can be interrupted more easily"""
 	end_time = time.monotonic() + duration
 	while time.monotonic() < end_time:
-		time.sleep(0.1)  # Short sleep allows more interrupt opportunities
+		time.sleep(Timing.INTERRUPTIBLE_SLEEP_INTERVAL)  # Short sleep allows more interrupt opportunities
 
 def setup_rtc():
 	"""Initialize RTC with retry logic"""
 	global rtc_instance
 	
-	for attempt in range(5):
+	for attempt in range(System.MAX_RTC_ATTEMPTS):
 		try:
 			i2c = board.I2C()
 			rtc = adafruit_ds3231.DS3231(i2c)
@@ -326,7 +480,7 @@ def setup_rtc():
 		except Exception as e:
 			log_warning(f"RTC attempt {attempt + 1} failed: {e}")
 			if attempt < 4:
-				interruptible_sleep(2)
+				interruptible_sleep(Timing.RTC_RETRY_DELAY)
 	
 	log_error("RTC initialization failed, restarting...")
 	supervisor.reload()
@@ -335,14 +489,14 @@ def setup_rtc():
 
 def setup_wifi():
 	"""Connect to WiFi with simplified retry logic"""
-	ssid = os.getenv("CIRCUITPY_WIFI_SSID")
-	password = os.getenv("CIRCUITPY_WIFI_PASSWORD")
+	ssid = os.getenv(Strings.WIFI_SSID_VAR)
+	password = os.getenv(Strings.WIFI_PASSWORD_VAR)
 	
 	if not ssid or not password:
 		log_warning("WiFi credentials missing")
 		return False
 	
-	for attempt in range(3):
+	for attempt in range(System.MAX_WIFI_ATTEMPTS):
 		try:
 			wifi.radio.connect(ssid, password)
 			if DEBUG_MODE:
@@ -353,7 +507,7 @@ def setup_wifi():
 		except ConnectionError as e:
 			log_warning(f"WiFi attempt {attempt + 1} failed")
 			if attempt < 2:
-				interruptible_sleep(2)
+				interruptible_sleep(Timing.WIFI_RETRY_DELAY)
 	
 	log_error("WiFi connection failed")
 	return False
@@ -363,7 +517,7 @@ def get_timezone_offset(timezone_name, utc_datetime):
 	
 	if timezone_name not in TIMEZONE_OFFSETS:
 		log_warning(f"Unknown timezone: {timezone_name}, using Chicago")
-		timezone_name = "America/Chicago"
+		timezone_name = Strings.TIMEZONE_DEFAULT
 	
 	tz_info = TIMEZONE_OFFSETS[timezone_name]
 	
@@ -408,7 +562,7 @@ def is_dst_active_for_timezone(timezone_name, utc_datetime):
 def sync_time_with_timezone(rtc):
 	"""Enhanced NTP sync with configurable timezone support"""
 	
-	timezone_name = TIMEZONE_CONFIG["timezone"]
+	timezone_name = Strings.TIMEZONE_DEFAULT
 	
 	try:
 		cleanup_sockets()
@@ -432,7 +586,7 @@ def sync_time_with_timezone(rtc):
 
 def cleanup_sockets():
 	"""Aggressive socket cleanup to prevent memory issues"""
-	for _ in range(3):
+	for _ in range(Memory.SOCKET_CLEANUP_CYCLES):
 		gc.collect()
 
 def get_requests_session():
@@ -447,7 +601,7 @@ def get_requests_session():
 			# Optional: Configure socket timeout at pool level if supported
 			try:
 				# This may not be available in all CircuitPython versions
-				pool.socket_timeout = API_CONFIG["timeout"]
+				pool.socket_timeout = API.TIMEOUT
 			except (AttributeError, NotImplementedError):
 				log_debug("Socket timeout configuration not available")
 			
@@ -480,7 +634,7 @@ def cleanup_global_session():
 def fetch_weather_with_retries(url, max_retries=None):
 	"""Fetch weather data with exponential backoff retry logic"""
 	if max_retries is None:
-		max_retries = API_CONFIG["max_retries"]
+		max_retries = API.MAX_RETRIES
 	
 	for attempt in range(max_retries + 1):
 		try:
@@ -495,13 +649,13 @@ def fetch_weather_with_retries(url, max_retries=None):
 			# adafruit_requests doesn't expose timeout parameter in get()
 			response = session.get(url)
 			
-			if response.status_code == 200:
+			if response.status_code == API.HTTP_OK:
 				return response.json()
-			elif response.status_code == 503:
+			elif response.status_code == API.HTTP_SERVICE_UNAVAILABLE:
 				# Service unavailable - worth retrying
 				log_warning(f"API service unavailable (503), attempt {attempt + 1}")
 				if attempt < max_retries:
-					delay = API_CONFIG["retry_delay"] * (2 ** attempt)  # Exponential backoff
+					delay = API.RETRY_DELAY * (2 ** attempt)  # Exponential backoff
 					log_debug(f"Retrying in {delay} seconds...")
 					interruptible_sleep(delay)
 					continue
@@ -512,7 +666,7 @@ def fetch_weather_with_retries(url, max_retries=None):
 		except Exception as e:
 			log_warning(f"Request attempt {attempt + 1} failed: {e}")
 			if attempt < max_retries:
-				delay = API_CONFIG["retry_delay"] * (2 ** attempt)
+				delay = API.RETRY_DELAY * (2 ** attempt)
 				log_debug(f"Retrying in {delay} seconds...")
 				interruptible_sleep(delay)
 				continue
@@ -538,7 +692,7 @@ def fetch_current_and_forecast_weather():
 	expected_calls = (1 if fetch_current else 0) + (1 if fetch_forecast else 0)
 	
 	# Monitor memory just before planned restart
-	if api_call_count + expected_calls >= MAX_API_CALLS_BEFORE_RESTART:
+	if api_call_count + expected_calls >= API.MAX_CALLS_BEFORE_RESTART:
 		log_warning(f"API call #{api_call_count + expected_calls} - restart imminent", include_memory=True)
 	
 	try:
@@ -555,7 +709,7 @@ def fetch_current_and_forecast_weather():
 		
 		# Fetch current weather if enabled
 		if fetch_current:
-			current_url = f"https://dataservice.accuweather.com/currentconditions/v1/{ACCUWEATHER_LOCATION_KEY}?apikey={api_key}&details=true"
+			current_url = f"{API.BASE_URL}/{API.CURRENT_ENDPOINT}/{os.getenv(Strings.API_LOCATION_KEY)}?apikey={api_key}&details=true"
 			
 			log_debug("Fetching current weather...")
 			current_json = fetch_weather_with_retries(current_url)
@@ -584,14 +738,14 @@ def fetch_current_and_forecast_weather():
 				}
 				log_debug(f"CURRENT DATA: {current_data}")
 				
-				log_info(f"Current weather: {current_data['weather_text']}, {current_data['temperature']}°C (API #{api_call_count}/{MAX_API_CALLS_BEFORE_RESTART})", include_memory=True)
+				log_info(f"Current weather: {current_data['weather_text']}, {current_data['temperature']}°C (API #{api_call_count}/{API.MAX_CALLS_BEFORE_RESTART})", include_memory=True)
 
 			else:
 				log_warning("Current weather fetch failed")
 		
 		# Fetch forecast weather if enabled and (current succeeded OR current disabled)
 		if fetch_forecast and (current_success or not fetch_current):
-			forecast_url = f"https://dataservice.accuweather.com/forecasts/v1/hourly/12hour/{ACCUWEATHER_LOCATION_KEY}?apikey={api_key}&metric=true"
+			forecast_url = f"{API.BASE_URL}/{API.FORECAST_ENDPOINT}/{os.getenv(Strings.API_LOCATION_KEY)}?apikey={api_key}&metric=true"
 			
 			log_debug("Fetching forecast weather...")
 			forecast_json = fetch_weather_with_retries(forecast_url, max_retries=1)
@@ -600,7 +754,7 @@ def fetch_current_and_forecast_weather():
 				forecast_api_calls += 1
 				api_call_count += 1
 				
-			forecast_fetch_length = min(DISPLAY_CONFIG["forecast_hours_to_fetch"],12)
+			forecast_fetch_length = min(API.DEFAULT_FORECAST_HOURS,API.MAX_FORECAST_HOURS)
 			
 			if forecast_json and len(forecast_json) >= forecast_fetch_length:
 				# Extract first 3 hours of forecast data
@@ -629,7 +783,7 @@ def fetch_current_and_forecast_weather():
 				forecast_data = None
 		
 		# Log API call statistics
-		log_info(f"API Stats: Total={api_call_count}/{MAX_API_CALLS_BEFORE_RESTART}, Current={current_api_calls}, Forecast={forecast_api_calls}", include_memory=True)
+		log_info(f"API Stats: Total={api_call_count}/{API.MAX_CALLS_BEFORE_RESTART}, Current={current_api_calls}, Forecast={forecast_api_calls}", include_memory=True)
 		
 		# Determine overall success
 		any_success = current_success or forecast_success
@@ -642,10 +796,10 @@ def fetch_current_and_forecast_weather():
 			consecutive_failures += 1
 		
 		# Check for preventive restart
-		if api_call_count >= MAX_API_CALLS_BEFORE_RESTART:
+		if api_call_count >= API.MAX_CALLS_BEFORE_RESTART:
 			log_warning(f"Preventive restart after {api_call_count} API calls", include_memory=True)
 			cleanup_global_session()
-			interruptible_sleep(2)
+			interruptible_sleep(API.RETRY_DELAY)
 			supervisor.reload()
 		
 		return current_data, forecast_data
@@ -660,11 +814,11 @@ def get_api_key():
 	matrix_type = detect_matrix_type()
 	
 	if matrix_type == "type1":
-		api_key_name = "ACCUWEATHER_API_KEY_TYPE1"
+		api_key_name = Strings.API_KEY_TYPE1
 	elif matrix_type == "type2":
-		api_key_name = "ACCUWEATHER_API_KEY_TYPE2"
+		api_key_name = Strings.API_KEY_TYPE2
 	else:
-		api_key_name = "ACCUWEATHER_API_KEY"
+		api_key_name = Strings.API_KEY_FALLBACK
 	
 	# Read the appropriate API key
 	try:
@@ -697,16 +851,16 @@ def get_api_call_stats():
 		"total_calls": api_call_count,
 		"current_calls": current_api_calls,
 		"forecast_calls": forecast_api_calls,
-		"remaining_calls": MAX_API_CALLS_BEFORE_RESTART - api_call_count,
-		"restart_threshold": MAX_API_CALLS_BEFORE_RESTART
+		"remaining_calls": API.MAX_CALLS_BEFORE_RESTART - api_call_count,
+		"restart_threshold": API.MAX_CALLS_BEFORE_RESTART
 	}
 	
 def should_fetch_forecast():
 	"""Check if forecast data needs to be refreshed"""
 	global last_forecast_fetch
 	current_time = time.monotonic()  # 15 minutes
-	log_debug(f"LAST FORECAST FETCH: {last_forecast_fetch} seconds ago. Needs Refresh? = {(current_time - last_forecast_fetch) >= FORECAST_UPDATE_INTERVAL}")
-	return (current_time - last_forecast_fetch) >= FORECAST_UPDATE_INTERVAL
+	log_debug(f"LAST FORECAST FETCH: {last_forecast_fetch} seconds ago. Needs Refresh? = {(current_time - last_forecast_fetch) >= Timing.FORECAST_UPDATE_INTERVAL}")
+	return (current_time - last_forecast_fetch) >= Timing.FORECAST_UPDATE_INTERVAL
 
 
 ### DISPLAY UTILITIES ###
@@ -723,8 +877,8 @@ def detect_matrix_type():
 	device_id = "".join([f"{b:02x}" for b in uid[-3:]])
 	
 	device_mappings = {
-		"2236c5": "type1",
-		"f78b47": "type2", # BIG MATRIX
+		System.DEVICE_TYPE1_ID: "type1",
+		System.DEVICE_TYPE2_ID: "type2", # BIG MATRIX
 	}
 	
 	_matrix_type_cache = device_mappings.get(device_id, "type1")
@@ -820,8 +974,8 @@ def load_events_from_csv():
 	"""Load events from CSV file - supports multiple events per day"""
 	events = {}
 	try:
-		log_debug(f"Loading events from {CSV_EVENTS_FILE}...")
-		with open(CSV_EVENTS_FILE, "r") as f:
+		log_debug(f"Loading events from {Paths.EVENTS_CSV}...")
+		with open(Paths.EVENTS_CSV, "r") as f:
 			line_count = 0
 			for line in f:
 				line = line.strip()
@@ -832,7 +986,7 @@ def load_events_from_csv():
 						line1 = parts[1] 
 						line2 = parts[2]
 						image = parts[3]
-						color = parts[4] if len(parts) > 4 else DEFAULT_EVENT_COLOR
+						color = parts[4] if len(parts) > 4 else Strings.DEFAULT_EVENT_COLOR
 						
 						# Convert MM-DD to MMDD format for lookup
 						date_key = date.replace("-", "")
@@ -892,8 +1046,7 @@ def calculate_bottom_aligned_positions(font, line1_text, line2_text, display_hei
 	font_height, baseline_offset = get_font_metrics(font, line1_text + line2_text)
 	
 	# Check if ONLY the second line (bottom line) has lowercase descender characters
-	descender_chars = {'g', 'j', 'p', 'q', 'y'}
-	has_descenders = any(char in descender_chars for char in line2_text)
+	has_descenders = any(char in Strings.DESCENDER_CHARS for char in line2_text)
 	
 	# Add extra bottom margin if descenders are present
 	adjusted_bottom_margin = bottom_margin + (2 if has_descenders else 0)
@@ -953,35 +1106,35 @@ def add_day_indicator(main_group, rtc):
 	day_color = get_day_color(rtc)
 	
 	# Create 4x4 rectangle at top right (64-4=60 pixels from left)
-	for x in range(60, 64):
-		for y in range(0, 4):
+	for x in range(DayIndicator.X, DayIndicator.X + DayIndicator.SIZE):
+		for y in range(DayIndicator.Y, DayIndicator.Y + DayIndicator.SIZE):
 			pixel_line = Line(x, y, x, y, day_color)
 			main_group.append(pixel_line)
 			
 	# Add 1-pixel black margin to the left (x=59)
-	for y in range(0, 4):
-		black_pixel = Line(59, y, 59, y, COLORS["BLACK"])
+	for y in range(DayIndicator.Y, DayIndicator.MARGIN_BOTTOM_Y):
+		black_pixel = Line(DayIndicator.MARGIN_LEFT_X, y, DayIndicator.MARGIN_LEFT_X, y, COLORS["BLACK"])
 		main_group.append(black_pixel)
 	
 	# Add 1-pixel black margin to the bottom (y=4)
-	for x in range(59, 64):  # Include the corner pixel at (59,4)
-		black_pixel = Line(x, 4, x, 4, COLORS["BLACK"])
+	for x in range(DayIndicator.MARGIN_LEFT_X, DayIndicator.X+DayIndicator.SIZE):  # Include the corner pixel at (59,4)
+		black_pixel = Line(x, DayIndicator.MARGIN_BOTTOM_Y, x, DayIndicator.MARGIN_BOTTOM_Y, COLORS["BLACK"])
 		main_group.append(black_pixel)
 
 def calculate_uv_bar_length(uv_index):
 	"""Calculate UV bar length with spacing for readability"""
-	if uv_index <= 3:
+	if uv_index <= Visual.UV_BREAKPOINT_1:
 		return uv_index
-	elif uv_index <= 6:
+	elif uv_index <= Visual.UV_BREAKPOINT_2:
 		return uv_index + 1
-	elif uv_index <= 9:
+	elif uv_index <= Visual.UV_BREAKPOINT_3:
 		return uv_index + 2
 	else:
 		return uv_index + 3
 
 def calculate_humidity_bar_length(humidity):
 	"""Calculate humidity bar length (10% per pixel) with spacing every 20%"""
-	pixels = round(humidity / 10)  # 10% per pixel, so max 10 pixels at 100%
+	pixels = round(humidity / Visual.HUMIDITY_PERCENT_PER_PIXEL)  # 10% per pixel, so max 10 pixels at 100%
 	
 	# Add spacing pixels (black dots every 2 pixels = every 20%)
 	if pixels <= 2:
@@ -989,11 +1142,11 @@ def calculate_humidity_bar_length(humidity):
 	elif pixels <= 4:
 		return pixels + 1  # Add 1 spacing pixel
 	elif pixels <= 6:
-		return pixels + 2  # Add 2 spacing pixels  
+		return pixels + 2 
 	elif pixels <= 8:
-		return pixels + 3  # Add 3 spacing pixels
+		return pixels + 3
 	else:
-		return pixels + 4  # Add 4 spacing pixels
+		return pixels + 4
 		
 def add_indicator_bars(main_group, x_start, uv_index, humidity):
 	"""Add UV and humidity indicator bars to display"""
@@ -1001,24 +1154,24 @@ def add_indicator_bars(main_group, x_start, uv_index, humidity):
 	# UV bar (only if UV > 0)
 	if uv_index > 0:
 		uv_length = calculate_uv_bar_length(uv_index)
-		main_group.append(Line(x_start, 27, x_start - 1 + uv_length, 27, COLORS["DIMMEST_WHITE"]))
+		main_group.append(Line(x_start, Layout.UV_BAR_Y, x_start - 1 + uv_length, Layout.UV_BAR_Y, COLORS["DIMMEST_WHITE"]))
 		
 		# UV spacing dots (black pixels every 3)
-		for i in [3, 7, 11]:
+		for i in Visual.UV_SPACING_POSITIONS:
 			if i < uv_length:
-				main_group.append(Line(x_start + i, 27, x_start + i, 27, COLORS["BLACK"]))
+				main_group.append(Line(x_start + i, Layout.UV_BAR_Y, x_start + i, Layout.UV_BAR_Y, COLORS["BLACK"]))
 	
 	# Humidity bar 
 	if humidity > 0:
 		humidity_length = calculate_humidity_bar_length(humidity)
 		
 		# Main humidity line
-		main_group.append(Line(x_start, 29, x_start - 1 + humidity_length, 29, COLORS["DIMMEST_WHITE"]))
+		main_group.append(Line(x_start, Layout.HUMIDITY_BAR_Y, x_start - 1 + humidity_length, Layout.HUMIDITY_BAR_Y, COLORS["DIMMEST_WHITE"]))
 		
 		# Humidity spacing dots (black pixels every 2 = every 20%)
-		for i in [2, 5, 8, 11]:  # Positions for 20%, 40%, 60%, 80%
+		for i in Visual.HUMIDITY_SPACING_POSITIONS:  # Positions for 20%, 40%, 60%, 80%
 			if i < humidity_length:
-				main_group.append(Line(x_start + i, 29, x_start + i, 29, COLORS["BLACK"]))
+				main_group.append(Line(x_start + i, Layout.HUMIDITY_BAR_Y, x_start + i, Layout.HUMIDITY_BAR_Y, COLORS["BLACK"]))
 
 
 def show_weather_display(rtc, duration, weather_data=None):
@@ -1029,7 +1182,7 @@ def show_weather_display(rtc, duration, weather_data=None):
 	if weather_data is None:
 		# Fetch fresh weather data (existing behavior)
 		if DISPLAY_CONFIG["dummy_weather"]:
-			weather_data = DUMMY_WEATHER_DATA
+			weather_data = TestData.DUMMY_WEATHER_DATA
 		else:
 			weather_data = fetch_weather_data()
 	
@@ -1046,14 +1199,14 @@ def show_weather_display(rtc, duration, weather_data=None):
 	clear_display()
 	
 	# Create display elements
-	temp_text = bitmap_label.Label(bg_font, color=COLORS["DIMMEST_WHITE"], x=2, y=20, background_color = COLORS["BLACK"], padding_top =-5, padding_bottom = 1, padding_left = 1,)
-	feels_like_text = bitmap_label.Label(font, color=COLORS["DIMMEST_WHITE"], y=16, background_color = COLORS["BLACK"], padding_top=-5, padding_bottom=-2, padding_left = 1,)
-	feels_shade_text = bitmap_label.Label(font, color=COLORS["DIMMEST_WHITE"], y=24, background_color = COLORS["BLACK"], padding_top=-5, padding_bottom=-2, padding_left = 1,)
-	time_text = bitmap_label.Label(font, color=COLORS["DIMMEST_WHITE"], x=15, y=24, background_color = COLORS["BLACK"], padding_top=-5, padding_bottom=-2, padding_left = 1,)
+	temp_text = bitmap_label.Label(bg_font, color=COLORS["DIMMEST_WHITE"], x=Layout.WEATHER_TEMP_X, y=Layout.WEATHER_TEMP_Y, background_color = COLORS["BLACK"], padding_top =Layout.BG_PADDING_TOP, padding_bottom = 1, padding_left = 1,)
+	feels_like_text = bitmap_label.Label(font, color=COLORS["DIMMEST_WHITE"], y=Layout.FEELSLIKE_Y, background_color = COLORS["BLACK"], padding_top=Layout.BG_PADDING_TOP, padding_bottom=-2, padding_left = 1,)
+	feels_shade_text = bitmap_label.Label(font, color=COLORS["DIMMEST_WHITE"], y=Layout.FEELSLIKE_SHADE_Y, background_color = COLORS["BLACK"], padding_top=Layout.BG_PADDING_TOP, padding_bottom=-2, padding_left = 1,)
+	time_text = bitmap_label.Label(font, color=COLORS["DIMMEST_WHITE"], x=Layout.WEATHER_TIME_X, y=Layout.WEATHER_TIME_Y, background_color = COLORS["BLACK"], padding_top=Layout.BG_PADDING_TOP, padding_bottom=-2, padding_left = 1,)
 	
 	# Load weather icon
 	try:
-		bitmap, palette = load_bmp_image(f"img/weather/{weather_data['weather_icon']}.bmp")
+		bitmap, palette = load_bmp_image(f"{Paths.WEATHER_ICONS}/{weather_data['weather_icon']}.bmp")
 		image_grid = displayio.TileGrid(bitmap, pixel_shader=palette)
 		main_group.append(image_grid)
 	except Exception as e:
@@ -1073,12 +1226,12 @@ def show_weather_display(rtc, duration, weather_data=None):
 	
 	if feels_like_rounded != temp_rounded:
 		feels_like_text.text = f"{feels_like_rounded}°"
-		feels_like_text.x = right_align_text(feels_like_text.text, font, 63)
+		feels_like_text.x = right_align_text(feels_like_text.text, font, Layout.RIGHT_EDGE)
 		main_group.append(feels_like_text)
 	
 	if feels_shade_rounded != feels_like_rounded:
 		feels_shade_text.text = f"{feels_shade_rounded}°"
-		feels_shade_text.x = right_align_text(feels_shade_text.text, font, 63)
+		feels_shade_text.x = right_align_text(feels_shade_text.text, font, Layout.RIGHT_EDGE)
 		main_group.append(feels_shade_text)
 	
 	main_group.append(time_text)
@@ -1101,19 +1254,19 @@ def show_weather_display(rtc, duration, weather_data=None):
 		
 		# Position time text
 		if feels_shade_rounded != feels_like_rounded:
-			time_text.x = center_text(current_time, font, 0, 64)
+			time_text.x = center_text(current_time, font, 0, Display.WIDTH)
 		else:
-			time_text.x = right_align_text(current_time, font, 63)
+			time_text.x = right_align_text(current_time, font, Layout.RIGHT_EDGE)
 		
 		interruptible_sleep(1)
 
-def show_clock_display(rtc, duration=DISPLAY_CONFIG["clock_fallback_duration"]):
+def show_clock_display(rtc, duration=Timing.CLOCK_FALLBACK):
 	"""Display clock as fallback when weather unavailable"""
-	log_warning(f"Displaying clock for {duration_message(DISPLAY_CONFIG["clock_fallback_duration"])}...", include_memory = True)
+	log_warning(f"Displaying clock for {duration_message(Timing.CLOCK_FALLBACK)}...", include_memory = True)
 	clear_display()
 	
-	date_text = bitmap_label.Label(font, color=COLORS["DIMMEST_WHITE"], x=5, y=7)
-	time_text = bitmap_label.Label(bg_font, color=COLORS["MINT"], x=5, y=20)
+	date_text = bitmap_label.Label(font, color=COLORS["DIMMEST_WHITE"], x=Layout.CLOCK_DATE_X, y=Layout.CLOCK_DATE_Y)
+	time_text = bitmap_label.Label(bg_font, color=COLORS[Strings.DEFAULT_EVENT_COLOR], x=Layout.CLOCK_TIME_X, y=Layout.CLOCK_TIME_Y)
 	
 	main_group.append(date_text)
 	main_group.append(time_text)
@@ -1140,9 +1293,9 @@ def show_clock_display(rtc, duration=DISPLAY_CONFIG["clock_fallback_duration"]):
 	
 	# Check for restart conditions
 	time_since_success = time.monotonic() - last_successful_weather
-	if consecutive_failures >= 3 or time_since_success > 600:  # 10 minutes
+	if consecutive_failures >= System.MAX_LOG_FAILURES_BEFORE_RESTART or time_since_success > Timing.CLOCK_FALLBACK_THRESHOLD:  # 10 minutes
 		log_warning("Restarting due to weather failures")
-		interruptible_sleep(2)
+		interruptible_sleep(API.RETRY_DELAY)
 		supervisor.reload()
 		
 def show_event_display(rtc, duration):
@@ -1166,7 +1319,7 @@ def show_event_display(rtc, duration):
 			_display_single_event(event_data, rtc, duration)
 		else:
 			# Multiple events - split time between them
-			event_duration = max(duration // num_events,DISPLAY_CONFIG["minimum_event_duration"])
+			event_duration = max(duration // num_events, Timing.MIN_EVENT_DURATION)
 			log_info(f"Showing {num_events} events, {duration_message(duration)} each", include_memory=True)
 			
 			for i, event_data in enumerate(event_list):
@@ -1185,17 +1338,17 @@ def _display_single_event(event_data, rtc, duration):
 		try:
 			if event_data[1] == "Birthday":
 				# For birthday events, use the original cake image layout
-				bitmap, palette = load_bmp_image("img/events/cake.bmp")
+				bitmap, palette = load_bmp_image(Paths.BIRTHDAY_IMAGE)
 				image_grid = displayio.TileGrid(bitmap, pixel_shader=palette)
 				main_group.append(image_grid)
 			else:
 				# Load event-specific image (25x28 positioned at top right)
-				image_file = f"img/events/{event_data[2]}"
+				image_file = f"{Paths.EVENT_IMAGES}/{event_data[2]}"
 				try:
 					bitmap, palette = load_bmp_image(image_file)
 				except Exception as e:
 					log_warning(f"Failed to load {image_file}: {e}")
-					bitmap, palette = load_bmp_image("img/events/blank_sq.bmp")
+					bitmap, palette = load_bmp_image(Paths.FALLBACK_EVENT_IMAGE)
 				
 				# Position 25px wide image at top right
 				image_grid = displayio.TileGrid(bitmap, pixel_shader=palette)
@@ -1205,19 +1358,19 @@ def _display_single_event(event_data, rtc, duration):
 				# Calculate optimal text positions dynamically
 				line1_text = event_data[1]  # e.g., "Cumple"
 				line2_text = event_data[0]  # e.g., "Puchis"
-				text_color = event_data[3] if len(event_data) > 3 else "MINT"  # Get color from CSV
+				text_color = event_data[3] if len(event_data) > 3 else Strings.DEFAULT_EVENT_COLOR  # Get color from CSV
 				
 				# Color_map through dictionary access:
-				line2_color = COLORS.get(text_color.upper(), COLORS["MINT"])
+				line2_color = COLORS.get(text_color.upper(), COLORS[Strings.DEFAULT_EVENT_COLOR])
 				
 				# Get dynamic positions with 1px bottom margin and 1px line spacing
 				line1_y, line2_y = calculate_bottom_aligned_positions(
 					font, 
 					line1_text, 
 					line2_text,
-					display_height=32,
-					bottom_margin=2,  # Very tight bottom margin
-					line_spacing=1    # Minimal spacing between lines
+					display_height=Display.HEIGHT,
+					bottom_margin=Layout.BOTTOM_MARGIN,  # Very tight bottom margin
+					line_spacing=Layout.LINE_SPACING    # Minimal spacing between lines
 				)
 				
 				# Create text labels with calculated positions
@@ -1225,14 +1378,14 @@ def _display_single_event(event_data, rtc, duration):
 					font,
 					color=COLORS["DIMMEST_WHITE"],
 					text=line1_text,
-					x=2, y=line1_y
+					x=Layout.TEXT_MARGIN, y=line1_y
 				)
 				
 				text2 = bitmap_label.Label(
 					font,
 					color=line2_color,  # Use color from CSV
 					text=line2_text,
-					x=2,
+					x=Layout.TEXT_MARGIN,
 					y=line2_y
 				)
 				
@@ -1257,8 +1410,8 @@ def _display_single_event(event_data, rtc, duration):
 		# Optional: Clean up after event display
 		gc.collect()
 	
-def show_color_test_display(duration=DISPLAY_CONFIG["color_test_duration"]):
-	log_info(f"Displaying Color Test for {duration_message(DISPLAY_CONFIG["color_test_duration"])}", include_memory=True)
+def show_color_test_display(duration=Timing.COLOR_TEST):
+	log_info(f"Displaying Color Test for {duration_message(Timing.COLOR_TEST)}", include_memory=True)
 	clear_display()
 	gc.collect()
 	
@@ -1272,12 +1425,12 @@ def show_color_test_display(duration=DISPLAY_CONFIG["color_test_duration"]):
 		
 		for i, (color_name, text) in enumerate(zip(test_color_names, texts)):
 			color = COLORS[color_name]
-			col = i // 3
-			row = i % 3
+			col = i // Visual.COLOR_TEST_GRID_COLS
+			row = i % Visual.COLOR_TEST_GRID_ROWS
 			
 			label = bitmap_label.Label(
 				font, color=color, text=text,
-				x=2 + col * 16, y=2 + row * 11
+				x=Layout.COLOR_TEST_TEXT_X + col * Visual.COLOR_TEST_COL_SPACING , y=Layout.COLOR_TEST_TEXT_Y + row * Visual.COLOR_TEST_ROW_SPACING
 			)
 			main_group.append(label)
 			key_text += f"{text}={color_name}(0x{color:06X}) | "
@@ -1314,26 +1467,26 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 		col2_icon = f"{forecast_data[0]['weather_icon']}.bmp"
 		col3_icon = f"{forecast_data[1]['weather_icon']}.bmp"
 		
-		hour_plus_1 = int(forecast_data[0]['datetime'][11:13]) % 24
-		hour_plus_2 = int(forecast_data[1]['datetime'][11:13]) % 24
+		hour_plus_1 = int(forecast_data[0]['datetime'][11:13]) % System.HOURS_IN_DAY
+		hour_plus_2 = int(forecast_data[1]['datetime'][11:13]) % System.HOURS_IN_DAY
 		
 		# Generate time labels FIRST
 		if rtc_instance:
 			current_hour = rtc_instance.datetime.tm_hour
 			current_minute = rtc_instance.datetime.tm_min
 			
-			display_hour = current_hour % 12 if current_hour % 12 != 0 else 12
+			display_hour = current_hour % System.HOURS_IN_HALF_DAY if current_hour % System.HOURS_IN_HALF_DAY != 0 else System.HOURS_IN_HALF_DAY
 			col1_time = f"{display_hour}:{current_minute:02d}"
 			
 			def format_hour(hour):
 				if hour == 0:
-					return "12A"
-				elif hour < 12:
-					return f"{hour}A"
-				elif hour == 12:
-					return "12P"
+					return Strings.NOON_12AM
+				elif hour < System.HOURS_IN_HALF_DAY:
+					return f"{hour}{Strings.AM_SUFFIX}"
+				elif hour == System.HOURS_IN_HALF_DAY:
+					return Strings.NOON_12PM
 				else:
-					return f"{hour-12}P"
+					return f"{hour-System.HOURS_IN_HALF_DAY}{Strings.PM_SUFFIX}"
 			
 			col2_time = format_hour(hour_plus_1)
 			col3_time = format_hour(hour_plus_2)
@@ -1342,16 +1495,16 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 		
 		# NOW define columns with all the data
 		columns = [
-			{"image": col1_icon, "x": 3, "time": col1_time, "temp": col1_temp},
-			{"image": col2_icon, "x": 25, "time": col2_time, "temp": col2_temp},
-			{"image": col3_icon, "x": 48, "time": col3_time, "temp": col3_temp}
+			{"image": col1_icon, "x": Layout.FORECAST_COL1_X, "time": col1_time, "temp": col1_temp},
+			{"image": col2_icon, "x": Layout.FORECAST_COL2_X, "time": col2_time, "temp": col2_temp},
+			{"image": col3_icon, "x": Layout.FORECAST_COL3_X, "time": col3_time, "temp": col3_temp}
 		]
 		
 		# Column positioning
-		column_y = 9
-		column_width = 13
-		time_y = 1
-		temp_y = 25
+		column_y = Layout.FORECAST_COLUMN_Y
+		column_width = Layout.FORECAST_COLUMN_WIDTH
+		time_y = Layout.FORECAST_TIME_Y
+		temp_y = Layout.FORECAST_TEMP_Y
 		first_time_label = None
 		
 		# Load and position weather icon columns
@@ -1359,10 +1512,10 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 			try:
 				# Try actual weather icons first
 				try:
-					bitmap, palette = load_bmp_image(f"img/weather/columns/{col['image']}")
+					bitmap, palette = load_bmp_image(f"{Paths.COLUMN_IMAGES}/{col['image']}")
 				except:
 					# Fallback to column images
-					bitmap, palette = load_bmp_image(f"img/weather/columns/{i+1}.bmp")
+					bitmap, palette = load_bmp_image(f"{Paths.COLUMN_IMAGES}/{i+1}.bmp")
 					log_warning(f"Used fallback column image for column {i+1}")
 				
 				col_img = displayio.TileGrid(bitmap, pixel_shader=palette)
@@ -1421,7 +1574,6 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 					first_time_label.text = new_time
 					# Recenter the text
 					first_time_label.x = max(center_text(new_time, font, columns[0]["x"], column_width),1)
-					log_debug(f"FORECAST TIME X = {first_time_label.x}")
 			
 			interruptible_sleep(1)
 	
@@ -1434,19 +1586,16 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 	
 def calculate_display_durations():
 	"""Calculate current weather duration based on cycle and forecast times"""
-	cycle_time = DISPLAY_CONFIG["cycle_duration"]
-	forecast_time = DISPLAY_CONFIG["forecast_duration"] 
-	event_time = DISPLAY_CONFIG["event_duration"]
 	
 	# Current weather gets the remaining time
-	current_weather_time = cycle_time - forecast_time - event_time
+	current_weather_time = Timing.DEFAULT_CYCLE - Timing.DEFAULT_FORECAST - Timing.DEFAULT_EVENT
 	
 	# Ensure minimum time for current weather
-	if current_weather_time < 30:
-		current_weather_time = 30
+	if current_weather_time < Timing.DEFAULT_EVENT:
+		current_weather_time = Timing.MIN_EVENT_DURATION
 		log_warning(f"Current weather time adjusted to minimum: {current_weather_time}s")
 	
-	return current_weather_time, forecast_time, event_time
+	return current_weather_time, Timing.DEFAULT_FORECAST, Timing.DEFAULT_EVENT
 
 ### SYSTEM MANAGEMENT ###
 
@@ -1462,15 +1611,15 @@ def check_daily_reset(rtc):
 	
 	# Scheduled restart conditions
 	should_restart = (
-		hours_running > 24 or
+		hours_running > System.HOURS_BEFORE_DAILY_RESTART or
 		(hours_running > 1 and 
-		 rtc.datetime.tm_hour == DAILY_RESET_HOUR and 
-		 rtc.datetime.tm_min < 5)
+		 rtc.datetime.tm_hour == Timing.DAILY_RESET_HOUR and 
+		 rtc.datetime.tm_min < System.RESTART_GRACE_MINUTES)
 	)
 	
 	if should_restart:
 		log_info(f"Daily restart triggered ({hours_running:.1f}h runtime)", include_memory = True)
-		interruptible_sleep(2)
+		interruptible_sleep(API.RETRY_DELAY)
 		supervisor.reload()
 		
 def calculate_weekday(year, month, day):
@@ -1586,7 +1735,7 @@ def main():
 		log_debug(f"System initialized - {len(events)} events loaded")
 		
 		if DISPLAY_CONFIG["test_date"]:
-			update_rtc_date(rtc, TEST_DATE_DATA["new_year"], TEST_DATE_DATA["new_month"], TEST_DATE_DATA["new_day"])
+			update_rtc_date(rtc, TestData.TEST_YEAR, TestData.TEST_MONTH, TestData.TEST_DAY)
 		
 		# Network operations (can be slower/fail)
 		wifi_connected = setup_wifi()
@@ -1648,7 +1797,7 @@ def main():
 				# Current weather (with potentially extended duration)
 				if DISPLAY_CONFIG["weather"]:
 					if not current_data:  # Only fetch if we don't already have it
-						current_data = fetch_weather_data()
+						current_data = fetch_current_and_forecast_weather()
 					show_weather_display(rtc, current_duration, current_data)
 				else:
 					log_debug("Weather display disabled")
@@ -1663,18 +1812,18 @@ def main():
 				
 				# Remove color test from main loop or keep it separate
 				if DISPLAY_CONFIG["color_test"]:
-					show_color_test_display(DISPLAY_CONFIG["color_test_duration"])
+					show_color_test_display(Timing.COLOR_TEST)
 					
 			except Exception as e:
 				log_error(f"Display loop error: {e}", include_memory=True)
-				interruptible_sleep(5)
+				interruptible_sleep(Timing.SLEEP_BETWEEN_ERRORS)
 				
 	except KeyboardInterrupt:
 		log_info("Program interrupted by user")
 	
 	except Exception as e:
 		log_error(f"Critical system error: {e}", include_memory=True)
-		time.sleep(10)
+		time.sleep(Timing.RESTART_DELAY)
 		supervisor.reload()
 	
 	finally:

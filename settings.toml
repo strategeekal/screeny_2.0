@@ -1,5 +1,9 @@
 # SETTINGS FILE
 
+# Device Type
+MATRIX1 = "2236c5"
+MATRIX2 = "f78b47"
+
 # Internet Credentials
 CIRCUITPY_WIFI_SSID = "o==[]:::::::::::::::::::::::::>"
 CIRCUITPY_WIFI_PASSWORD = "YOUR_WIFI_PASSWORD"
