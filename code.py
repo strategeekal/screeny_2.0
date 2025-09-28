@@ -174,7 +174,6 @@ class Visual:
 	
 	# Color test grid
 	COLOR_TEST_GRID_COLS = 3
-	COLOR_TEST_GRID_ROWS = 4
 	COLOR_TEST_COL_SPACING = 16
 	COLOR_TEST_ROW_SPACING = 11
 	
@@ -271,7 +270,7 @@ _BASE_COLORS = {
 	"GREEN": 0x003F00,
 	"BLUE": 0x00003F,
 	"ORANGE": 0x7F1F00,
-	"YELLOW": 0x3F3F00,
+	"YELLOW": 0x3F2F00,
 	"CYAN": 0x003F3F,
 	"PURPLE": 0x080025,
 	"PINK": 0x7F1F5F,
@@ -290,7 +289,7 @@ _COLOR_CORRECTIONS = {
 		"GREEN": 0x00003F,     # 0x003F00 with green/blue swapped
 		"BLUE": 0x003F00,      # 0x00003F with green/blue swapped
 		"ORANGE": 0x7F001F,    # 0x5F1F00 with green/blue swapped
-		"YELLOW": 0x3F003F,    # 0x3F3F00 with green/blue swapped
+		"YELLOW": 0x3F002F,    # 0x3F3F00 with green/blue swapped
 		"PURPLE": 0x082500,    # 0x3F003F with green/blue swapped
 		"PINK": 0x7F5F1F,      # 0x3F1F5F with green/blue swapped
 	}
@@ -1527,7 +1526,7 @@ def show_color_test_display(duration=Timing.COLOR_TEST):
 		for i, (color_name, text) in enumerate(zip(test_color_names, texts)):
 			color = state.colors[color_name]
 			col = i // Visual.COLOR_TEST_GRID_COLS
-			row = i % Visual.COLOR_TEST_GRID_ROWS
+			row = i % Visual.COLOR_TEST_GRID_COLS
 			
 			label = bitmap_label.Label(
 				font, color=color, text=text,
