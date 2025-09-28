@@ -329,7 +329,7 @@ startup_time = 0
 bg_font = bitmap_font.load_font(Paths.FONT_BIG)
 font = bitmap_font.load_font(Paths.FONT_SMALL)
 
-### IMAGE CACHE ###
+### CACHE ###
 
 class ImageCache:
 	def __init__(self, max_size=10):
@@ -371,8 +371,48 @@ class ImageCache:
 		total = self.hit_count + self.miss_count
 		hit_rate = (self.hit_count / total * 100) if total > 0 else 0
 		return f"Cache: {len(self.cache)} items, {hit_rate:.1f}% hit rate"
+		
+class TextWidthCache:
+		def __init__(self, max_size=50):
+			self.cache = {}  # (text, font_id) -> width
+			self.max_size = max_size
+			self.hit_count = 0
+			self.miss_count = 0
+		
+		def get_text_width(self, text, font):
+			if not text:
+				return 0
+				
+			cache_key = (text, id(font))
+			
+			if cache_key in self.cache:
+				self.hit_count += 1
+				return self.cache[cache_key]
+			
+			# Cache miss - calculate width
+			temp_label = bitmap_label.Label(font, text=text)
+			bbox = temp_label.bounding_box
+			width = bbox[2] if bbox else 0
+			
+			self.miss_count += 1
+			
+			# Evict oldest if cache full
+			if len(self.cache) >= self.max_size:
+				oldest_key = next(iter(self.cache))
+				del self.cache[oldest_key]
+			
+			self.cache[cache_key] = width
+			return width
+		
+		def get_stats(self):
+			total = self.hit_count + self.miss_count
+			hit_rate = (self.hit_count / total * 100) if total > 0 else 0
+			return f"Text cache: {len(self.cache)} items, {hit_rate:.1f}% hit rate"
+
+# Global Cache
 
 image_cache = ImageCache(max_size=12)
+text_cache = TextWidthCache()
 
 
 ### LOGGING UTILITIES ###
@@ -988,12 +1028,7 @@ def load_bmp_image(filepath):
 	return bitmap, palette
 
 def get_text_width(text, font):
-	"""Calculate pixel width of text"""
-	if not text:
-		return 0
-	temp_label = bitmap_label.Label(font, text=text)
-	bbox = temp_label.bounding_box
-	return bbox[2] if bbox else 0
+	return text_cache.get_text_width(text, font)
 	
 def get_font_metrics(font, text="Aygjpq"):
 	"""
@@ -1392,10 +1427,10 @@ def _display_single_event(event_data, rtc, duration):
 				# Load event-specific image (25x28 positioned at top right)
 				image_file = f"{Paths.EVENT_IMAGES}/{event_data[2]}"
 				try:
-					bitmap, palette = load_bmp_image(image_file)
+					bitmap, palette = image_cache.get_image(image_file)
 				except Exception as e:
 					log_warning(f"Failed to load {image_file}: {e}")
-					bitmap, palette = load_bmp_image(Paths.FALLBACK_EVENT_IMAGE)
+					bitmap, palette = image_cache.get_image(Paths.FALLBACK_EVENT_IMAGE)
 				
 				# Position 25px wide image at top right
 				image_grid = displayio.TileGrid(bitmap, pixel_shader=palette)
@@ -1562,7 +1597,7 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 					bitmap, palette = image_cache.get_image(f"{Paths.COLUMN_IMAGES}/{col['image']}")
 				except:
 					# Fallback to column images
-					bitmap, palette = load_bmp_image(f"{Paths.COLUMN_IMAGES}/{i+1}.bmp")
+					bitmap, palette = image_cache.get_image(f"{Paths.COLUMN_IMAGES}/{i+1}.bmp")
 					log_warning(f"Used fallback column image for column {i+1}")
 				
 				col_img = displayio.TileGrid(bitmap, pixel_shader=palette)
