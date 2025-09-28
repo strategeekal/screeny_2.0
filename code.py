@@ -173,9 +173,10 @@ class Visual:
 	HUMIDITY_SPACING_POSITIONS = [2, 5, 8, 11]  # Every 20%
 	
 	# Color test grid
-	COLOR_TEST_GRID_COLS = 3      # From: col = i // 3
-	COLOR_TEST_COL_SPACING = 16   # From: x=2 + col * 16
-	COLOR_TEST_ROW_SPACING = 11   # From: y=2 + row * 11
+	COLOR_TEST_GRID_COLS = 3
+	COLOR_TEST_GRID_ROWS = 4
+	COLOR_TEST_COL_SPACING = 16
+	COLOR_TEST_ROW_SPACING = 11
 	
 ## System_constants
 
@@ -327,6 +328,52 @@ startup_time = 0
 # Load fonts once at startup
 bg_font = bitmap_font.load_font(Paths.FONT_BIG)
 font = bitmap_font.load_font(Paths.FONT_SMALL)
+
+### IMAGE CACHE ###
+
+class ImageCache:
+	def __init__(self, max_size=10):
+		self.cache = {}  # filepath -> (bitmap, palette)
+		self.max_size = max_size
+		self.hit_count = 0
+		self.miss_count = 0
+	
+	def get_image(self, filepath):
+		if filepath in self.cache:
+			self.hit_count += 1
+			return self.cache[filepath]
+		
+		# Cache miss - load the image
+		try:
+			bitmap, palette = load_bmp_image(filepath)
+			self.miss_count += 1
+			
+			# Check if cache is full
+			if len(self.cache) >= self.max_size:
+				# Remove oldest entry (simple FIFO)
+				oldest_key = next(iter(self.cache))
+				del self.cache[oldest_key]
+				log_debug(f"Image cache full, removed: {oldest_key}")
+			
+			self.cache[filepath] = (bitmap, palette)
+			log_debug(f"Cached image: {filepath}")
+			return bitmap, palette
+			
+		except Exception as e:
+			log_error(f"Failed to load image {filepath}: {e}")
+			return None, None
+	
+	def clear_cache(self):
+		self.cache.clear()
+		log_debug("Image cache cleared")
+	
+	def get_stats(self):
+		total = self.hit_count + self.miss_count
+		hit_rate = (self.hit_count / total * 100) if total > 0 else 0
+		return f"Cache: {len(self.cache)} items, {hit_rate:.1f}% hit rate"
+
+image_cache = ImageCache(max_size=12)
+
 
 ### LOGGING UTILITIES ###
 
@@ -1206,7 +1253,7 @@ def show_weather_display(rtc, duration, weather_data=None):
 	
 	# Load weather icon
 	try:
-		bitmap, palette = load_bmp_image(f"{Paths.WEATHER_ICONS}/{weather_data['weather_icon']}.bmp")
+		bitmap, palette = image_cache.get_image(f"{Paths.WEATHER_ICONS}/{weather_data['weather_icon']}.bmp")
 		image_grid = displayio.TileGrid(bitmap, pixel_shader=palette)
 		main_group.append(image_grid)
 	except Exception as e:
@@ -1338,7 +1385,7 @@ def _display_single_event(event_data, rtc, duration):
 		try:
 			if event_data[1] == "Birthday":
 				# For birthday events, use the original cake image layout
-				bitmap, palette = load_bmp_image(Paths.BIRTHDAY_IMAGE)
+				bitmap, palette = image_cache.get_image(Paths.BIRTHDAY_IMAGE)
 				image_grid = displayio.TileGrid(bitmap, pixel_shader=palette)
 				main_group.append(image_grid)
 			else:
@@ -1352,8 +1399,8 @@ def _display_single_event(event_data, rtc, duration):
 				
 				# Position 25px wide image at top right
 				image_grid = displayio.TileGrid(bitmap, pixel_shader=palette)
-				image_grid.x = 37  # Right-aligned for 25px wide image
-				image_grid.y = 2   # Start at y = 2 as requested
+				image_grid.x = Layout.EVENT_IMAGE_X  # Right-aligned for 25px wide image
+				image_grid.y = Layout.EVENT_IMAGE_Y   # Start at y = 2 as requested
 				
 				# Calculate optimal text positions dynamically
 				line1_text = event_data[1]  # e.g., "Cumple"
@@ -1512,7 +1559,7 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 			try:
 				# Try actual weather icons first
 				try:
-					bitmap, palette = load_bmp_image(f"{Paths.COLUMN_IMAGES}/{col['image']}")
+					bitmap, palette = image_cache.get_image(f"{Paths.COLUMN_IMAGES}/{col['image']}")
 				except:
 					# Fallback to column images
 					bitmap, palette = load_bmp_image(f"{Paths.COLUMN_IMAGES}/{i+1}.bmp")
@@ -1753,10 +1800,14 @@ def main():
 		last_successful_weather = startup_time
 		
 		log_info("Entering main display loop (Press CTRL+C to stop)", include_memory=True)
+		log_debug(f"Image cache initialized: {image_cache.get_stats()}")
 		
 		# Main display loop
+		cycle_count = 0
 		while True:
 			try:
+				cycle_count += 1
+				
 				# System maintenance
 				check_daily_reset(rtc)
 				
@@ -1797,7 +1848,7 @@ def main():
 				# Current weather (with potentially extended duration)
 				if DISPLAY_CONFIG["weather"]:
 					if not current_data:  # Only fetch if we don't already have it
-						current_data = fetch_current_and_forecast_weather()
+						current_data, _ = fetch_current_and_forecast_weather()
 					show_weather_display(rtc, current_duration, current_data)
 				else:
 					log_debug("Weather display disabled")
@@ -1817,6 +1868,9 @@ def main():
 			except Exception as e:
 				log_error(f"Display loop error: {e}", include_memory=True)
 				interruptible_sleep(Timing.SLEEP_BETWEEN_ERRORS)
+				
+			if cycle_count % 10 == 0:
+				log_debug(image_cache.get_stats())
 				
 	except KeyboardInterrupt:
 		log_info("Program interrupted by user")
