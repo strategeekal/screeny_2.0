@@ -103,6 +103,18 @@ class Timing:
 	SLEEP_BETWEEN_ERRORS = 5
 	RESTART_DELAY = 10
 	
+	WEATHER_UPDATE_INTERVAL = 60
+	MEMORY_CHECK_INTERVAL = 30
+	GC_INTERVAL = 60
+	
+	CYCLES_TO_MONITOR_MEMORY = 10
+	CYCLES_FOR_FORCE_CLEANUP = 25
+	CYCLES_FOR_MEMORY_REPORT = 100
+	CYCLES_FOR_CACHE_STATS = 10
+	
+	EVENT_CHUCK_SIZE = 60
+	EVENT_MEMORY_MONITORING = 600 # For long events (e.g. all day)
+	
 # Timezone offset table
 TIMEZONE_OFFSETS = {
 		"America/New_York": {"std": -5, "dst": -4, "dst_start": (3, 8), "dst_end": (11, 7)},
@@ -193,6 +205,8 @@ class System:
 	# Hour format constants
 	HOURS_IN_DAY = 24
 	HOURS_IN_HALF_DAY = 12
+	SECONDS_PER_MINUTE = 60
+	SECONDS_PER_HOUR = 3600
 	
 ## Test Data Constants
 
@@ -378,9 +392,90 @@ class TextWidthCache:
 			total = self.hit_count + self.miss_count
 			hit_rate = (self.hit_count / total * 100) if total > 0 else 0
 			return f"Text cache: {len(self.cache)} items, {hit_rate:.1f}% hit rate"
-			
+		
+class MemoryMonitor:
+	def __init__(self):
+		self.baseline_memory = gc.mem_free()
+		self.startup_time = time.monotonic()
+		self.peak_usage = 0
+		self.measurements = []
+		self.max_measurements = 5  # Reduced from 10
+		
+	def get_memory_stats(self):
+		"""Get current memory statistics with percentages"""
+		current_free = gc.mem_free()
+		current_used = Memory.ESTIMATED_TOTAL - current_free
+		usage_percent = (current_used / Memory.ESTIMATED_TOTAL) * 100
+		free_percent = (current_free / Memory.ESTIMATED_TOTAL) * 100
+		
+		return {
+			"free_bytes": current_free,
+			"used_bytes": current_used,
+			"usage_percent": usage_percent,
+			"free_percent": free_percent,
+		}
+	
+	def get_runtime(self):
+		"""Get runtime since startup"""
+		elapsed = time.monotonic() - self.startup_time
+		hours = int(elapsed // System.SECONDS_PER_HOUR)
+		minutes = int((elapsed % System.SECONDS_PER_HOUR) // System.SECONDS_PER_MINUTE)
+		seconds = int(elapsed % System.SECONDS_PER_MINUTE)
+		return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+	
+	def check_memory(self, checkpoint_name=""):
+		"""Check memory and log"""
+		stats = self.get_memory_stats()
+		runtime = self.get_runtime()
+		
+		# Update peak usage tracking
+		if stats["used_bytes"] > self.peak_usage:
+			self.peak_usage = stats["used_bytes"]
+		
+		# Store measurement
+		self.measurements.append({
+			"name": checkpoint_name,
+			"used_percent": stats["usage_percent"],
+			"runtime": runtime
+		})
+		if len(self.measurements) > self.max_measurements:
+			self.measurements.pop(0)
+		
+		# Always log as debug (since your memory is healthy)
+		log_debug(f"Memory: {stats['usage_percent']:.1f}% used at {checkpoint_name} [{runtime}]")
+		return "ok"
+	
+	def get_memory_report(self):
+		"""Generate a simplified memory report"""
+		stats = self.get_memory_stats()
+		runtime = self.get_runtime()
+		peak_percent = (self.peak_usage / Memory.ESTIMATED_TOTAL) * 100
+		
+		report = [
+			"=== MEMORY REPORT ===",
+			f"Runtime: {runtime}",
+			f"Current: {stats['usage_percent']:.1f}% used",
+			f"Peak usage: {peak_percent:.1f}%",
+		]
+		
+		if self.measurements:
+			report.append("Recent measurements:")
+			for measurement in self.measurements:
+				name = measurement["name"] or "unnamed"
+				used_pct = measurement["used_percent"]
+				runtime = measurement["runtime"]
+				report.append(f"  {name}: {used_pct:.1f}% used [{runtime}]")
+		
+		return "\n".join(report)
+	
+	def log_report(self):
+		"""Log the memory report"""
+		report = self.get_memory_report()
+		for line in report.split("\n"):
+			log_info(line)
+		
+	
 ## State Class
-			
 class WeatherDisplayState:
 	def __init__(self):
 		# Hardware instances
@@ -411,6 +506,9 @@ class WeatherDisplayState:
 		# Caches
 		self.image_cache = ImageCache(max_size=12)
 		self.text_cache = TextWidthCache()
+		
+		# Add memory monitor
+		self.memory_monitor = MemoryMonitor()
 	
 	def reset_api_counters(self):
 		"""Reset API call tracking"""
@@ -451,9 +549,9 @@ font = bitmap_font.load_font(Paths.FONT_SMALL)
 
 ### LOGGING UTILITIES ###
 
-def log_entry(message, level="INFO", include_memory=False):
+def log_entry(message, level="INFO"):
 	"""
-	Unified logging with timestamp and optional memory stats
+	Unified logging with timestamp (memory monitoring now handled by MemoryMonitor class)
 	"""
 	try:
 		# Try RTC first, fallback to system time
@@ -461,60 +559,49 @@ def log_entry(message, level="INFO", include_memory=False):
 			try:
 				dt = state.rtc_instance.datetime
 				timestamp = f"{dt.tm_year}-{dt.tm_mon:02d}-{dt.tm_mday:02d} {dt.tm_hour:02d}:{dt.tm_min:02d}:{dt.tm_sec:02d}"
-				time_source = ""  # RTC time is most reliable
+				time_source = ""
 			except Exception:
-				# RTC exists but failed to read
 				import time
 				monotonic_time = time.monotonic()
 				timestamp = f"SYS+{int(monotonic_time)}"
 				time_source = " [SYS]"
 		else:
-			# No RTC available, use system monotonic time
 			import time
 			monotonic_time = time.monotonic()
-			# Convert to more readable format (hours:minutes since startup)
-			hours = int(monotonic_time // 3600)
-			minutes = int((monotonic_time % 3600) // 60)
-			seconds = int(monotonic_time % 60)
+			hours = int(monotonic_time // System.SECONDS_PER_HOUR)
+			minutes = int((monotonic_time % System.SECONDS_PER_HOUR) // System.SECONDS_PER_MINUTE)
+			seconds = int(monotonic_time % System.SECONDS_PER_MINUTE)
 			timestamp = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 			time_source = " [UPTIME]"
 		
-		# Build log entry
+		# Build log entry (no memory calculation)
 		log_line = f"[{timestamp}{time_source}] {level}: {message}"
-		
-		# Add memory info if requested
-		if include_memory and LOG_MEMORY_STATS:
-			import gc
-			free_mem = gc.mem_free()
-			mem_percent = ((Memory.ESTIMATED_TOTAL - free_mem) / Memory.ESTIMATED_TOTAL) * 100
-			log_line += f" (Mem: {free_mem//1024}KB/{mem_percent:.1f}%)"
-		
 		print(log_line)
-		
+			
 	except Exception as e:
 		print(f"[LOG-ERROR] Failed to log: {message} (Error: {e})")
 
-def log_info(message, include_memory=False):
+def log_info(message):
 	"""Log info message"""
-	log_entry(message, "INFO", include_memory)
+	log_entry(message, "INFO")
 
-def log_error(message, include_memory=True):
+def log_error(message):
 	"""Log error message with memory stats"""
-	log_entry(message, "ERROR", include_memory)
+	log_entry(message, "ERROR")
 
-def log_warning(message, include_memory=False):
+def log_warning(message):
 	"""Log warning message"""
-	log_entry(message, "WARNING", include_memory)
+	log_entry(message, "WARNING")
 
-def log_debug(message, include_memory=False):
+def log_debug(message):
 	"""Log debug message"""
 	if DEBUG_MODE:
-		log_entry(message, "DEBUG", include_memory)
+		log_entry(message, "DEBUG")
 		
 def duration_message(seconds):
 	"""Convert seconds to a readable duration string"""
-	h, remainder = divmod(seconds, 3600)
-	m, s = divmod(remainder, 60)
+	h, remainder = divmod(seconds, System.SECONDS_PER_HOUR)
+	m, s = divmod(remainder, System.SECONDS_PER_MINUTE)
 	
 	parts = []
 	if h > 0:
@@ -561,6 +648,8 @@ def format_datetime(iso_string):
 
 def initialize_display():
 	"""Initialize RGB matrix display"""
+	state.memory_monitor.check_memory("display_init_start")
+	
 	displayio.release_displays()
 	
 	matrix = rgbmatrix.RGBMatrix(
@@ -577,6 +666,8 @@ def initialize_display():
 	state.display = framebufferio.FramebufferDisplay(matrix, auto_refresh=True)
 	state.main_group = displayio.Group()
 	state.display.root_group = state.main_group
+	
+	state.memory_monitor.check_memory("display_init_complete")
 	log_info("Display initiated successfully")
 
 
@@ -588,11 +679,14 @@ def interruptible_sleep(duration):
 
 def setup_rtc():
 	"""Initialize RTC with retry logic"""
+	state.memory_monitor.check_memory("rtc_init_start")
+	
 	for attempt in range(System.MAX_RTC_ATTEMPTS):
 		try:
 			i2c = board.I2C()
 			rtc = adafruit_ds3231.DS3231(i2c)
 			state.rtc_instance = rtc
+			state.memory_monitor.check_memory("rtc_init_success")
 			log_info(f"RTC initialized on attempt {attempt + 1}")
 			return rtc
 		except Exception as e:
@@ -790,6 +884,7 @@ def fetch_weather_with_retries(url, max_retries=None):
 
 def fetch_current_and_forecast_weather():
 	"""Fetch current and/or forecast weather with individual controls and detailed tracking"""
+	state.memory_monitor.check_memory("weather_fetch_start")
 	
 	# Check what to fetch based on config
 	fetch_current = DISPLAY_CONFIG.get("fetch_current", True)
@@ -804,7 +899,7 @@ def fetch_current_and_forecast_weather():
 	
 	# Monitor memory just before planned restart
 	if state.api_call_count + expected_calls >= API.MAX_CALLS_BEFORE_RESTART:
-		log_warning(f"API call #{state.api_call_count + expected_calls} - restart imminent", include_memory=True)
+		log_warning(f"API call #{state.api_call_count + expected_calls} - restart imminent")
 	
 	try:
 		# Get matrix-specific API key
@@ -826,6 +921,7 @@ def fetch_current_and_forecast_weather():
 			current_json = fetch_weather_with_retries(current_url)
 			
 			if current_json:
+				state.memory_monitor.check_memory("current_data_processing")
 				state.current_api_calls += 1
 				state.api_call_count += 1
 				current_success = True
@@ -849,7 +945,9 @@ def fetch_current_and_forecast_weather():
 				}
 				log_debug(f"CURRENT DATA: {current_data}")
 				
-				log_info(f"Current weather: {current_data['weather_text']}, {current_data['temperature']}°C (API #{state.api_call_count}/{API.MAX_CALLS_BEFORE_RESTART})", include_memory=True)
+				log_info(f"Current weather: {current_data['weather_text']}, {current_data['temperature']}°C (API #{state.api_call_count}/{API.MAX_CALLS_BEFORE_RESTART})")
+				
+				state.memory_monitor.check_memory("current_data_complete")
 
 			else:
 				log_warning("Current weather fetch failed")
@@ -868,7 +966,8 @@ def fetch_current_and_forecast_weather():
 			forecast_fetch_length = min(API.DEFAULT_FORECAST_HOURS,API.MAX_FORECAST_HOURS)
 			
 			if forecast_json and len(forecast_json) >= forecast_fetch_length:
-				# Extract first 3 hours of forecast data
+				state.memory_monitor.check_memory("forecast_data_processing")
+				# Extract forecast data
 				forecast_data = []
 				for i in range(forecast_fetch_length):
 					hour_data = forecast_json[i]
@@ -887,6 +986,7 @@ def fetch_current_and_forecast_weather():
 						log_debug(f"Hour {h+1} ({format_datetime(forecast_data[h]['datetime'])}): {forecast_data[h]['temperature']}°C, {forecast_data[h]['weather_text']} (Icon {forecast_data[h]['weather_icon']})")
 						h += 1
 				
+				state.memory_monitor.check_memory("forecast_data_complete")
 				forecast_success = True
 			
 			else:
@@ -894,7 +994,7 @@ def fetch_current_and_forecast_weather():
 				forecast_data = None
 		
 		# Log API call statistics
-		log_info(f"API Stats: Total={state.api_call_count}/{API.MAX_CALLS_BEFORE_RESTART}, Current={state.current_api_calls}, Forecast={state.forecast_api_calls}", include_memory=True)
+		log_info(f"API Stats: Total={state.api_call_count}/{API.MAX_CALLS_BEFORE_RESTART}, Current={state.current_api_calls}, Forecast={state.forecast_api_calls}")
 		
 		# Determine overall success
 		any_success = current_success or forecast_success
@@ -908,15 +1008,17 @@ def fetch_current_and_forecast_weather():
 		
 		# Check for preventive restart
 		if state.api_call_count >= API.MAX_CALLS_BEFORE_RESTART:
-			log_warning(f"Preventive restart after {state.api_call_count} API calls", include_memory=True)
+			log_warning(f"Preventive restart after {state.api_call_count} API calls")
 			cleanup_global_session()
 			interruptible_sleep(API.RETRY_DELAY)
 			supervisor.reload()
 		
+		state.memory_monitor.check_memory("weather_fetch_complete")
 		return current_data, forecast_data
 		
 	except Exception as e:
 		log_error(f"Weather fetch error: {e}")
+		state.memory_monitor.check_memory("weather_fetch_error")
 		state.consecutive_failures += 1
 		return None, None
 
@@ -1099,7 +1201,7 @@ def load_events_from_csv():
 						events[date_key].append([line1, line2, image, color])
 						line_count += 1
 			
-			log_info(f"Loaded {line_count} events successfully from CSV", include_memory = True)
+			log_info(f"Loaded {line_count} events successfully from CSV")
 			return events
 			
 	except Exception as e:
@@ -1274,12 +1376,12 @@ def add_indicator_bars(main_group, x_start, uv_index, humidity):
 
 
 def show_weather_display(rtc, duration, weather_data=None):
-	"""Display weather information and time"""
-	log_debug("Displaying weather...", include_memory=True)
+	"""Optimized weather display - only update time text in loop"""
+	state.memory_monitor.check_memory("weather_display_start")
+	log_debug("Displaying weather...")
 	
 	# Use provided data or fetch fresh data
 	if weather_data is None:
-		# Fetch fresh weather data (existing behavior)
 		if DISPLAY_CONFIG["dummy_weather"]:
 			weather_data = TestData.DUMMY_WEATHER_DATA
 		else:
@@ -1288,23 +1390,77 @@ def show_weather_display(rtc, duration, weather_data=None):
 	
 	# Log with duration information
 	if weather_data:
-		log_info(f"Displaying Current Weather for {duration_message(duration)}: {weather_data['weather_text']}, {weather_data['temperature']}°C", include_memory=True)
+		log_info(f"Displaying Current Weather for {duration_message(duration)}: {weather_data['weather_text']}, {weather_data['temperature']}°C")
 	
 	if not weather_data:
 		log_warning("Weather unavailable, showing clock")
 		show_clock_display(rtc, duration)
 		return
 	
-	# Rest of your existing function code stays exactly the same...
+	# Clear display and setup static elements ONCE
 	clear_display()
+	state.memory_monitor.check_memory("weather_display_cleared")
 	
-	# Create display elements
-	temp_text = bitmap_label.Label(bg_font, color=state.colors["DIMMEST_WHITE"], x=Layout.WEATHER_TEMP_X, y=Layout.WEATHER_TEMP_Y, background_color = state.colors["BLACK"], padding_top =Layout.BG_PADDING_TOP, padding_bottom = 1, padding_left = 1,)
-	feels_like_text = bitmap_label.Label(font, color=state.colors["DIMMEST_WHITE"], y=Layout.FEELSLIKE_Y, background_color = state.colors["BLACK"], padding_top=Layout.BG_PADDING_TOP, padding_bottom=-2, padding_left = 1,)
-	feels_shade_text = bitmap_label.Label(font, color=state.colors["DIMMEST_WHITE"], y=Layout.FEELSLIKE_SHADE_Y, background_color = state.colors["BLACK"], padding_top=Layout.BG_PADDING_TOP, padding_bottom=-2, padding_left = 1,)
-	time_text = bitmap_label.Label(font, color=state.colors["DIMMEST_WHITE"], x=Layout.WEATHER_TIME_X, y=Layout.WEATHER_TIME_Y, background_color = state.colors["BLACK"], padding_top=Layout.BG_PADDING_TOP, padding_bottom=-2, padding_left = 1,)
+	# Create all static display elements ONCE
+	temp_text = bitmap_label.Label(
+		bg_font, 
+		color=state.colors["DIMMEST_WHITE"], 
+		text=f"{round(weather_data['temperature'])}°",
+		x=Layout.WEATHER_TEMP_X, 
+		y=Layout.WEATHER_TEMP_Y, 
+		background_color=state.colors["BLACK"], 
+		padding_top=Layout.BG_PADDING_TOP, 
+		padding_bottom=1, 
+		padding_left=1
+	)
 	
-	# Load weather icon
+	# Create time text - this is the ONLY element we'll update
+	time_text = bitmap_label.Label(
+		font, 
+		color=state.colors["DIMMEST_WHITE"], 
+		x=Layout.WEATHER_TIME_X, 
+		y=Layout.WEATHER_TIME_Y, 
+		background_color=state.colors["BLACK"], 
+		padding_top=Layout.BG_PADDING_TOP, 
+		padding_bottom=-2, 
+		padding_left=1
+	)
+	
+	# Create feels-like temperatures if different (static)
+	temp_rounded = round(weather_data['temperature'])
+	feels_like_rounded = round(weather_data['feels_like'])
+	feels_shade_rounded = round(weather_data['feels_shade'])
+	
+	feels_like_text = None
+	feels_shade_text = None
+	
+	if feels_like_rounded != temp_rounded:
+		feels_like_text = bitmap_label.Label(
+			font, 
+			color=state.colors["DIMMEST_WHITE"], 
+			text=f"{feels_like_rounded}°",
+			y=Layout.FEELSLIKE_Y, 
+			background_color=state.colors["BLACK"], 
+			padding_top=Layout.BG_PADDING_TOP, 
+			padding_bottom=-2, 
+			padding_left=1
+		)
+		feels_like_text.x = right_align_text(feels_like_text.text, font, Layout.RIGHT_EDGE)
+	
+	if feels_shade_rounded != feels_like_rounded:
+		feels_shade_text = bitmap_label.Label(
+			font, 
+			color=state.colors["DIMMEST_WHITE"], 
+			text=f"{feels_shade_rounded}°",
+			y=Layout.FEELSLIKE_SHADE_Y, 
+			background_color=state.colors["BLACK"], 
+			padding_top=Layout.BG_PADDING_TOP, 
+			padding_bottom=-2, 
+			padding_left=1
+		)
+		feels_shade_text.x = right_align_text(feels_shade_text.text, font, Layout.RIGHT_EDGE)
+	
+	# Load weather icon ONCE
 	try:
 		bitmap, palette = state.image_cache.get_image(f"{Paths.WEATHER_ICONS}/{weather_data['weather_icon']}.bmp")
 		image_grid = displayio.TileGrid(bitmap, pixel_shader=palette)
@@ -1312,57 +1468,69 @@ def show_weather_display(rtc, duration, weather_data=None):
 	except Exception as e:
 		log_warning(f"Icon load failed: {e}")
 	
-	# Setup temperature display
-	temp_text.text = f"{round(weather_data['temperature'])}°"
+	# Add all static elements to display ONCE
 	state.main_group.append(temp_text)
-	
-	# Add UV and humidity indicator bars
-	add_indicator_bars(state.main_group, temp_text.x, weather_data['uv_index'], weather_data['humidity'])
-	
-	# Add feels-like temperatures if different
-	temp_rounded = round(weather_data['temperature'])
-	feels_like_rounded = round(weather_data['feels_like'])
-	feels_shade_rounded = round(weather_data['feels_shade'])
-	
-	if feels_like_rounded != temp_rounded:
-		feels_like_text.text = f"{feels_like_rounded}°"
-		feels_like_text.x = right_align_text(feels_like_text.text, font, Layout.RIGHT_EDGE)
-		state.main_group.append(feels_like_text)
-	
-	if feels_shade_rounded != feels_like_rounded:
-		feels_shade_text.text = f"{feels_shade_rounded}°"
-		feels_shade_text.x = right_align_text(feels_shade_text.text, font, Layout.RIGHT_EDGE)
-		state.main_group.append(feels_shade_text)
-	
 	state.main_group.append(time_text)
 	
-	# Add day indicator
+	if feels_like_text:
+		state.main_group.append(feels_like_text)
+	if feels_shade_text:
+		state.main_group.append(feels_shade_text)
+	
+	# Add UV and humidity indicator bars ONCE (they're static)
+	add_indicator_bars(state.main_group, temp_text.x, weather_data['uv_index'], weather_data['humidity'])
+	
+	# Add day indicator ONCE
 	if DISPLAY_CONFIG["weekday_color"]:
 		add_day_indicator(state.main_group, rtc)
-		log_debug(f"Showing Weekday Color Indicator on Weather Display for {get_day_color(rtc)}")
+		log_debug(f"Showing Weekday Color Indicator on Weather Display")
 	else:
 		log_debug("Weekday Color Indicator Disabled")
-
-	# Display update loop
+	
+	state.memory_monitor.check_memory("weather_display_static_complete")
+	
+	# Optimized display update loop - ONLY update time text
 	start_time = time.monotonic()
+	loop_count = 0
+	last_minute = -1  # Track minute changes to reduce updates
+	
 	while time.monotonic() - start_time < duration:
-		# Update time display
-		hour = rtc.datetime.tm_hour
-		display_hour = hour % 12 if hour % 12 != 0 else 12
-		current_time = f"{display_hour}:{rtc.datetime.tm_min:02d}"
-		time_text.text = current_time
+		loop_count += 1
 		
-		# Position time text
-		if feels_shade_rounded != feels_like_rounded:
-			time_text.x = center_text(current_time, font, 0, Display.WIDTH)
-		else:
-			time_text.x = right_align_text(current_time, font, Layout.RIGHT_EDGE)
+		# Memory monitoring and cleanup
+		if loop_count % Timing.GC_INTERVAL == 0:  # Every 60 seconds
+			gc.collect()
+			state.memory_monitor.check_memory(f"weather_display_gc_{loop_count//System.SECONDS_PER_MINUTE}")
+		elif loop_count % Timing.MEMORY_CHECK_INTERVAL == 0:  # Every 30 seconds, just check
+			state.memory_monitor.check_memory(f"weather_display_loop_{loop_count}")
+		
+		# Get current time
+		hour = rtc.datetime.tm_hour
+		minute = rtc.datetime.tm_min
+		
+		# Only update display when minute changes (not every second)
+		if minute != last_minute:
+			display_hour = hour % System.HOURS_IN_HALF_DAY if hour % System.HOURS_IN_HALF_DAY != 0 else System.HOURS_IN_HALF_DAY
+			current_time = f"{display_hour}:{minute:02d}"
+			
+			# Update ONLY the time text content
+			time_text.text = current_time
+			
+			# Position time text based on other elements
+			if feels_shade_text:
+				time_text.x = center_text(current_time, font, 0, Display.WIDTH)
+			else:
+				time_text.x = right_align_text(current_time, font, Layout.RIGHT_EDGE)
+			
+			last_minute = minute
 		
 		interruptible_sleep(1)
+	
+	state.memory_monitor.check_memory("weather_display_complete")
 
 def show_clock_display(rtc, duration=Timing.CLOCK_FALLBACK):
 	"""Display clock as fallback when weather unavailable"""
-	log_warning(f"Displaying clock for {duration_message(Timing.CLOCK_FALLBACK)}...", include_memory = True)
+	log_warning(f"Displaying clock for {duration_message(Timing.CLOCK_FALLBACK)}...")
 	clear_display()
 	
 	date_text = bitmap_label.Label(font, color=state.colors["DIMMEST_WHITE"], x=Layout.CLOCK_DATE_X, y=Layout.CLOCK_DATE_Y)
@@ -1384,7 +1552,7 @@ def show_clock_display(rtc, duration=Timing.CLOCK_FALLBACK):
 		date_str = f"{MONTHS[dt.tm_mon].upper()} {dt.tm_mday:02d}"
 		
 		hour = dt.tm_hour
-		display_hour = hour % 12 if hour % 12 != 0 else 12
+		display_hour = hour % System.HOURS_IN_HALF_DAY if hour % System.HOURS_IN_HALF_DAY != 0 else System.HOURS_IN_HALF_DAY
 		time_str = f"{display_hour}:{dt.tm_min:02d}:{dt.tm_sec:02d}"
 		
 		date_text.text = date_str
@@ -1399,119 +1567,148 @@ def show_clock_display(rtc, duration=Timing.CLOCK_FALLBACK):
 		supervisor.reload()
 		
 def show_event_display(rtc, duration):
-		"""Display special calendar events - cycles through multiple events if present"""
-		month_day = f"{rtc.datetime.tm_mon:02d}{rtc.datetime.tm_mday:02d}"
-		
-		# Get events from cache (loaded only once at startup)
-		events = get_events()
-		
-		if month_day not in events:
-			log_info("No events to display today")
-			return False
-		
-		event_list = events[month_day]
-		num_events = len(event_list)
-		
-		if num_events == 1:
-			# Single event - use full duration
-			event_data = event_list[0]
-			log_info(f"Showing event: {event_data[1]}, for {duration_message(duration)}", include_memory=True)
-			_display_single_event(event_data, rtc, duration)
-		else:
-			# Multiple events - split time between them
-			event_duration = max(duration // num_events, Timing.MIN_EVENT_DURATION)
-			log_info(f"Showing {num_events} events, {duration_message(duration)} each", include_memory=True)
-			
-			for i, event_data in enumerate(event_list):
-				log_info(f"Event {i+1}/{num_events}: {event_data[1]}")
-				_display_single_event(event_data, rtc, event_duration)
-		
-		return True
-
-def _display_single_event(event_data, rtc, duration):
-		"""Helper function to display a single event"""
-		clear_display()
-		
-		# Force garbage collection before loading images
-		gc.collect()
-		
-		try:
-			if event_data[1] == "Birthday":
-				# For birthday events, use the original cake image layout
-				bitmap, palette = state.image_cache.get_image(Paths.BIRTHDAY_IMAGE)
-				image_grid = displayio.TileGrid(bitmap, pixel_shader=palette)
-				state.main_group.append(image_grid)
-			else:
-				# Load event-specific image (25x28 positioned at top right)
-				image_file = f"{Paths.EVENT_IMAGES}/{event_data[2]}"
-				try:
-					bitmap, palette = state.image_cache.get_image(image_file)
-				except Exception as e:
-					log_warning(f"Failed to load {image_file}: {e}")
-					bitmap, palette = state.image_cache.get_image(Paths.FALLBACK_EVENT_IMAGE)
-				
-				# Position 25px wide image at top right
-				image_grid = displayio.TileGrid(bitmap, pixel_shader=palette)
-				image_grid.x = Layout.EVENT_IMAGE_X  # Right-aligned for 25px wide image
-				image_grid.y = Layout.EVENT_IMAGE_Y   # Start at y = 2 as requested
-				
-				# Calculate optimal text positions dynamically
-				line1_text = event_data[1]  # e.g., "Cumple"
-				line2_text = event_data[0]  # e.g., "Puchis"
-				text_color = event_data[3] if len(event_data) > 3 else Strings.DEFAULT_EVENT_COLOR  # Get color from CSV
-				
-				# Color_map through dictionary access:
-				line2_color = state.colors.get(text_color.upper(), state.colors[Strings.DEFAULT_EVENT_COLOR])
-				
-				# Get dynamic positions with 1px bottom margin and 1px line spacing
-				line1_y, line2_y = calculate_bottom_aligned_positions(
-					font, 
-					line1_text, 
-					line2_text,
-					display_height=Display.HEIGHT,
-					bottom_margin=Layout.BOTTOM_MARGIN,  # Very tight bottom margin
-					line_spacing=Layout.LINE_SPACING    # Minimal spacing between lines
-				)
-				
-				# Create text labels with calculated positions
-				text1 = bitmap_label.Label(
-					font,
-					color=state.colors["DIMMEST_WHITE"],
-					text=line1_text,
-					x=Layout.TEXT_MARGIN, y=line1_y
-				)
-				
-				text2 = bitmap_label.Label(
-					font,
-					color=line2_color,  # Use color from CSV
-					text=line2_text,
-					x=Layout.TEXT_MARGIN,
-					y=line2_y
-				)
-				
-				# Add elements to display
-				state.main_group.append(image_grid)
-				state.main_group.append(text1)
-				state.main_group.append(text2)
-				
-				# Add day indicator after other elements
-				if DISPLAY_CONFIG["weekday_color"]:
-					add_day_indicator(state.main_group, rtc)
-					log_debug(f"Showing Weekday Color Indicator on Event Display")
-				else:
-					log_debug("Weekday Color Indicator Disabled")
-				
-		except Exception as e:
-			log_error(f"Event display error: {e}")
-		
-		# Wait for specified duration
-		interruptible_sleep(duration)
-		
-		# Optional: Clean up after event display
-		gc.collect()
+	"""Display special calendar events - cycles through multiple events if present"""
+	state.memory_monitor.check_memory("event_display_start")
 	
+	month_day = f"{rtc.datetime.tm_mon:02d}{rtc.datetime.tm_mday:02d}"
+	
+	# Get events from cache (loaded only once at startup)
+	events = get_events()
+	
+	if month_day not in events:
+		log_info("No events to display today")
+		return False
+	
+	event_list = events[month_day]
+	num_events = len(event_list)
+	
+	if num_events == 1:
+		# Single event - use full duration
+		event_data = event_list[0]
+		log_info(f"Showing event: {event_data[1]}, for {duration_message(duration)}")
+		_display_single_event_optimized(event_data, rtc, duration)
+	else:
+		# Multiple events - split time between them
+		event_duration = max(duration // num_events, Timing.MIN_EVENT_DURATION)
+		log_info(f"Showing {num_events} events, {duration_message(event_duration)} each")
+		
+		for i, event_data in enumerate(event_list):
+			state.memory_monitor.check_memory(f"event_{i+1}_start")
+			log_info(f"Event {i+1}/{num_events}: {event_data[1]}")
+			_display_single_event_optimized(event_data, rtc, event_duration)
+	
+	state.memory_monitor.check_memory("event_display_complete")
+	return True
+
+def _display_single_event_optimized(event_data, rtc, duration):
+	"""Optimized helper function to display a single event - optimized for typical 30-second events"""
+	clear_display()
+	
+	# Force garbage collection before loading images
+	gc.collect()
+	state.memory_monitor.check_memory("single_event_start")
+	
+	try:
+		if event_data[1] == "Birthday":
+			# For birthday events, use the original cake image layout
+			bitmap, palette = state.image_cache.get_image(Paths.BIRTHDAY_IMAGE)
+			image_grid = displayio.TileGrid(bitmap, pixel_shader=palette)
+			state.main_group.append(image_grid)
+			state.memory_monitor.check_memory("birthday_image_loaded")
+		else:
+			# Load event-specific image (25x28 positioned at top right)
+			image_file = f"{Paths.EVENT_IMAGES}/{event_data[2]}"
+			try:
+				bitmap, palette = state.image_cache.get_image(image_file)
+			except Exception as e:
+				log_warning(f"Failed to load {image_file}: {e}")
+				bitmap, palette = state.image_cache.get_image(Paths.FALLBACK_EVENT_IMAGE)
+			
+			# Position 25px wide image at top right
+			image_grid = displayio.TileGrid(bitmap, pixel_shader=palette)
+			image_grid.x = Layout.EVENT_IMAGE_X
+			image_grid.y = Layout.EVENT_IMAGE_Y
+			
+			state.memory_monitor.check_memory("event_image_loaded")
+			
+			# Calculate optimal text positions dynamically
+			line1_text = event_data[1]  # e.g., "Cumple"
+			line2_text = event_data[0]  # e.g., "Puchis"
+			text_color = event_data[3] if len(event_data) > 3 else Strings.DEFAULT_EVENT_COLOR
+			
+			# Color map through dictionary access:
+			line2_color = state.colors.get(text_color.upper(), state.colors[Strings.DEFAULT_EVENT_COLOR])
+			
+			# Get dynamic positions
+			line1_y, line2_y = calculate_bottom_aligned_positions(
+				font, 
+				line1_text, 
+				line2_text,
+				display_height=Display.HEIGHT,
+				bottom_margin=Layout.BOTTOM_MARGIN,
+				line_spacing=Layout.LINE_SPACING
+			)
+			
+			# Create text labels
+			text1 = bitmap_label.Label(
+				font,
+				color=state.colors["DIMMEST_WHITE"],
+				text=line1_text,
+				x=Layout.TEXT_MARGIN, y=line1_y
+			)
+			
+			text2 = bitmap_label.Label(
+				font,
+				color=line2_color,
+				text=line2_text,
+				x=Layout.TEXT_MARGIN,
+				y=line2_y
+			)
+			
+			# Add elements to display
+			state.main_group.append(image_grid)
+			state.main_group.append(text1)
+			state.main_group.append(text2)
+			
+			state.memory_monitor.check_memory("event_text_created")
+			
+			# Add day indicator
+			if DISPLAY_CONFIG["weekday_color"]:
+				add_day_indicator(state.main_group, rtc)
+				log_debug("Showing Weekday Color Indicator on Event Display")
+		
+		state.memory_monitor.check_memory("event_display_static_complete")
+		
+		# Simple strategy optimized for your usage patterns
+		if duration <= Timing.EVENT_CHUCK_SIZE:
+			# Most common case: 10-60 second events, just sleep
+			interruptible_sleep(duration)
+		else:
+			# Rare case: all-day events, use 60-second chunks with minimal monitoring
+			elapsed = 0
+			chunk_size = Timing.EVENT_CHUCK_SIZE  # 1-minute chunks for long events
+			
+			while elapsed < duration:
+				remaining = duration - elapsed
+				sleep_time = min(chunk_size, remaining)
+				
+				interruptible_sleep(sleep_time)
+				elapsed += sleep_time
+				
+				# Very minimal monitoring for all-day events (every 10 minutes)
+				if elapsed % Timing.EVENT_MEMORY_MONITORING == 0:  # Every 10 minutes
+					state.memory_monitor.check_memory(f"event_display_allday_{int(elapsed//System.SECONDS_PER_MINUTE)}min")
+		
+	except Exception as e:
+		log_error(f"Event display error: {e}")
+		state.memory_monitor.check_memory("single_event_error")
+	
+	# Clean up after event display
+	gc.collect()
+	state.memory_monitor.check_memory("single_event_complete")
+			
 def show_color_test_display(duration=Timing.COLOR_TEST):
-	log_info(f"Displaying Color Test for {duration_message(Timing.COLOR_TEST)}", include_memory=True)
+	log_info(f"Displaying Color Test for {duration_message(Timing.COLOR_TEST)}")
 	clear_display()
 	gc.collect()
 	
@@ -1544,21 +1741,23 @@ def show_color_test_display(duration=Timing.COLOR_TEST):
 	return True
 	
 def show_forecast_display(current_data=None, forecast_data=None, duration=30):
-	"""Display 3-column forecast: Current time, +1 hour, +2 hours"""
+	"""Optimized forecast display - only update time text in column 1"""
+	state.memory_monitor.check_memory("forecast_display_start")
 	
 	# Check if we have real data - skip display if not
 	if not current_data or not forecast_data or len(forecast_data) < 3:
-		log_warning(f"Skipping forecast display - insufficient data (current: {current_data is not None}, forecast: {forecast_data is not None and len(forecast_data) >= 3 if forecast_data else False})")
+		log_warning(f"Skipping forecast display - insufficient data")
 		return False
 	
 	# Log with real data
-	log_info(f"Displaying Forecast for {duration_message(duration)}: Current {current_data['temperature']}°C, +1hr {forecast_data[0]['temperature']}°C, +2hr {forecast_data[1]['temperature']}°C", include_memory=True)
+	log_info(f"Displaying Forecast for {duration_message(duration)}: Current {current_data['temperature']}°C, +1hr {forecast_data[0]['temperature']}°C, +2hr {forecast_data[1]['temperature']}°C")
 	
 	clear_display()
 	gc.collect()
+	state.memory_monitor.check_memory("forecast_display_cleared")
 	
 	try:
-		# Use real data only (no fallbacks)
+		# Prepare all data ONCE
 		col1_temp = f"{round(current_data['temperature'])}°"
 		col1_icon = f"{current_data['weather_icon']}.bmp"
 		
@@ -1570,45 +1769,34 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 		hour_plus_1 = int(forecast_data[0]['datetime'][11:13]) % System.HOURS_IN_DAY
 		hour_plus_2 = int(forecast_data[1]['datetime'][11:13]) % System.HOURS_IN_DAY
 		
-		# Generate time labels FIRST
-		if state.rtc_instance:
-			current_hour = state.rtc_instance.datetime.tm_hour
-			current_minute = state.rtc_instance.datetime.tm_min
-			
-			display_hour = current_hour % System.HOURS_IN_HALF_DAY if current_hour % System.HOURS_IN_HALF_DAY != 0 else System.HOURS_IN_HALF_DAY
-			col1_time = f"{display_hour}:{current_minute:02d}"
-			
-			def format_hour(hour):
-				if hour == 0:
-					return Strings.NOON_12AM
-				elif hour < System.HOURS_IN_HALF_DAY:
-					return f"{hour}{Strings.AM_SUFFIX}"
-				elif hour == System.HOURS_IN_HALF_DAY:
-					return Strings.NOON_12PM
-				else:
-					return f"{hour-System.HOURS_IN_HALF_DAY}{Strings.PM_SUFFIX}"
-			
-			col2_time = format_hour(hour_plus_1)
-			col3_time = format_hour(hour_plus_2)
-		else:
-			log_error("RTC ERROR - No data to show forecast headers")
+		# Generate static time labels for columns 2 and 3
+		def format_hour(hour):
+			if hour == 0:
+				return Strings.NOON_12AM
+			elif hour < System.HOURS_IN_HALF_DAY:
+				return f"{hour}{Strings.AM_SUFFIX}"
+			elif hour == System.HOURS_IN_HALF_DAY:
+				return Strings.NOON_12PM
+			else:
+				return f"{hour-System.HOURS_IN_HALF_DAY}{Strings.PM_SUFFIX}"
 		
-		# NOW define columns with all the data
-		columns = [
-			{"image": col1_icon, "x": Layout.FORECAST_COL1_X, "time": col1_time, "temp": col1_temp},
-			{"image": col2_icon, "x": Layout.FORECAST_COL2_X, "time": col2_time, "temp": col2_temp},
-			{"image": col3_icon, "x": Layout.FORECAST_COL3_X, "time": col3_time, "temp": col3_temp}
-		]
+		col2_time = format_hour(hour_plus_1)
+		col3_time = format_hour(hour_plus_2)
 		
-		# Column positioning
+		# Column positioning constants
 		column_y = Layout.FORECAST_COLUMN_Y
 		column_width = Layout.FORECAST_COLUMN_WIDTH
 		time_y = Layout.FORECAST_TIME_Y
 		temp_y = Layout.FORECAST_TEMP_Y
-		first_time_label = None
 		
-		# Load and position weather icon columns
-		for i, col in enumerate(columns):
+		# Load and position weather icon columns ONCE
+		columns_data = [
+			{"image": col1_icon, "x": Layout.FORECAST_COL1_X, "temp": col1_temp},
+			{"image": col2_icon, "x": Layout.FORECAST_COL2_X, "temp": col2_temp},
+			{"image": col3_icon, "x": Layout.FORECAST_COL3_X, "temp": col3_temp}
+		]
+		
+		for i, col in enumerate(columns_data):
 			try:
 				# Try actual weather icons first
 				try:
@@ -1625,25 +1813,38 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 			except Exception as e:
 				log_warning(f"Failed to load column {i+1} image: {e}")
 		
-		# Add time labels with dynamic centering
-		for i, col in enumerate(columns):
-			centered_x = max(center_text(col["time"], font, col["x"], column_width),1)
-			
-			time_label = bitmap_label.Label(
-				font,
-				color=state.colors["DIMMEST_WHITE"],
-				text=col["time"],
-				x=centered_x,
-				y=time_y
-			)
-			state.main_group.append(time_label)
-			
-			# Store reference to first column's time label
-			if i == 0:
-				first_time_label = time_label
+		# Create time labels - only column 1 will be updated
+		col1_time_label = bitmap_label.Label(
+			font,
+			color=state.colors["DIMMEST_WHITE"],
+			x=max(center_text("00:00", font, Layout.FORECAST_COL1_X, column_width), 1),  # Initial placeholder
+			y=time_y
+		)
 		
-		# Add temperature labels with dynamic centering
-		for col in columns:
+		# Static time labels for columns 2 and 3
+		col2_time_label = bitmap_label.Label(
+			font,
+			color=state.colors["DIMMEST_WHITE"],
+			text=col2_time,
+			x=max(center_text(col2_time, font, Layout.FORECAST_COL2_X, column_width), 1),
+			y=time_y
+		)
+		
+		col3_time_label = bitmap_label.Label(
+			font,
+			color=state.colors["DIMMEST_WHITE"],
+			text=col3_time,
+			x=max(center_text(col3_time, font, Layout.FORECAST_COL3_X, column_width), 1),
+			y=time_y
+		)
+		
+		# Add time labels to display
+		state.main_group.append(col1_time_label)
+		state.main_group.append(col2_time_label)
+		state.main_group.append(col3_time_label)
+		
+		# Create temperature labels (all static)
+		for col in columns_data:
 			centered_x = center_text(col["temp"], font, col["x"], column_width) + 1
 			
 			temp_label = bitmap_label.Label(
@@ -1660,28 +1861,49 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 			add_day_indicator(state.main_group, state.rtc_instance)
 			log_debug("Showing Weekday Color Indicator on Forecast Display")
 		
-		# Display update loop with live time - REMOVE duplicate sleep
+		state.memory_monitor.check_memory("forecast_display_static_complete")
+		
+		# Optimized display update loop - ONLY update column 1 time
 		start_time = time.monotonic()
+		loop_count = 0
+		last_minute = -1
+		
 		while time.monotonic() - start_time < duration:
-			# Update first column time every second
-			if state.rtc_instance and first_time_label:
+			loop_count += 1
+			
+			# Update first column time only when minute changes
+			if state.rtc_instance:
 				current_hour = state.rtc_instance.datetime.tm_hour
 				current_minute = state.rtc_instance.datetime.tm_min
-				display_hour = current_hour % 12 if current_hour % 12 != 0 else 12
-				new_time = f"{display_hour}:{current_minute:02d}"
 				
-				if first_time_label.text != new_time:
-					first_time_label.text = new_time
+				if current_minute != last_minute:
+					display_hour = current_hour % System.HOURS_IN_HALF_DAY if current_hour % System.HOURS_IN_HALF_DAY != 0 else System.HOURS_IN_HALF_DAY
+					new_time = f"{display_hour}:{current_minute:02d}"
+					
+					# Update ONLY the first column time text
+					col1_time_label.text = new_time
 					# Recenter the text
-					first_time_label.x = max(center_text(new_time, font, columns[0]["x"], column_width),1)
+					col1_time_label.x = max(center_text(new_time, font, Layout.FORECAST_COL1_X, column_width), 1)
+					
+					last_minute = current_minute
+			
+			# Memory monitoring and cleanup
+			if loop_count % Timing.MEMORY_CHECK_INTERVAL == 0:  # Every 30 seconds
+				if duration > Timing.GC_INTERVAL and loop_count % Timing.GC_INTERVAL == 0:  # Only GC for longer durations
+					gc.collect()
+					state.memory_monitor.check_memory(f"forecast_display_gc_{loop_count//System.SECONDS_PER_HOUR}")
+				else:
+					state.memory_monitor.check_memory(f"forecast_display_loop_{loop_count}")
 			
 			interruptible_sleep(1)
 	
 	except Exception as e:
 		log_error(f"Forecast display error: {e}")
+		state.memory_monitor.check_memory("forecast_display_error")
 		return False
 	
 	gc.collect()
+	state.memory_monitor.check_memory("forecast_display_complete")
 	return True
 	
 def calculate_display_durations():
@@ -1705,7 +1927,7 @@ def check_daily_reset(rtc):
 		return
 	
 	current_time = time.monotonic()
-	hours_running = (current_time - state.startup_time) / 3600
+	hours_running = (current_time - state.startup_time) / System.SECONDS_PER_HOUR
 	
 	# Scheduled restart conditions
 	should_restart = (
@@ -1716,7 +1938,7 @@ def check_daily_reset(rtc):
 	)
 	
 	if should_restart:
-		log_info(f"Daily restart triggered ({hours_running:.1f}h runtime)", include_memory = True)
+		log_info(f"Daily restart triggered ({hours_running:.1f}h runtime)")
 		interruptible_sleep(API.RETRY_DELAY)
 		supervisor.reload()
 		
@@ -1817,7 +2039,7 @@ def main():
 	# Initialize RTC FIRST for proper timestamps
 	rtc = setup_rtc()
 	
-	log_info("=== WEATHER DISPLAY STARTUP ===", include_memory=True)
+	log_info("=== WEATHER DISPLAY STARTUP ===")
 	
 	try:
 		# Initialize hardware
@@ -1825,11 +2047,13 @@ def main():
 		
 		# Detect matrix type and initialize colors
 		matrix_type = detect_matrix_type()
-		state.colors = get_matrix_colors() 
+		state.colors = get_matrix_colors()
+		state.memory_monitor.check_memory("hardware_init_complete") 
 		
 		# Load events
 		events = get_events()
 		log_debug(f"System initialized - {len(events)} events loaded")
+		state.memory_monitor.check_memory("events_loaded")
 		
 		if DISPLAY_CONFIG["test_date"]:
 			update_rtc_date(rtc, TestData.TEST_YEAR, TestData.TEST_MONTH, TestData.TEST_DAY)
@@ -1848,8 +2072,9 @@ def main():
 		# Set startup time
 		state.startup_time = time.monotonic()
 		state.last_successful_weather = state.startup_time
+		state.memory_monitor.log_report()
 		
-		log_info("Entering main display loop (Press CTRL+C to stop)", include_memory=True)
+		log_info("Entering main display loop (Press CTRL+C to stop)")
 		log_debug(f"Image cache initialized: {state.image_cache.get_stats()}")
 		
 		# Main display loop
@@ -1857,6 +2082,18 @@ def main():
 		while True:
 			try:
 				cycle_count += 1
+				
+				# Memory monitoring every 10 cycles
+				if cycle_count % Timing.CYCLES_TO_MONITOR_MEMORY == 0:
+					state.memory_monitor.check_memory(f"cycle_{cycle_count}")
+					
+				# Force cleanup every 25 cycles
+				if cycle_count % Timing.CYCLES_FOR_FORCE_CLEANUP == 0:
+					state.memory_monitor.force_cleanup_if_needed(f"cycle_{cycle_count}_cleanup")
+				
+				# Full memory report every 100 cycles
+				if cycle_count % Timing.CYCLES_FOR_MEMORY_REPORT == 0:
+					state.memory_monitor.log_report()
 				
 				# System maintenance
 				check_daily_reset(rtc)
@@ -1916,23 +2153,27 @@ def main():
 					show_color_test_display(Timing.COLOR_TEST)
 					
 			except Exception as e:
-				log_error(f"Display loop error: {e}", include_memory=True)
+				log_error(f"Display loop error: {e}")
+				state.memory_monitor.check_memory("display_loop_error")
 				interruptible_sleep(Timing.SLEEP_BETWEEN_ERRORS)
 				
-			if cycle_count % 10 == 0:
+			if cycle_count % Timing.CYCLES_FOR_CACHE_STATS == 0:
 				log_debug(state.image_cache.get_stats())
 				
 	except KeyboardInterrupt:
 		log_info("Program interrupted by user")
+		state.memory_monitor.log_report()
 	
 	except Exception as e:
-		log_error(f"Critical system error: {e}", include_memory=True)
+		log_error(f"Critical system error: {e}")
+		state.memory_monitor.log_report()
 		time.sleep(Timing.RESTART_DELAY)
 		supervisor.reload()
 	
 	finally:
 		# Cleanup code
 		log_info("Cleaning up before exit...")
+		state.memory_monitor.log_report()
 		clear_display()
 		cleanup_global_session()
 
