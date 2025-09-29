@@ -73,7 +73,6 @@ class Layout:
 	BOTTOM_MARGIN = 2
 	DESCENDER_EXTRA_MARGIN = 2
 	
-	
 class DayIndicator:
 	SIZE = 4
 	X = 60              # 64 - 4
@@ -84,16 +83,16 @@ class DayIndicator:
 ## Timing (all in seconds)
 
 class Timing:
-	DEFAULT_CYCLE = 330         # DISPLAY_CONFIG["cycle_duration"]
-	DEFAULT_FORECAST = 60       # DISPLAY_CONFIG["forecast_duration"]
-	DEFAULT_EVENT = 30          # DISPLAY_CONFIG["event_duration"]
-	MIN_EVENT_DURATION = 10     # DISPLAY_CONFIG["minimum_event_duration"]
-	CLOCK_FALLBACK = 300      
-	COLOR_TEST = 300            # DISPLAY_CONFIG["color_test_duration"]
+	DEFAULT_CYCLE = 330         
+	DEFAULT_FORECAST = 60       
+	DEFAULT_EVENT = 30          
+	MIN_EVENT_DURATION = 10     
+	CLOCK_DISPLAY_DURATION = 300
+	COLOR_TEST = 300            
 	
 	FORECAST_UPDATE_INTERVAL = 900  # 15 minutes
 	DAILY_RESET_HOUR = 3
-	CLOCK_FALLBACK_THRESHOLD = 600  # 10 minutes   DUPLICATED?
+	EXTENDED_FAILURE_THRESHOLD = 600  # 10 minutes   When to enter clock-only mode for recovery
 	INTERRUPTIBLE_SLEEP_INTERVAL = 0.1
 	
 	# Retry delays
@@ -130,7 +129,7 @@ class API:
 	TIMEOUT = 30                        
 	MAX_RETRIES = 2                     
 	RETRY_DELAY = 2                     
-	MAX_CALLS_BEFORE_RESTART = 204      
+	MAX_CALLS_BEFORE_RESTART = 204  
 	
 	MAX_FORECAST_HOURS = 12
 	DEFAULT_FORECAST_HOURS = 12          
@@ -149,15 +148,33 @@ class API:
 	HTTP_NOT_FOUND = 404
 	HTTP_TOO_MANY_REQUESTS = 429
 	HTTP_INTERNAL_SERVER_ERROR = 500
+
+## Error Handling & Recovery
+class Recovery:
+	# Retry strategies
+	MAX_WIFI_RETRY_ATTEMPTS = 5
+	WIFI_RETRY_BASE_DELAY = 2        # Exponential backoff starting point
+	WIFI_RETRY_MAX_DELAY = 60        # Cap exponential backoff
+	
+	API_RETRY_BASE_DELAY = 2
+	API_RETRY_MAX_DELAY = 30
+	
+	# Degradation thresholds
+	MAX_CONSECUTIVE_API_FAILURES = 3
+	MAX_WIFI_RECONNECT_ATTEMPTS = 3
+	
+	# Recovery actions
+	SOFT_RESET_THRESHOLD = 5         # Consecutive failures before soft reset
+	HARD_RESET_THRESHOLD = 15 
+	WIFI_RECONNECT_COOLDOWN = 300  # 5 minutes between WiFi reconnection attempts
+	EXTENDED_FAILURE_THRESHOLD = 3600 
 	
 ## Memory Management
-
 class Memory:
 	ESTIMATED_TOTAL = 2000000           # ESTIMATED_TOTAL_MEMORY
 	SOCKET_CLEANUP_CYCLES = 3
 
 ## File Paths
-
 class Paths:
 	EVENTS_CSV = "events.csv"           # CSV_EVENTS_FILE
 	FONT_BIG = "fonts/bigbit10-16.bdf"
@@ -207,6 +224,7 @@ class System:
 	HOURS_IN_HALF_DAY = 12
 	SECONDS_PER_MINUTE = 60
 	SECONDS_PER_HOUR = 3600
+	SECONDS_HALF_HOUR = 1800
 	
 ## Test Data Constants
 
@@ -509,6 +527,13 @@ class WeatherDisplayState:
 		
 		# Add memory monitor
 		self.memory_monitor = MemoryMonitor()
+		
+		# WiFi Failure Management
+		self.wifi_reconnect_attempts = 0
+		self.last_wifi_attempt = 0
+		self.system_error_count = 0
+		
+		self.in_extended_failure_mode = False  
 	
 	def reset_api_counters(self):
 		"""Reset API call tracking"""
@@ -699,30 +724,71 @@ def setup_rtc():
 
 ### NETWORK FUNCTIONS ###
 
-def setup_wifi():
-	"""Connect to WiFi with simplified retry logic"""
+def setup_wifi_with_recovery():
+	"""Enhanced WiFi connection with exponential backoff and reconnection"""
 	ssid = os.getenv(Strings.WIFI_SSID_VAR)
 	password = os.getenv(Strings.WIFI_PASSWORD_VAR)
 	
 	if not ssid or not password:
-		log_warning("WiFi credentials missing")
+		log_error("WiFi credentials missing in settings.toml")
 		return False
 	
-	for attempt in range(System.MAX_WIFI_ATTEMPTS):
-		try:
-			wifi.radio.connect(ssid, password)
-			if DEBUG_MODE:
-				log_debug(f"Connected to {ssid}")
-			else:
-				log_info(f"WiFi connected to {ssid[:8]}...")
+	# Check if already connected
+	try:
+		if wifi.radio.connected:
+			log_debug("WiFi already connected")
 			return True
-		except ConnectionError as e:
-			log_warning(f"WiFi attempt {attempt + 1} failed")
-			if attempt < 2:
-				interruptible_sleep(Timing.WIFI_RETRY_DELAY)
+	except:
+		pass
 	
-	log_error("WiFi connection failed")
+	for attempt in range(Recovery.MAX_WIFI_RETRY_ATTEMPTS):
+		try:
+			delay = min(
+				Recovery.WIFI_RETRY_BASE_DELAY * (2 ** attempt),
+				Recovery.WIFI_RETRY_MAX_DELAY
+			)
+			
+			log_info(f"WiFi connection attempt {attempt + 1}/{Recovery.MAX_WIFI_RETRY_ATTEMPTS}")
+			wifi.radio.connect(ssid, password, timeout=10)
+			
+			if wifi.radio.connected:
+				log_info(f"Connected to {ssid[:8]}... (IP: {wifi.radio.ipv4_address})")
+				return True
+				
+		except ConnectionError as e:
+			log_warning(f"WiFi attempt {attempt + 1} failed: Connection error")
+			if attempt < Recovery.MAX_WIFI_RETRY_ATTEMPTS - 1:
+				log_debug(f"Retrying in {delay}s...")
+				interruptible_sleep(delay)
+				
+		except Exception as e:
+			log_error(f"WiFi attempt {attempt + 1} unexpected error: {type(e).__name__}")
+			if attempt < Recovery.MAX_WIFI_RETRY_ATTEMPTS - 1:
+				interruptible_sleep(delay)
+	
+	log_error(f"WiFi connection failed after {Recovery.MAX_WIFI_RETRY_ATTEMPTS} attempts")
 	return False
+
+def check_and_recover_wifi():
+	"""Check WiFi connection with cooldown protection"""
+	try:
+		if wifi.radio.connected:
+			return True
+		
+		# Only attempt reconnection if enough time has passed
+		current_time = time.monotonic()
+		time_since_attempt = current_time - state.last_wifi_attempt
+		
+		if time_since_attempt < Recovery.WIFI_RECONNECT_COOLDOWN:
+			return False
+		
+		log_warning("WiFi disconnected, attempting recovery...")
+		state.last_wifi_attempt = current_time
+		return setup_wifi_with_recovery()
+		
+	except Exception as e:
+		log_error(f"WiFi check failed: {e}")
+		return False
 
 def get_timezone_offset(timezone_name, utc_datetime):
 	"""Calculate timezone offset including DST for a given timezone"""
@@ -837,53 +903,89 @@ def cleanup_global_session():
 		
 		cleanup_sockets()
 
-def fetch_weather_with_retries(url, max_retries=None):
-	"""Fetch weather data with exponential backoff retry logic"""
+def fetch_weather_with_retries(url, max_retries=None, context="API"):
+	"""Enhanced weather data fetch with detailed error handling"""
 	if max_retries is None:
 		max_retries = API.MAX_RETRIES
 	
+	last_error = None
+	
 	for attempt in range(max_retries + 1):
 		try:
+			# Check WiFi before attempting
+			if not check_and_recover_wifi():
+				log_error(f"{context}: WiFi unavailable")
+				return None
+			
 			session = get_requests_session()
 			if not session:
-				log_error("No requests session available")
+				log_error(f"{context}: No requests session available")
 				return None
 			
-			log_debug(f"API attempt {attempt + 1}/{max_retries + 1}")
+			log_debug(f"{context} attempt {attempt + 1}/{max_retries + 1}")
 			
-			# Make the request - timeout is handled by the underlying socket
-			# adafruit_requests doesn't expose timeout parameter in get()
 			response = session.get(url)
 			
+			# Success case
 			if response.status_code == API.HTTP_OK:
+				log_debug(f"{context}: Success")
 				return response.json()
+			
+			# Handle specific HTTP errors
 			elif response.status_code == API.HTTP_SERVICE_UNAVAILABLE:
-				# Service unavailable - worth retrying
-				log_warning(f"API service unavailable (503), attempt {attempt + 1}")
+				log_warning(f"{context}: Service unavailable (503)")
+				last_error = "Service unavailable"
+				
+			elif response.status_code == API.HTTP_TOO_MANY_REQUESTS:
+				log_warning(f"{context}: Rate limited (429)")
+				last_error = "Rate limited"
+				# Longer delay for rate limiting
 				if attempt < max_retries:
-					delay = API.RETRY_DELAY * (2 ** attempt)  # Exponential backoff
-					log_debug(f"Retrying in {delay} seconds...")
+					delay = API.RETRY_DELAY * 3
+					log_debug(f"Rate limit cooldown: {delay}s")
 					interruptible_sleep(delay)
 					continue
-			else:
-				log_error(f"API error: {response.status_code}")
-				return None
+					
+			elif response.status_code == API.HTTP_UNAUTHORIZED:
+				log_error(f"{context}: Unauthorized (401) - check API key")
+				return None  # Don't retry auth failures
 				
-		except Exception as e:
-			log_warning(f"Request attempt {attempt + 1} failed: {e}")
+			elif response.status_code == API.HTTP_NOT_FOUND:
+				log_error(f"{context}: Not found (404) - check location key")
+				return None  # Don't retry not found
+				
+			else:
+				log_error(f"{context}: HTTP {response.status_code}")
+				last_error = f"HTTP {response.status_code}"
+			
+			# Exponential backoff for retryable errors
+			if attempt < max_retries:
+				delay = min(
+					API.RETRY_DELAY * (2 ** attempt),
+					Recovery.API_RETRY_MAX_DELAY
+				)
+				log_debug(f"Retrying in {delay}s...")
+				interruptible_sleep(delay)
+				
+		except OSError as e:
+			# Network/socket errors
+			log_warning(f"{context} attempt {attempt + 1} network error: {type(e).__name__}")
+			last_error = "Network error"
 			if attempt < max_retries:
 				delay = API.RETRY_DELAY * (2 ** attempt)
-				log_debug(f"Retrying in {delay} seconds...")
 				interruptible_sleep(delay)
-				continue
-			else:
-				log_error(f"All {max_retries + 1} attempts failed")
-				return None
+				
+		except Exception as e:
+			log_error(f"{context} attempt {attempt + 1} unexpected error: {type(e).__name__}: {e}")
+			last_error = str(e)
+			if attempt < max_retries:
+				interruptible_sleep(API.RETRY_DELAY)
 	
+	log_error(f"{context}: All {max_retries + 1} attempts failed. Last error: {last_error}")
 	return None
 
 def fetch_current_and_forecast_weather():
-	"""Fetch current and/or forecast weather with individual controls and detailed tracking"""
+	"""Fetch current and/or forecast weather with individual controls, detailed tracking, and improved error handling"""
 	state.memory_monitor.check_memory("weather_fetch_start")
 	
 	# Check what to fetch based on config
@@ -918,7 +1020,7 @@ def fetch_current_and_forecast_weather():
 			current_url = f"{API.BASE_URL}/{API.CURRENT_ENDPOINT}/{os.getenv(Strings.API_LOCATION_KEY)}?apikey={api_key}&details=true"
 			
 			log_debug("Fetching current weather...")
-			current_json = fetch_weather_with_retries(current_url)
+			current_json = fetch_weather_with_retries(current_url, context="Current Weather")
 			
 			if current_json:
 				state.memory_monitor.check_memory("current_data_processing")
@@ -948,7 +1050,6 @@ def fetch_current_and_forecast_weather():
 				log_info(f"Current weather: {current_data['weather_text']}, {current_data['temperature']}°C (API #{state.api_call_count}/{API.MAX_CALLS_BEFORE_RESTART})")
 				
 				state.memory_monitor.check_memory("current_data_complete")
-
 			else:
 				log_warning("Current weather fetch failed")
 		
@@ -957,13 +1058,13 @@ def fetch_current_and_forecast_weather():
 			forecast_url = f"{API.BASE_URL}/{API.FORECAST_ENDPOINT}/{os.getenv(Strings.API_LOCATION_KEY)}?apikey={api_key}&metric=true"
 			
 			log_debug("Fetching forecast weather...")
-			forecast_json = fetch_weather_with_retries(forecast_url, max_retries=1)
+			forecast_json = fetch_weather_with_retries(forecast_url, max_retries=1, context="Forecast")
 			
 			if forecast_json:  # Count the API call even if processing fails later
 				state.forecast_api_calls += 1
 				state.api_call_count += 1
-				
-			forecast_fetch_length = min(API.DEFAULT_FORECAST_HOURS,API.MAX_FORECAST_HOURS)
+			
+			forecast_fetch_length = min(API.DEFAULT_FORECAST_HOURS, API.MAX_FORECAST_HOURS)
 			
 			if forecast_json and len(forecast_json) >= forecast_fetch_length:
 				state.memory_monitor.check_memory("forecast_data_processing")
@@ -988,7 +1089,6 @@ def fetch_current_and_forecast_weather():
 				
 				state.memory_monitor.check_memory("forecast_data_complete")
 				forecast_success = True
-			
 			else:
 				log_warning("12-hour forecast fetch failed or insufficient data")
 				forecast_data = None
@@ -1000,11 +1100,31 @@ def fetch_current_and_forecast_weather():
 		any_success = current_success or forecast_success
 		
 		if any_success:
-			# Reset failure tracking on any success
+			# Log recovery if coming out of extended failure mode
+			if state.in_extended_failure_mode:
+				recovery_time = int((time.monotonic() - state.last_successful_weather) / System.SECONDS_PER_MINUTE)
+				log_info(f"Weather API recovered after {recovery_time} minutes of failures")
+			
 			state.consecutive_failures = 0
 			state.last_successful_weather = time.monotonic()
+			state.wifi_reconnect_attempts = 0  # Reset WiFi counter on success
+			state.system_error_count = 0  # Reset system errors on success
 		else:
 			state.consecutive_failures += 1
+			state.system_error_count += 1  # Increment across soft resets
+			log_warning(f"Consecutive failures: {state.consecutive_failures}, System errors: {state.system_error_count}")
+			
+			# Soft reset on repeated failures
+			if state.consecutive_failures >= Recovery.SOFT_RESET_THRESHOLD:
+				log_warning("Soft reset: clearing network session")
+				cleanup_global_session()
+				state.consecutive_failures = 0  # Reset consecutive, but keep system_error_count
+			
+			# Hard reset if soft resets aren't helping
+			if state.system_error_count >= Recovery.HARD_RESET_THRESHOLD:
+				log_error(f"Hard reset after {state.system_error_count} system errors")
+				interruptible_sleep(Timing.RESTART_DELAY)
+				supervisor.reload()
 		
 		# Check for preventive restart
 		if state.api_call_count >= API.MAX_CALLS_BEFORE_RESTART:
@@ -1017,7 +1137,7 @@ def fetch_current_and_forecast_weather():
 		return current_data, forecast_data
 		
 	except Exception as e:
-		log_error(f"Weather fetch error: {e}")
+		log_error(f"Weather fetch critical error: {type(e).__name__}: {e}")
 		state.memory_monitor.check_memory("weather_fetch_error")
 		state.consecutive_failures += 1
 		return None, None
@@ -1528,9 +1648,9 @@ def show_weather_display(rtc, duration, weather_data=None):
 	
 	state.memory_monitor.check_memory("weather_display_complete")
 
-def show_clock_display(rtc, duration=Timing.CLOCK_FALLBACK):
+def show_clock_display(rtc, duration=Timing.CLOCK_DISPLAY_DURATION):
 	"""Display clock as fallback when weather unavailable"""
-	log_warning(f"Displaying clock for {duration_message(Timing.CLOCK_FALLBACK)}...")
+	log_warning(f"Displaying clock for {duration_message(duration)}...")
 	clear_display()
 	
 	date_text = bitmap_label.Label(font, color=state.colors["DIMMEST_WHITE"], x=Layout.CLOCK_DATE_X, y=Layout.CLOCK_DATE_Y)
@@ -1561,10 +1681,16 @@ def show_clock_display(rtc, duration=Timing.CLOCK_FALLBACK):
 	
 	# Check for restart conditions
 	time_since_success = time.monotonic() - state.last_successful_weather
-	if state.consecutive_failures >= System.MAX_LOG_FAILURES_BEFORE_RESTART or time_since_success > Timing.CLOCK_FALLBACK_THRESHOLD:  # 10 minutes
-		log_warning("Restarting due to weather failures")
-		interruptible_sleep(API.RETRY_DELAY)
+	
+	# Hard reset after 1 hour of failures (gives plenty of time for transient issues)
+	if time_since_success > System.SECONDS_PER_HOUR:  # 1 hour
+		log_error(f"Hard reset after {int(time_since_success/System.SECONDS_PER_MINUTE)} minutes without successful weather fetch")
+		interruptible_sleep(Timing.RESTART_DELAY)
 		supervisor.reload()
+	
+	# Warn after 30 minutes
+	elif time_since_success > System.SECONDS_HALF_HOUR and state.consecutive_failures >= System.MAX_LOG_FAILURES_BEFORE_RESTART:
+		log_warning(f"Extended failure: {int(time_since_success/System.SECONDS_PER_MINUTE)}min without success, {state.consecutive_failures} consecutive failures")
 		
 def show_event_display(rtc, duration):
 	"""Display special calendar events - cycles through multiple events if present"""
@@ -2031,43 +2157,167 @@ def update_rtc_date(rtc, new_year, new_month, new_day):
 		return False
 
 
+### MAIN PROGRAM - HELPER FUNCTIONS ###
+		
+def initialize_system(rtc):
+	"""Initialize all hardware and load configuration"""
+	log_info("=== WEATHER DISPLAY STARTUP ===")
+	
+	# Initialize hardware
+	initialize_display()
+	
+	# Detect matrix type and initialize colors
+	matrix_type = detect_matrix_type()
+	state.colors = get_matrix_colors()
+	state.memory_monitor.check_memory("hardware_init_complete")
+	
+	# Load events
+	events = get_events()
+	log_debug(f"System initialized - {len(events)} events loaded")
+	state.memory_monitor.check_memory("events_loaded")
+	
+	# Handle test date if configured
+	if DISPLAY_CONFIG["test_date"]:
+		update_rtc_date(rtc, TestData.TEST_YEAR, TestData.TEST_MONTH, TestData.TEST_DAY)
+	
+	return events
+
+def setup_network_and_time(rtc):
+	"""Setup WiFi and synchronize time"""
+	wifi_connected = setup_wifi_with_recovery()
+	
+	if wifi_connected and not DISPLAY_CONFIG["test_date"]:
+		sync_time_with_timezone(rtc)
+		log_info("Time synchronized with NTP")
+	elif DISPLAY_CONFIG["test_date"]:
+		log_debug(f"Skipping NTP sync - using test date: {rtc.datetime.tm_year:04d}/{rtc.datetime.tm_mon:02d}/{rtc.datetime.tm_mday:02d}")
+	else:
+		log_warning("Starting without WiFi - using RTC time only")
+	
+	return wifi_connected
+
+def handle_extended_failure_mode(rtc, time_since_success):
+	"""Handle extended failure mode with periodic recovery attempts"""
+	# Log entry into extended failure mode (only once)
+	if not state.in_extended_failure_mode:
+		log_warning(f"ENTERING extended failure mode after {int(time_since_success/System.SECONDS_PER_MINUTE)} minutes without success")
+		state.in_extended_failure_mode = True
+	
+	log_debug(f"Extended failure mode active ({int(time_since_success/System.SECONDS_PER_MINUTE)}min since success) - showing clock only")
+	show_clock_display(rtc, Timing.CLOCK_DISPLAY_DURATION)
+	
+	# Periodically retry (every ~30 minutes)
+	if int(time_since_success) % System.SECONDS_HALF_HOUR < Timing.DEFAULT_CYCLE:
+		log_info("Attempting API recovery from extended failure mode...")
+		current_data, forecast_data = fetch_current_and_forecast_weather()
+		if current_data:
+			log_info("API recovery successful!")
+			return True  # Signal recovery
+	
+	return False  # Still in failure mode
+
+def display_forecast_cycle(current_duration, forecast_duration):
+	"""Handle forecast display with caching logic"""
+	current_data = None
+	forecast_data = None
+	
+	if should_fetch_forecast():
+		# Fetch both current and forecast
+		current_data, forecast_data = fetch_current_and_forecast_weather()
+		if forecast_data:
+			state.cached_forecast_data = forecast_data
+			state.last_forecast_fetch = time.monotonic()
+			log_debug("Fetched fresh forecast data")
+	else:
+		# Fetch only current weather, use cached forecast
+		DISPLAY_CONFIG["fetch_forecast"] = False
+		current_data, _ = fetch_current_and_forecast_weather()
+		DISPLAY_CONFIG["fetch_forecast"] = True
+		forecast_data = state.cached_forecast_data
+		log_debug("Using cached forecast data")
+	
+	forecast_shown = False
+	if current_data and forecast_data:
+		forecast_shown = show_forecast_display(current_data, forecast_data, forecast_duration)
+	
+	if not forecast_shown:
+		log_info("Forecast skipped - extending current weather time")
+		current_duration += forecast_duration
+	
+	return current_data, current_duration
+
+def run_display_cycle(rtc, cycle_count):
+	"""Execute one complete display cycle"""
+	# Memory monitoring
+	if cycle_count % Timing.CYCLES_TO_MONITOR_MEMORY == 0:
+		state.memory_monitor.check_memory(f"cycle_{cycle_count}")
+	
+	if cycle_count % Timing.CYCLES_FOR_MEMORY_REPORT == 0:
+		state.memory_monitor.log_report()
+	
+	# System maintenance
+	check_daily_reset(rtc)
+	
+	# Check for extended failure mode
+	time_since_success = time.monotonic() - state.last_successful_weather
+	in_failure_mode = time_since_success > Timing.EXTENDED_FAILURE_THRESHOLD
+	
+	# Log exit from extended failure mode (only once)
+	if not in_failure_mode and state.in_extended_failure_mode:
+		log_info(f"EXITING extended failure mode - weather API recovered")
+		state.in_extended_failure_mode = False
+	
+	if in_failure_mode:
+		handle_extended_failure_mode(rtc, time_since_success)
+		return  # Skip normal display cycle
+	
+	# Calculate display durations
+	current_duration, forecast_duration, event_duration = calculate_display_durations()
+	
+	# Forecast display
+	current_data = None
+	if DISPLAY_CONFIG["forecast"]:
+		current_data, current_duration = display_forecast_cycle(current_duration, forecast_duration)
+	else:
+		log_debug("Forecast display disabled")
+	
+	# Current weather display
+	if DISPLAY_CONFIG["weather"]:
+		if not current_data:
+			current_data, _ = fetch_current_and_forecast_weather()
+		show_weather_display(rtc, current_duration, current_data)
+	else:
+		log_debug("Weather display disabled")
+	
+	# Events display
+	if DISPLAY_CONFIG["events"]:
+		event_shown = show_event_display(rtc, event_duration)
+		if not event_shown:
+			interruptible_sleep(1)
+	else:
+		log_debug("Event display disabled")
+	
+	# Color test (if enabled)
+	if DISPLAY_CONFIG["color_test"]:
+		show_color_test_display(Timing.COLOR_TEST)
+	
+	# Cache stats logging
+	if cycle_count % Timing.CYCLES_FOR_CACHE_STATS == 0:
+		log_debug(state.image_cache.get_stats())
+
 ### MAIN PROGRAM ###
 
 def main():
 	"""Main program execution"""
-	
 	# Initialize RTC FIRST for proper timestamps
 	rtc = setup_rtc()
 	
-	log_info("=== WEATHER DISPLAY STARTUP ===")
-	
 	try:
-		# Initialize hardware
-		initialize_display()
+		# System initialization
+		events = initialize_system(rtc)
 		
-		# Detect matrix type and initialize colors
-		matrix_type = detect_matrix_type()
-		state.colors = get_matrix_colors()
-		state.memory_monitor.check_memory("hardware_init_complete") 
-		
-		# Load events
-		events = get_events()
-		log_debug(f"System initialized - {len(events)} events loaded")
-		state.memory_monitor.check_memory("events_loaded")
-		
-		if DISPLAY_CONFIG["test_date"]:
-			update_rtc_date(rtc, TestData.TEST_YEAR, TestData.TEST_MONTH, TestData.TEST_DAY)
-		
-		# Network operations (can be slower/fail)
-		wifi_connected = setup_wifi()
-		
-		if wifi_connected and not DISPLAY_CONFIG["test_date"]:
-			sync_time_with_timezone(rtc)
-			log_info("Time synchronized with NTP")
-		elif DISPLAY_CONFIG["test_date"]:
-			log_debug(f"Skipping NTP sync - using test date: {rtc.datetime.tm_year:04d}/{rtc.datetime.tm_mon:02d}/{rtc.datetime.tm_mday:02d}")
-		else:
-			log_warning("Starting without WiFi - using RTC time only")
+		# Network setup
+		setup_network_and_time(rtc)
 		
 		# Set startup time
 		state.startup_time = time.monotonic()
@@ -2082,83 +2332,12 @@ def main():
 		while True:
 			try:
 				cycle_count += 1
+				run_display_cycle(rtc, cycle_count)
 				
-				# Memory monitoring every 10 cycles
-				if cycle_count % Timing.CYCLES_TO_MONITOR_MEMORY == 0:
-					state.memory_monitor.check_memory(f"cycle_{cycle_count}")
-					
-				# Force cleanup every 25 cycles
-				if cycle_count % Timing.CYCLES_FOR_FORCE_CLEANUP == 0:
-					state.memory_monitor.force_cleanup_if_needed(f"cycle_{cycle_count}_cleanup")
-				
-				# Full memory report every 100 cycles
-				if cycle_count % Timing.CYCLES_FOR_MEMORY_REPORT == 0:
-					state.memory_monitor.log_report()
-				
-				# System maintenance
-				check_daily_reset(rtc)
-				
-				# Calculate display durations
-				current_duration, forecast_duration, event_duration = calculate_display_durations()
-				
-				# Initialize variables to avoid "referenced before assignment" error
-				forecast_shown = False
-				current_data = None
-				forecast_data = None
-				
-				# Forecast caching logic
-				if DISPLAY_CONFIG["forecast"]:
-					if should_fetch_forecast():
-						# Fetch both current and forecast
-						current_data, forecast_data = fetch_current_and_forecast_weather()
-						if forecast_data:  # Only cache if successful
-							state.cached_forecast_data = forecast_data
-							state.last_forecast_fetch = time.monotonic()
-							log_debug("Fetched fresh forecast data")
-					else:
-						# Fetch only current weather, use cached forecast
-						DISPLAY_CONFIG["fetch_forecast"] = False
-						current_data, _ = fetch_current_and_forecast_weather()  # FIXED THIS LINE
-						DISPLAY_CONFIG["fetch_forecast"] = True  # Reset for next time
-						forecast_data = state.cached_forecast_data
-						log_debug("Using cached forecast data")
-					
-					if current_data and forecast_data:
-						forecast_shown = show_forecast_display(current_data, forecast_data, forecast_duration)
-					
-					if not forecast_shown:
-						log_info("Forecast skipped - extending current weather time")
-						current_duration += forecast_duration
-				else:
-					log_debug("Forecast display disabled")
-				
-				# Current weather (with potentially extended duration)
-				if DISPLAY_CONFIG["weather"]:
-					if not current_data:  # Only fetch if we don't already have it
-						current_data, _ = fetch_current_and_forecast_weather()
-					show_weather_display(rtc, current_duration, current_data)
-				else:
-					log_debug("Weather display disabled")
-				
-				# Events
-				if DISPLAY_CONFIG["events"]:
-					event_shown = show_event_display(rtc, event_duration)
-					if not event_shown:
-						interruptible_sleep(1)
-				else:
-					log_debug("Event display disabled")
-				
-				# Remove color test from main loop or keep it separate
-				if DISPLAY_CONFIG["color_test"]:
-					show_color_test_display(Timing.COLOR_TEST)
-					
 			except Exception as e:
 				log_error(f"Display loop error: {e}")
 				state.memory_monitor.check_memory("display_loop_error")
 				interruptible_sleep(Timing.SLEEP_BETWEEN_ERRORS)
-				
-			if cycle_count % Timing.CYCLES_FOR_CACHE_STATS == 0:
-				log_debug(state.image_cache.get_stats())
 				
 	except KeyboardInterrupt:
 		log_info("Program interrupted by user")
@@ -2171,7 +2350,6 @@ def main():
 		supervisor.reload()
 	
 	finally:
-		# Cleanup code
 		log_info("Cleaning up before exit...")
 		state.memory_monitor.log_report()
 		clear_display()
@@ -2180,3 +2358,4 @@ def main():
 # Program entry point
 if __name__ == "__main__":
 	main()
+
