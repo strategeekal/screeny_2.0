@@ -34,7 +34,7 @@ class Display:
 ## Layout & Positioning
 
 class Layout:
-	RIGHT_EDGE = 63           # 64 - 1
+	RIGHT_EDGE = 63
 	UV_BAR_Y = 27
 	HUMIDITY_BAR_Y = 29
 	
@@ -111,8 +111,10 @@ class Timing:
 	CYCLES_FOR_MEMORY_REPORT = 100
 	CYCLES_FOR_CACHE_STATS = 10
 	
-	EVENT_CHUCK_SIZE = 60
+	EVENT_CHUNCK_SIZE = 60
 	EVENT_MEMORY_MONITORING = 600 # For long events (e.g. all day)
+	
+	API_RECOVERY_RETRY_INTERVAL = 1800
 	
 # Timezone offset table
 TIMEZONE_OFFSETS = {
@@ -176,7 +178,7 @@ class Memory:
 
 ## File Paths
 class Paths:
-	EVENTS_CSV = "events.csv"           # CSV_EVENTS_FILE
+	EVENTS_CSV = "events.csv"
 	FONT_BIG = "fonts/bigbit10-16.bdf"
 	FONT_SMALL = "fonts/tinybit6-16.bdf"
 	
@@ -330,6 +332,59 @@ _COLOR_CORRECTIONS = {
 
 # System Configuration
 DAILY_RESET_ENABLED = True
+
+### CONFIGURATION VALIDATION ###
+
+### CONFIGURATION VALIDATION ###
+
+def validate_configuration():
+	"""Validate configuration values and log warnings for potential issues"""
+	issues = []
+	warnings = []
+	
+	# Timing validations
+	if Timing.DEFAULT_CYCLE < (Timing.DEFAULT_FORECAST + Timing.DEFAULT_EVENT):
+		issues.append(f"DEFAULT_CYCLE ({Timing.DEFAULT_CYCLE}s) is too short for forecast+event ({Timing.DEFAULT_FORECAST + Timing.DEFAULT_EVENT}s)")
+	
+	if Timing.CLOCK_DISPLAY_DURATION > Timing.DEFAULT_CYCLE:
+		warnings.append(f"CLOCK_DISPLAY_DURATION ({Timing.CLOCK_DISPLAY_DURATION}s) exceeds DEFAULT_CYCLE ({Timing.DEFAULT_CYCLE}s)")
+	
+	if Timing.EXTENDED_FAILURE_THRESHOLD < Timing.CLOCK_DISPLAY_DURATION:
+		issues.append(f"EXTENDED_FAILURE_THRESHOLD ({Timing.EXTENDED_FAILURE_THRESHOLD}s) should be >= CLOCK_DISPLAY_DURATION ({Timing.CLOCK_DISPLAY_DURATION}s)")
+	
+	# API validations
+	if API.MAX_RETRIES > 5:
+		warnings.append(f"API.MAX_RETRIES ({API.MAX_RETRIES}) is high - may cause long delays")
+	
+	if API.DEFAULT_FORECAST_HOURS > API.MAX_FORECAST_HOURS:
+		issues.append(f"DEFAULT_FORECAST_HOURS ({API.DEFAULT_FORECAST_HOURS}) exceeds MAX_FORECAST_HOURS ({API.MAX_FORECAST_HOURS})")
+	
+	# Recovery validations
+	if Recovery.SOFT_RESET_THRESHOLD >= Recovery.HARD_RESET_THRESHOLD:
+		issues.append(f"SOFT_RESET_THRESHOLD ({Recovery.SOFT_RESET_THRESHOLD}) should be < HARD_RESET_THRESHOLD ({Recovery.HARD_RESET_THRESHOLD})")
+	
+	if Recovery.WIFI_RECONNECT_COOLDOWN < 60:
+		warnings.append(f"WIFI_RECONNECT_COOLDOWN ({Recovery.WIFI_RECONNECT_COOLDOWN}s) is very short - may cause excessive reconnection attempts")
+	
+	# Display validations
+	if Display.WIDTH != 64 or Display.HEIGHT != 32:
+		warnings.append(f"Non-standard display dimensions: {Display.WIDTH}x{Display.HEIGHT}")
+	
+	# Report issues
+	if issues:
+		log_error("=== CONFIGURATION ERRORS ===")
+		for issue in issues:
+			log_error(f"  - {issue}")
+		log_error("Fix these issues before running!")
+		return False
+	
+	if warnings:
+		log_warning("=== CONFIGURATION WARNINGS ===")
+		for warning in warnings:
+			log_warning(f"  - {warning}")
+	
+	log_info("Configuration validation passed")
+	return True
 
 ### CACHE ###
 
@@ -571,6 +626,7 @@ state = WeatherDisplayState()
 bg_font = bitmap_font.load_font(Paths.FONT_BIG)
 font = bitmap_font.load_font(Paths.FONT_SMALL)
 
+### ====================================== FUNCTIONS AND UTILITIES  ====================================== ###
 
 ### LOGGING UTILITIES ###
 
@@ -902,6 +958,9 @@ def cleanup_global_session():
 			pass
 		
 		cleanup_sockets()
+		
+
+### API FUNCTIONS ###
 
 def fetch_weather_with_retries(url, max_retries=None, context="API"):
 	"""Enhanced weather data fetch with detailed error handling"""
@@ -1806,7 +1865,7 @@ def _display_single_event_optimized(event_data, rtc, duration):
 		state.memory_monitor.check_memory("event_display_static_complete")
 		
 		# Simple strategy optimized for your usage patterns
-		if duration <= Timing.EVENT_CHUCK_SIZE:
+		if duration <= Timing.EVENT_CHUNCK_SIZE:
 			# Most common case: 10-60 second events, just sleep
 			interruptible_sleep(duration)
 		else:
@@ -2207,7 +2266,7 @@ def handle_extended_failure_mode(rtc, time_since_success):
 	show_clock_display(rtc, Timing.CLOCK_DISPLAY_DURATION)
 	
 	# Periodically retry (every ~30 minutes)
-	if int(time_since_success) % System.SECONDS_HALF_HOUR < Timing.DEFAULT_CYCLE:
+	if int(time_since_success) % Timing.API_RECOVERY_RETRY_INTERVAL < Timing.DEFAULT_CYCLE:
 		log_info("Attempting API recovery from extended failure mode...")
 		current_data, forecast_data = fetch_current_and_forecast_weather()
 		if current_data:
@@ -2305,13 +2364,19 @@ def run_display_cycle(rtc, cycle_count):
 	if cycle_count % Timing.CYCLES_FOR_CACHE_STATS == 0:
 		log_debug(state.image_cache.get_stats())
 
-### MAIN PROGRAM ###
+
+### ============================================ MAIN PROGRAM  =========================================== ###
 
 def main():
 	"""Main program execution"""
 	# Initialize RTC FIRST for proper timestamps
 	rtc = setup_rtc()
 	
+	# Validate configuration
+	if not validate_configuration():
+		log_error("Configuration validation failed - exiting")
+		return
+		
 	try:
 		# System initialization
 		events = initialize_system(rtc)
