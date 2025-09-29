@@ -189,7 +189,6 @@ class Paths:
 	BIRTHDAY_IMAGE = "img/events/cake.bmp"
 	
 ## Colors & Visual
-
 class Visual:
 	# UV bar calculation breakpoints
 	UV_BREAKPOINT_1 = 3
@@ -209,7 +208,6 @@ class Visual:
 	COLOR_TEST_ROW_SPACING = 11
 	
 ## System_constants
-
 class System:
 	MAX_RTC_ATTEMPTS = 5
 	MAX_WIFI_ATTEMPTS = 3
@@ -250,7 +248,6 @@ class TestData:
 	}
 	
 ## String Constants
-
 class Strings:
 	DEFAULT_EVENT_COLOR = "MINT"
 	TIMEZONE_DEFAULT = "America/Chicago"    # TIMEZONE_CONFIG["timezone"]
@@ -289,9 +286,17 @@ DISPLAY_CONFIG = {
 	"weekday_color": True,	  
 }
 
-# Debugging
-DEBUG_MODE = True
-LOG_MEMORY_STATS = True  # Include memory info in logs
+# Debug configuration
+class DebugLevel:
+	NONE = 0      # Silence (not recommended)
+	ERROR = 1     # Errors only - something broke
+	WARNING = 2   # Errors + warnings - potential issues
+	INFO = 3      # Errors + warnings + key events (DEFAULT - recommended)
+	DEBUG = 4     # Add troubleshooting details
+	VERBOSE = 5   # Everything including routine operations
+
+# Recommended for production
+CURRENT_DEBUG_LEVEL = DebugLevel.INFO
 
 # Base colors use standard RGB (works correctly on type2)
 _BASE_COLORS = {
@@ -332,8 +337,6 @@ _COLOR_CORRECTIONS = {
 
 # System Configuration
 DAILY_RESET_ENABLED = True
-
-### CONFIGURATION VALIDATION ###
 
 ### CONFIGURATION VALIDATION ###
 
@@ -515,7 +518,7 @@ class MemoryMonitor:
 			self.measurements.pop(0)
 		
 		# Always log as debug (since your memory is healthy)
-		log_debug(f"Memory: {stats['usage_percent']:.1f}% used at {checkpoint_name} [{runtime}]")
+		log_verbose(f"Memory: {stats['usage_percent']:.1f}% used at {checkpoint_name} [{runtime}]")
 		return "ok"
 	
 	def get_memory_report(self):
@@ -632,8 +635,21 @@ font = bitmap_font.load_font(Paths.FONT_SMALL)
 
 def log_entry(message, level="INFO"):
 	"""
-	Unified logging with timestamp (memory monitoring now handled by MemoryMonitor class)
+	Unified logging with timestamp and level filtering
 	"""
+	# Map string levels to numeric levels
+	level_map = {
+		"DEBUG": DebugLevel.DEBUG,
+		"INFO": DebugLevel.INFO,
+		"WARNING": DebugLevel.WARNING,
+		"ERROR": DebugLevel.ERROR
+	}
+	
+	# Check if this message should be logged based on current debug level
+	message_level = level_map.get(level, DebugLevel.INFO)
+	if message_level > CURRENT_DEBUG_LEVEL:
+		return  # Skip this message
+	
 	try:
 		# Try RTC first, fallback to system time
 		if state.rtc_instance:
@@ -655,7 +671,7 @@ def log_entry(message, level="INFO"):
 			timestamp = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 			time_source = " [UPTIME]"
 		
-		# Build log entry (no memory calculation)
+		# Build log entry
 		log_line = f"[{timestamp}{time_source}] {level}: {message}"
 		print(log_line)
 			
@@ -667,7 +683,7 @@ def log_info(message):
 	log_entry(message, "INFO")
 
 def log_error(message):
-	"""Log error message with memory stats"""
+	"""Log error message"""
 	log_entry(message, "ERROR")
 
 def log_warning(message):
@@ -676,8 +692,12 @@ def log_warning(message):
 
 def log_debug(message):
 	"""Log debug message"""
-	if DEBUG_MODE:
-		log_entry(message, "DEBUG")
+	log_entry(message, "DEBUG")
+
+def log_verbose(message):
+	"""Log verbose message (extra detail)"""
+	if CURRENT_DEBUG_LEVEL >= DebugLevel.VERBOSE:
+		log_entry(message, "DEBUG")  # Use DEBUG level for formatting
 		
 def duration_message(seconds):
 	"""Convert seconds to a readable duration string"""
@@ -981,7 +1001,7 @@ def fetch_weather_with_retries(url, max_retries=None, context="API"):
 				log_error(f"{context}: No requests session available")
 				return None
 			
-			log_debug(f"{context} attempt {attempt + 1}/{max_retries + 1}")
+			log_verbose(f"{context} attempt {attempt + 1}/{max_retries + 1}")
 			
 			response = session.get(url)
 			
@@ -1445,9 +1465,8 @@ def calculate_bottom_aligned_positions(font, line1_text, line2_text, display_hei
 		line2_y = line1_y + font_height + line_spacing
 	
 	# Debug output
-	if DEBUG_MODE:
-		log_debug(f"Text positioning: '{line1_text}' at y={line1_y}, '{line2_text}' at y={line2_y}")
-		log_debug(f"  Has descenders: {has_descenders}, bottom margin: {adjusted_bottom_margin}")
+	log_debug(f"Text positioning: '{line1_text}' at y={line1_y}, '{line2_text}' at y={line2_y}")
+	log_debug(f"  Has descenders: {has_descenders}, bottom margin: {adjusted_bottom_margin}")
 	
 	return int(line1_y), int(line2_y)
 
@@ -2221,6 +2240,10 @@ def update_rtc_date(rtc, new_year, new_month, new_day):
 def initialize_system(rtc):
 	"""Initialize all hardware and load configuration"""
 	log_info("=== WEATHER DISPLAY STARTUP ===")
+	
+	# Log debug level
+	level_names = {0: "NONE", 1: "ERROR", 2: "WARNING", 3: "INFO", 4: "DEBUG", 5: "VERBOSE"}
+	log_info(f"Debug level: {level_names.get(CURRENT_DEBUG_LEVEL, 'UNKNOWN')} ({CURRENT_DEBUG_LEVEL})")
 	
 	# Initialize hardware
 	initialize_display()
