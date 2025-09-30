@@ -2383,13 +2383,19 @@ def run_display_cycle(rtc, cycle_count):
 			state.cached_forecast_data = forecast_data
 			state.last_forecast_fetch = time.monotonic()
 	else:
-		# Fetch only current weather, use cached forecast if available
-		if display_config.show_weather:
+		# Check if we should use dummy data for weather
+		if display_config.show_weather and not display_config.use_live_weather:
+			# Use dummy weather data
+			current_data = TestData.DUMMY_WEATHER_DATA
+			log_debug("Using DUMMY weather data")
+			log_info(f"Weather: {current_data['weather_text']}, {current_data['temperature']}°C")
+		elif display_config.show_weather:
+			# Fetch only current weather from API
 			display_config.use_live_forecast = False
 			current_data, _ = fetch_current_and_forecast_weather()
 			display_config.use_live_forecast = True
 		
-		# Use cached forecast data
+		# Use cached forecast data if available
 		forecast_data = state.cached_forecast_data
 	
 	# Forecast display
