@@ -271,30 +271,7 @@ class Strings:
 	PM_SUFFIX = "P"
 	NOON_12AM = "12A"
 	NOON_12PM = "12P"
-
-DISPLAY_CONFIG = {
-	"weather": True,		  
-	"fetch_current": True,    
-	"fetch_forecast": True,   
-	"dummy_weather": False,
-	"dummy_forecast": False,   
-	"test_date": False,		  
-	"events": True,           
-	"clock_fallback": True,   
-	"forecast": True,
-	"color_test": False,      
-	"weekday_color": True,	  
-}
-
-active = []
-inactive = []
-for key, value in DISPLAY_CONFIG.items():
-	if value:
-		active.append(key)
-	else:
-		inactive.append(key)
 	
-
 # Debug configuration
 class DebugLevel:
 	NONE = 0      # Silence (not recommended)
@@ -306,6 +283,82 @@ class DebugLevel:
 
 # Recommended for production
 CURRENT_DEBUG_LEVEL = DebugLevel.INFO
+
+class DisplayConfig:
+	"""
+	Centralized display and feature control
+	
+	Controls what content is displayed and how data is fetched.
+	Changes take effect on next cycle.
+	"""
+	
+	def __init__(self):
+		# Core displays (always try to show if data available)
+		self.show_weather = True
+		self.show_forecast = True
+		self.show_events = True
+		
+		# Display Elements
+		self.show_weekday_indicator = True
+		
+		# API controls (fetch real data vs use dummy data)
+		self.use_live_weather = True      # False = use dummy data
+		self.use_live_forecast = True     # False = use dummy data
+		
+		# Test/debug modes
+		self.use_test_date = False
+		self.show_color_test = False
+	
+	def validate(self):
+		"""Validate configuration and return list of issues"""
+		issues = []
+		warnings = []
+		
+		# Forecast requires weather
+		if self.show_forecast and not self.show_weather:
+			issues.append("Forecast display requires weather display to be enabled")
+		
+		# Warn about dummy modes
+		if not self.use_live_weather:
+			log_warning("Using DUMMY weather data (not fetching from API)")
+		
+		if not self.use_live_forecast:
+			log_warning("Using DUMMY forecast data (not fetching from API)")
+		
+		if self.use_test_date:
+			log_warning("Test date mode enabled - NTP sync will be skipped")
+		
+		return issues, warnings
+	
+	def should_fetch_weather(self):
+		"""Should we fetch current weather from API?"""
+		return self.show_weather and self.use_live_weather
+	
+	def should_fetch_forecast(self):
+		"""Should we fetch forecast from API?"""
+		return self.show_forecast and self.use_live_forecast
+	
+	def get_active_features(self):
+		"""Return list of enabled features"""
+		features = []
+		if self.show_weather: features.append("weather")
+		if self.show_forecast: features.append("forecast")
+		if self.show_events: features.append("events")
+		if self.show_weekday_indicator: features.append("weekday_indicator")
+		
+		# Add data source info
+		if not self.use_live_weather: features.append("dummy_weather")
+		if not self.use_live_forecast: features.append("dummy_forecast")
+		if self.use_test_date: features.append("test_date")
+		if self.show_color_test: features.append("color_test")
+		
+		return features
+	
+	def log_status(self):
+		"""Log current configuration status"""
+		log_info(f"Features: {', '.join(self.get_active_features())}")
+		
+display_config = DisplayConfig()
 
 # Base colors use standard RGB (works correctly on type2)
 _BASE_COLORS = {
@@ -1081,15 +1134,12 @@ def fetch_current_and_forecast_weather():
 	state.memory_monitor.check_memory("weather_fetch_start")
 	
 	# Check what to fetch based on config
-	fetch_current = DISPLAY_CONFIG.get("fetch_current", True)
-	fetch_forecast = DISPLAY_CONFIG.get("fetch_forecast", True)
-	
-	if not fetch_current and not fetch_forecast:
-		log_debug("Both current and forecast APIs disabled in config")
+	if not display_config.should_fetch_weather() and not display_config.should_fetch_forecast():
+		log_debug("All API fetching disabled")
 		return None, None
 	
 	# Count expected API calls
-	expected_calls = (1 if fetch_current else 0) + (1 if fetch_forecast else 0)
+	expected_calls = (1 if display_config.should_fetch_weather() else 0) + (1 if display_config.should_fetch_forecast() else 0)
 	
 	# Monitor memory just before planned restart
 	if state.api_call_count + expected_calls >= API.MAX_CALLS_BEFORE_RESTART:
@@ -1108,7 +1158,7 @@ def fetch_current_and_forecast_weather():
 		forecast_success = False
 		
 		# Fetch current weather if enabled
-		if fetch_current:
+		if display_config.should_fetch_weather():
 			current_url = f"{API.BASE_URL}/{API.CURRENT_ENDPOINT}/{os.getenv(Strings.API_LOCATION_KEY)}?apikey={api_key}&details=true"
 			
 			current_json = fetch_weather_with_retries(current_url, context="Current Weather")
@@ -1144,7 +1194,7 @@ def fetch_current_and_forecast_weather():
 				log_warning("Current weather fetch failed")
 		
 		# Fetch forecast weather if enabled and (current succeeded OR current disabled)
-		if fetch_forecast and (current_success or not fetch_current):
+		if display_config.should_fetch_forecast():
 			forecast_url = f"{API.BASE_URL}/{API.FORECAST_ENDPOINT}/{os.getenv(Strings.API_LOCATION_KEY)}?apikey={api_key}&metric=true"
 			
 			forecast_json = fetch_weather_with_retries(forecast_url, max_retries=1, context="Forecast")
@@ -1257,11 +1307,6 @@ def get_api_key():
 		log_error(f"Failed to read fallback API key: {e}")
 	
 	return None
-
-def has_forecast_data():
-	"""Check if forecast data is available without making API calls"""
-	# This is a placeholder - you could implement forecast data caching
-	return DISPLAY_CONFIG.get("fetch_forecast", True) and not DISPLAY_CONFIG["dummy_weather"]
 
 def get_api_call_stats():
 	"""Get detailed API call statistics"""
@@ -1590,24 +1635,14 @@ def add_indicator_bars(main_group, x_start, uv_index, humidity):
 def show_weather_display(rtc, duration, weather_data=None):
 	"""Optimized weather display - only update time text in loop"""
 	state.memory_monitor.check_memory("weather_display_start")
-	log_debug("Displaying weather...")
 	
-	# Use provided data or fetch fresh data
-	if weather_data is None:
-		if DISPLAY_CONFIG["dummy_weather"]:
-			weather_data = TestData.DUMMY_WEATHER_DATA
-		else:
-			current_data, _ = fetch_current_and_forecast_weather()
-			weather_data = current_data
-	
-	# Log with duration information
-	if weather_data:
-		log_debug(f"Displaying Current Weather for {duration_message(duration)}: {weather_data['weather_text']}, {weather_data['temperature']}°C")
-	
+	# Require weather_data to be provided
 	if not weather_data:
 		log_warning("Weather unavailable, showing clock")
 		show_clock_display(rtc, duration)
 		return
+	
+	log_debug(f"Displaying weather for {duration_message(duration)}")
 	
 	# Clear display and setup static elements ONCE
 	clear_display()
@@ -1693,7 +1728,7 @@ def show_weather_display(rtc, duration, weather_data=None):
 	add_indicator_bars(state.main_group, temp_text.x, weather_data['uv_index'], weather_data['humidity'])
 	
 	# Add day indicator ONCE
-	if DISPLAY_CONFIG["weekday_color"]:
+	if display_config.show_weekday_indicator:
 		add_day_indicator(state.main_group, rtc)
 		log_verbose(f"Showing Weekday Color Indicator on Weather Display")
 	else:
@@ -1752,7 +1787,7 @@ def show_clock_display(rtc, duration=Timing.CLOCK_DISPLAY_DURATION):
 	state.main_group.append(time_text)
 			  
 	# Add day indicator after other elements
-	if DISPLAY_CONFIG["weekday_color"]:
+	if display_config.show_weekday_indicator:
 		add_day_indicator(state.main_group, rtc)
 		log_verbose(f"Showing Weekday Color Indicator on Clock Display")
 	else:
@@ -1885,7 +1920,7 @@ def _display_single_event_optimized(event_data, rtc, duration):
 			state.memory_monitor.check_memory("event_text_created")
 			
 			# Add day indicator
-			if DISPLAY_CONFIG["weekday_color"]:
+			if display_config.show_weekday_indicator:
 				add_day_indicator(state.main_group, rtc)
 				log_debug("Showing Weekday Color Indicator on Event Display")
 		
@@ -2067,7 +2102,7 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 			state.main_group.append(temp_label)
 		
 		# Add day indicator if enabled
-		if DISPLAY_CONFIG["weekday_color"]:
+		if display_config.show_weekday_indicator:
 			add_day_indicator(state.main_group, state.rtc_instance)
 		
 		state.memory_monitor.check_memory("forecast_display_static_complete")
@@ -2246,9 +2281,6 @@ def initialize_system(rtc):
 	"""Initialize all hardware and load configuration"""
 	log_info("=== STARTUP ===")
 	
-	log_debug(f"ACTIVE: {active}")
-	log_debug(f"INACTIVE: {inactive}")
-	
 	# Log debug level
 	level_names = {0: "NONE", 1: "ERROR", 2: "WARNING", 3: "INFO", 4: "DEBUG", 5: "VERBOSE"}
 	log_info(f"Debug level: {level_names.get(CURRENT_DEBUG_LEVEL, 'UNKNOWN')} ({CURRENT_DEBUG_LEVEL})")
@@ -2262,7 +2294,7 @@ def initialize_system(rtc):
 	state.memory_monitor.check_memory("hardware_init_complete")
 	
 	# Handle test date if configured
-	if DISPLAY_CONFIG["test_date"]:
+	if display_config.use_test_date:
 		update_rtc_date(rtc, TestData.TEST_YEAR, TestData.TEST_MONTH, TestData.TEST_DAY)
 		
 	# Load events
@@ -2281,9 +2313,9 @@ def setup_network_and_time(rtc):
 	"""Setup WiFi and synchronize time"""
 	wifi_connected = setup_wifi_with_recovery()
 	
-	if wifi_connected and not DISPLAY_CONFIG["test_date"]:
+	if wifi_connected and not display_config.use_test_date:
 		sync_time_with_timezone(rtc)
-	elif DISPLAY_CONFIG["test_date"]:
+	elif display_config.use_test_date:
 		log_info(f"Manual Time Set: {rtc.datetime.tm_year:04d}/{rtc.datetime.tm_mon:02d}/{rtc.datetime.tm_mday:02d}")
 	else:
 		log_warning("Starting without WiFi - using RTC time only")
@@ -2310,39 +2342,6 @@ def handle_extended_failure_mode(rtc, time_since_success):
 	
 	return False  # Still in failure mode
 
-def display_forecast_cycle(current_duration, forecast_duration):
-	"""Handle forecast display with caching logic"""
-	current_data = None
-	forecast_data = None
-	
-	if should_fetch_forecast():
-		# Fetch both current and forecast
-		current_data, forecast_data = fetch_current_and_forecast_weather()
-		if forecast_data:
-			state.cached_forecast_data = forecast_data
-			state.last_forecast_fetch = time.monotonic()
-			log_verbose("Fetched fresh forecast data")
-	else:
-		# Fetch only current weather, use cached forecast
-		DISPLAY_CONFIG["fetch_forecast"] = False
-		current_data, _ = fetch_current_and_forecast_weather()
-		DISPLAY_CONFIG["fetch_forecast"] = True
-		forecast_data = state.cached_forecast_data
-		log_verbose("Using cached forecast data")
-		
-		cache_age_minutes = int((time.monotonic() - state.last_forecast_fetch) / System.SECONDS_PER_MINUTE)
-		log_info(f"Forecast: cached {cache_age_minutes}min | Next: {forecast_data[0]['temperature']}°C")
-	
-	forecast_shown = False
-	if current_data and forecast_data:
-		forecast_shown = show_forecast_display(current_data, forecast_data, forecast_duration)
-	
-	if not forecast_shown:
-		log_debug("Forecast skipped - extending current weather time")
-		current_duration += forecast_duration
-	
-	return current_data, current_duration
-
 def run_display_cycle(rtc, cycle_count):
 	"""Execute one complete display cycle"""
 	cycle_start_time = time.monotonic()
@@ -2365,45 +2364,66 @@ def run_display_cycle(rtc, cycle_count):
 	
 	if in_failure_mode:
 		handle_extended_failure_mode(rtc, time_since_success)
-		return  # Skip normal display cycle
+		return
 	
 	# Calculate display durations
 	current_duration, forecast_duration, event_duration = calculate_display_durations()
 	
-	# Forecast display
+	# SINGLE weather fetch for the entire cycle
 	current_data = None
-	if DISPLAY_CONFIG["forecast"]:
-		current_data, current_duration = display_forecast_cycle(current_duration, forecast_duration)
+	forecast_data = None
+	
+	# Determine if we need fresh forecast data
+	needs_fresh_forecast = should_fetch_forecast() and display_config.show_forecast
+	
+	if needs_fresh_forecast:
+		# Fetch both current and forecast together
+		current_data, forecast_data = fetch_current_and_forecast_weather()
+		if forecast_data:
+			state.cached_forecast_data = forecast_data
+			state.last_forecast_fetch = time.monotonic()
+	else:
+		# Fetch only current weather, use cached forecast if available
+		if display_config.show_weather:
+			display_config.use_live_forecast = False
+			current_data, _ = fetch_current_and_forecast_weather()
+			display_config.use_live_forecast = True
+		
+		# Use cached forecast data
+		forecast_data = state.cached_forecast_data
+	
+	# Forecast display
+	if display_config.show_forecast and current_data and forecast_data:
+		forecast_shown = show_forecast_display(current_data, forecast_data, forecast_duration)
+		if not forecast_shown:
+			current_duration += forecast_duration
+	else:
+		current_duration += forecast_duration
 	
 	# Current weather display
-	if DISPLAY_CONFIG["weather"]:
-		if not current_data:
-			current_data, _ = fetch_current_and_forecast_weather()
+	if display_config.show_weather and current_data:
 		show_weather_display(rtc, current_duration, current_data)
 	
 	# Events display
-	if DISPLAY_CONFIG["events"]:
+	if display_config.show_events:
 		event_shown = show_event_display(rtc, event_duration)
 		if not event_shown:
 			interruptible_sleep(1)
 	
 	# Color test (if enabled)
-	if DISPLAY_CONFIG["color_test"]:
+	if display_config.show_color_test:
 		show_color_test_display(Timing.COLOR_TEST)
 	
 	# Cache stats logging
 	if cycle_count % Timing.CYCLES_FOR_CACHE_STATS == 0:
 		log_debug(state.image_cache.get_stats())
 		
-	# Calculate cycle duration
+	# Calculate cycle duration and log
 	cycle_duration = time.monotonic() - cycle_start_time
-	# Get current memory stats
 	mem_stats = state.memory_monitor.get_memory_stats()
 	
-	log_info(f"Cycle #{cycle_count} complete in {cycle_duration/System.SECONDS_PER_MINUTE:.2f} min | UT: {state.memory_monitor.get_runtime()} | Mem: {mem_stats['usage_percent']:.1f}% | API: Total={state.api_call_count}/{API.MAX_CALLS_BEFORE_RESTART}, Current={state.current_api_calls}, Forecast={state.forecast_api_calls} \n")
+	log_info(f"Cycle #{cycle_count} complete in {cycle_duration/System.SECONDS_PER_MINUTE:.2f} min | UT: {state.memory_monitor.get_runtime()} | Mem: {mem_stats['usage_percent']:.1f}% | API: Total={state.api_call_count}/{API.MAX_CALLS_BEFORE_RESTART}, Current={state.current_api_calls}, Forecast={state.forecast_api_calls}\n")
 		
-	
-
 
 ### ============================================ MAIN PROGRAM  =========================================== ###
 
