@@ -2150,18 +2150,22 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 	state.memory_monitor.check_memory("forecast_display_complete")
 	return True
 	
-def calculate_display_durations():
+def calculate_display_durations(rtc):
 	"""Calculate current weather duration based on cycle and forecast times"""
 	
+	# Check if there are events today
+	event_count, _ = get_today_events_info(rtc)
+	event_time = Timing.DEFAULT_EVENT if event_count > 0 else 0
+	
 	# Current weather gets the remaining time
-	current_weather_time = Timing.DEFAULT_CYCLE - Timing.DEFAULT_FORECAST - Timing.DEFAULT_EVENT
+	current_weather_time = Timing.DEFAULT_CYCLE - Timing.DEFAULT_FORECAST - event_time
 	
 	# Ensure minimum time for current weather
-	if current_weather_time < Timing.DEFAULT_EVENT:
+	if current_weather_time < Timing.MIN_EVENT_DURATION:
 		current_weather_time = Timing.MIN_EVENT_DURATION
 		log_warning(f"Current weather time adjusted to minimum: {current_weather_time}s")
 	
-	return current_weather_time, Timing.DEFAULT_FORECAST, Timing.DEFAULT_EVENT
+	return current_weather_time, Timing.DEFAULT_FORECAST, event_time
 
 ### SYSTEM MANAGEMENT ###
 
@@ -2367,7 +2371,7 @@ def run_display_cycle(rtc, cycle_count):
 		return
 	
 	# Calculate display durations
-	current_duration, forecast_duration, event_duration = calculate_display_durations()
+	current_duration, forecast_duration, event_duration = calculate_display_durations(rtc)
 	
 	# SINGLE weather fetch for the entire cycle
 	current_data = None
