@@ -286,6 +286,15 @@ DISPLAY_CONFIG = {
 	"weekday_color": True,	  
 }
 
+active = []
+inactive = []
+for key, value in DISPLAY_CONFIG.items():
+	if value:
+		active.append(key)
+	else:
+		inactive.append(key)
+	
+
 # Debug configuration
 class DebugLevel:
 	NONE = 0      # Silence (not recommended)
@@ -386,7 +395,7 @@ def validate_configuration():
 		for warning in warnings:
 			log_warning(f"  - {warning}")
 	
-	log_info("Configuration validation passed")
+	log_debug("Configuration validation passed")
 	return True
 
 ### CACHE ###
@@ -413,10 +422,10 @@ class ImageCache:
 				# Remove oldest entry (simple FIFO)
 				oldest_key = next(iter(self.cache))
 				del self.cache[oldest_key]
-				log_debug(f"Image cache full, removed: {oldest_key}")
+				log_verbose(f"Image cache full, removed: {oldest_key}")
 			
 			self.cache[filepath] = (bitmap, palette)
-			log_debug(f"Cached image: {filepath}")
+			log_verbose(f"Cached image: {filepath}")
 			return bitmap, palette
 			
 		except Exception as e:
@@ -425,7 +434,7 @@ class ImageCache:
 	
 	def clear_cache(self):
 		self.cache.clear()
-		log_debug("Image cache cleared")
+		log_verbose("Image cache cleared")
 	
 	def get_stats(self):
 		total = self.hit_count + self.miss_count
@@ -500,15 +509,13 @@ class MemoryMonitor:
 		return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 	
 	def check_memory(self, checkpoint_name=""):
-		"""Check memory and log"""
+		"""Check memory and log only if there's an issue"""
 		stats = self.get_memory_stats()
 		runtime = self.get_runtime()
 		
-		# Update peak usage tracking
 		if stats["used_bytes"] > self.peak_usage:
 			self.peak_usage = stats["used_bytes"]
 		
-		# Store measurement
 		self.measurements.append({
 			"name": checkpoint_name,
 			"used_percent": stats["usage_percent"],
@@ -517,8 +524,12 @@ class MemoryMonitor:
 		if len(self.measurements) > self.max_measurements:
 			self.measurements.pop(0)
 		
-		# Always log as debug (since your memory is healthy)
-		log_verbose(f"Memory: {stats['usage_percent']:.1f}% used at {checkpoint_name} [{runtime}]")
+		# Only log if memory usage is concerning (>50%) or at VERBOSE level
+		if stats["usage_percent"] > 50:
+			log_warning(f"High memory: {stats['usage_percent']:.1f}% at {checkpoint_name}")
+		else:
+			log_verbose(f"Memory: {stats['usage_percent']:.1f}% at {checkpoint_name}")
+		
 		return "ok"
 	
 	def get_memory_report(self):
@@ -548,7 +559,7 @@ class MemoryMonitor:
 		"""Log the memory report"""
 		report = self.get_memory_report()
 		for line in report.split("\n"):
-			log_info(line)
+			log_debug(line)
 		
 	
 ## State Class
@@ -599,7 +610,7 @@ class WeatherDisplayState:
 		self.api_call_count = 0
 		self.current_api_calls = 0
 		self.forecast_api_calls = 0
-		log_info(f"API counters reset (was {old_total} total calls)")
+		log_debug(f"API counters reset (was {old_total} total calls)")
 	
 	def get_api_stats(self):
 		"""Get current API statistics"""
@@ -618,7 +629,7 @@ class WeatherDisplayState:
 				self.global_requests_session.close()
 				del self.global_requests_session
 				self.global_requests_session = None
-				log_debug("Global session cleaned up")
+				log_verbose("Global session cleaned up")
 			except:
 				pass
 
@@ -767,9 +778,6 @@ def initialize_display():
 	state.display = framebufferio.FramebufferDisplay(matrix, auto_refresh=True)
 	state.main_group = displayio.Group()
 	state.display.root_group = state.main_group
-	
-	state.memory_monitor.check_memory("display_init_complete")
-	log_info("Display initiated successfully")
 
 
 def interruptible_sleep(duration):
@@ -780,7 +788,6 @@ def interruptible_sleep(duration):
 
 def setup_rtc():
 	"""Initialize RTC with retry logic"""
-	state.memory_monitor.check_memory("rtc_init_start")
 	
 	for attempt in range(System.MAX_RTC_ATTEMPTS):
 		try:
@@ -788,10 +795,10 @@ def setup_rtc():
 			rtc = adafruit_ds3231.DS3231(i2c)
 			state.rtc_instance = rtc
 			state.memory_monitor.check_memory("rtc_init_success")
-			log_info(f"RTC initialized on attempt {attempt + 1}")
+			log_debug(f"RTC initialized on attempt {attempt + 1}")
 			return rtc
 		except Exception as e:
-			log_warning(f"RTC attempt {attempt + 1} failed: {e}")
+			log_debug(f"RTC attempt {attempt + 1} failed: {e}")
 			if attempt < 4:
 				interruptible_sleep(Timing.RTC_RETRY_DELAY)
 	
@@ -809,10 +816,9 @@ def setup_wifi_with_recovery():
 		log_error("WiFi credentials missing in settings.toml")
 		return False
 	
-	# Check if already connected
 	try:
 		if wifi.radio.connected:
-			log_debug("WiFi already connected")
+			log_debug("WiFi already connected")  # DEBUG - not important
 			return True
 	except:
 		pass
@@ -824,25 +830,32 @@ def setup_wifi_with_recovery():
 				Recovery.WIFI_RETRY_MAX_DELAY
 			)
 			
-			log_info(f"WiFi connection attempt {attempt + 1}/{Recovery.MAX_WIFI_RETRY_ATTEMPTS}")
+			# Only log first and subsequent attempts differently:
+			if attempt == 0:
+				log_debug(f"Connecting to WiFi...")  # DEBUG
+			else:
+				log_debug(f"WiFi retry {attempt}/{Recovery.MAX_WIFI_RETRY_ATTEMPTS - 1} in {delay}s")
+			
 			wifi.radio.connect(ssid, password, timeout=10)
 			
 			if wifi.radio.connected:
-				log_info(f"Connected to {ssid[:8]}... (IP: {wifi.radio.ipv4_address})")
+				# SUCCESS at INFO level:
+				log_info(f"WiFi: {ssid[:8]}... ({wifi.radio.ipv4_address})")
 				return True
 				
 		except ConnectionError as e:
-			log_warning(f"WiFi attempt {attempt + 1} failed: Connection error")
+			# Individual failures at DEBUG:
+			log_debug(f"WiFi attempt {attempt + 1} failed")
 			if attempt < Recovery.MAX_WIFI_RETRY_ATTEMPTS - 1:
-				log_debug(f"Retrying in {delay}s...")
 				interruptible_sleep(delay)
 				
 		except Exception as e:
-			log_error(f"WiFi attempt {attempt + 1} unexpected error: {type(e).__name__}")
+			log_debug(f"WiFi error: {type(e).__name__}")
 			if attempt < Recovery.MAX_WIFI_RETRY_ATTEMPTS - 1:
 				interruptible_sleep(delay)
 	
-	log_error(f"WiFi connection failed after {Recovery.MAX_WIFI_RETRY_ATTEMPTS} attempts")
+	# Complete failure at ERROR:
+	log_error(f"WiFi failed after {Recovery.MAX_WIFI_RETRY_ATTEMPTS} attempts")
 	return False
 
 def check_and_recover_wifi():
@@ -858,7 +871,7 @@ def check_and_recover_wifi():
 		if time_since_attempt < Recovery.WIFI_RECONNECT_COOLDOWN:
 			return False
 		
-		log_warning("WiFi disconnected, attempting recovery...")
+		log_warning("WiFi DISCONNECTED, attempting recovery...")
 		state.last_wifi_attempt = current_time
 		return setup_wifi_with_recovery()
 		
@@ -953,13 +966,13 @@ def get_requests_session():
 			try:
 				pool.socket_timeout = API.TIMEOUT
 			except (AttributeError, NotImplementedError):
-				log_debug("Socket timeout configuration not available")
+				log_verbose("Socket timeout configuration not available")
 			
 			state.global_requests_session = adafruit_requests.Session(
 				pool, 
 				ssl.create_default_context()
 			)
-			log_debug("Created new persistent requests session")
+			log_verbose("Created new persistent requests session")
 		except Exception as e:
 			log_error(f"Failed to create requests session: {e}")
 			return None
@@ -973,7 +986,7 @@ def cleanup_global_session():
 			state.global_requests_session.close()
 			del state.global_requests_session
 			state.global_requests_session = None
-			log_debug("Global session cleaned up")
+			log_verbose("Global session cleaned up")
 		except:
 			pass
 		
@@ -1007,7 +1020,7 @@ def fetch_weather_with_retries(url, max_retries=None, context="API"):
 			
 			# Success case
 			if response.status_code == API.HTTP_OK:
-				log_debug(f"{context}: Success")
+				log_verbose(f"{context}: Success")
 				return response.json()
 			
 			# Handle specific HTTP errors
@@ -1072,7 +1085,7 @@ def fetch_current_and_forecast_weather():
 	fetch_forecast = DISPLAY_CONFIG.get("fetch_forecast", True)
 	
 	if not fetch_current and not fetch_forecast:
-		log_info("Both current and forecast APIs disabled in config")
+		log_debug("Both current and forecast APIs disabled in config")
 		return None, None
 	
 	# Count expected API calls
@@ -1098,7 +1111,6 @@ def fetch_current_and_forecast_weather():
 		if fetch_current:
 			current_url = f"{API.BASE_URL}/{API.CURRENT_ENDPOINT}/{os.getenv(Strings.API_LOCATION_KEY)}?apikey={api_key}&details=true"
 			
-			log_debug("Fetching current weather...")
 			current_json = fetch_weather_with_retries(current_url, context="Current Weather")
 			
 			if current_json:
@@ -1124,11 +1136,10 @@ def fetch_current_and_forecast_weather():
 					"is_day_time": current.get("IsDayTime", True),
 					"has_precipitation": current.get("HasPrecipitation:", False),
 				}
-				log_debug(f"CURRENT DATA: {current_data}")
+				log_verbose(f"CURRENT DATA: {current_data}")
 				
-				log_info(f"Current weather: {current_data['weather_text']}, {current_data['temperature']}°C (API #{state.api_call_count}/{API.MAX_CALLS_BEFORE_RESTART})")
+				log_info(f"Weather: {current_data['weather_text']}, {current_data['temperature']}°C")
 				
-				state.memory_monitor.check_memory("current_data_complete")
 			else:
 				log_warning("Current weather fetch failed")
 		
@@ -1136,7 +1147,6 @@ def fetch_current_and_forecast_weather():
 		if fetch_forecast and (current_success or not fetch_current):
 			forecast_url = f"{API.BASE_URL}/{API.FORECAST_ENDPOINT}/{os.getenv(Strings.API_LOCATION_KEY)}?apikey={api_key}&metric=true"
 			
-			log_debug("Fetching forecast weather...")
 			forecast_json = fetch_weather_with_retries(forecast_url, max_retries=1, context="Forecast")
 			
 			if forecast_json:  # Count the API call even if processing fails later
@@ -1159,11 +1169,13 @@ def fetch_current_and_forecast_weather():
 						"has_precipitation": hour_data.get("HasPrecipitation", False)
 					})
 				
-				log_info(f"12-hour forecast: {len(forecast_data)} hours processed")
+				log_info(f"Forecast: {len(forecast_data)} hours | Next: {forecast_data[0]['temperature']}°C")
 				if len(forecast_data) >= forecast_fetch_length:
 					h = 0
 					for item in forecast_data:
-						log_debug(f"Hour {h+1} ({format_datetime(forecast_data[h]['datetime'])}): {forecast_data[h]['temperature']}°C, {forecast_data[h]['weather_text']} (Icon {forecast_data[h]['weather_icon']})")
+						if CURRENT_DEBUG_LEVEL >= DebugLevel.VERBOSE:
+							for h, item in enumerate(forecast_data):
+								log_verbose(f"  Hour {h+1}: {item['temperature']}°C, {item['weather_text']}")
 						h += 1
 				
 				state.memory_monitor.check_memory("forecast_data_complete")
@@ -1173,7 +1185,7 @@ def fetch_current_and_forecast_weather():
 				forecast_data = None
 		
 		# Log API call statistics
-		log_info(f"API Stats: Total={state.api_call_count}/{API.MAX_CALLS_BEFORE_RESTART}, Current={state.current_api_calls}, Forecast={state.forecast_api_calls}")
+		log_debug(f"API Stats: Total={state.api_call_count}/{API.MAX_CALLS_BEFORE_RESTART}, Current={state.current_api_calls}, Forecast={state.forecast_api_calls}")
 		
 		# Determine overall success
 		any_success = current_success or forecast_success
@@ -1235,7 +1247,7 @@ def get_api_key():
 	# Read the appropriate API key
 	try:
 		api_key = os.getenv(api_key_name)
-		log_debug(f"Using key with ending: {api_key[-5:]} for {matrix_type}")
+		log_verbose(f"Using key with ending: {api_key[-5:]} for {matrix_type}")
 		return api_key
 	except Exception as e:
 		log_warning(f"Failed to read API key: {e}")
@@ -1269,8 +1281,19 @@ def get_api_call_stats():
 def should_fetch_forecast():
 	"""Check if forecast data needs to be refreshed"""
 	current_time = time.monotonic()
-	log_debug(f"LAST FORECAST FETCH: {state.last_forecast_fetch} seconds ago. Needs Refresh? = {(current_time - state.last_forecast_fetch) >= Timing.FORECAST_UPDATE_INTERVAL}")
+	log_verbose(f"LAST FORECAST FETCH: {state.last_forecast_fetch} seconds ago. Needs Refresh? = {(current_time - state.last_forecast_fetch) >= Timing.FORECAST_UPDATE_INTERVAL}")
 	return (current_time - state.last_forecast_fetch) >= Timing.FORECAST_UPDATE_INTERVAL
+	
+def get_today_events_info(rtc):
+	"""Get information about today's events without displaying them"""
+	month_day = f"{rtc.datetime.tm_mon:02d}{rtc.datetime.tm_mday:02d}"
+	events = get_events()
+	
+	if month_day not in events:
+		return 0, []
+	
+	event_list = events[month_day]
+	return len(event_list), event_list
 
 
 ### DISPLAY UTILITIES ###
@@ -1290,7 +1313,7 @@ def detect_matrix_type():
 	}
 	
 	state.matrix_type_cache = device_mappings.get(device_id, "type1")
-	log_info(f"Device ID: {device_id}, Matrix type: {state.matrix_type_cache}")
+	log_debug(f"Device ID: {device_id}, Matrix type: {state.matrix_type_cache}")
 	return state.matrix_type_cache
 	
 # Function to get corrected colors for current matrix
@@ -1377,7 +1400,7 @@ def load_events_from_csv():
 	"""Load events from CSV file - supports multiple events per day"""
 	events = {}
 	try:
-		log_debug(f"Loading events from {Paths.EVENTS_CSV}...")
+		log_verbose(f"Loading events from {Paths.EVENTS_CSV}...")
 		with open(Paths.EVENTS_CSV, "r") as f:
 			line_count = 0
 			for line in f:
@@ -1400,7 +1423,6 @@ def load_events_from_csv():
 						events[date_key].append([line1, line2, image, color])
 						line_count += 1
 			
-			log_info(f"Loaded {line_count} events successfully from CSV")
 			return events
 			
 	except Exception as e:
@@ -1463,10 +1485,6 @@ def calculate_bottom_aligned_positions(font, line1_text, line2_text, display_hei
 	if line1_y < baseline_offset:
 		line1_y = baseline_offset
 		line2_y = line1_y + font_height + line_spacing
-	
-	# Debug output
-	log_debug(f"Text positioning: '{line1_text}' at y={line1_y}, '{line2_text}' at y={line2_y}")
-	log_debug(f"  Has descenders: {has_descenders}, bottom margin: {adjusted_bottom_margin}")
 	
 	return int(line1_y), int(line2_y)
 
@@ -1588,7 +1606,7 @@ def show_weather_display(rtc, duration, weather_data=None):
 	
 	# Log with duration information
 	if weather_data:
-		log_info(f"Displaying Current Weather for {duration_message(duration)}: {weather_data['weather_text']}, {weather_data['temperature']}°C")
+		log_debug(f"Displaying Current Weather for {duration_message(duration)}: {weather_data['weather_text']}, {weather_data['temperature']}°C")
 	
 	if not weather_data:
 		log_warning("Weather unavailable, showing clock")
@@ -1681,9 +1699,9 @@ def show_weather_display(rtc, duration, weather_data=None):
 	# Add day indicator ONCE
 	if DISPLAY_CONFIG["weekday_color"]:
 		add_day_indicator(state.main_group, rtc)
-		log_debug(f"Showing Weekday Color Indicator on Weather Display")
+		log_verbose(f"Showing Weekday Color Indicator on Weather Display")
 	else:
-		log_debug("Weekday Color Indicator Disabled")
+		log_verbose("Weekday Color Indicator Disabled")
 	
 	state.memory_monitor.check_memory("weather_display_static_complete")
 	
@@ -1740,9 +1758,9 @@ def show_clock_display(rtc, duration=Timing.CLOCK_DISPLAY_DURATION):
 	# Add day indicator after other elements
 	if DISPLAY_CONFIG["weekday_color"]:
 		add_day_indicator(state.main_group, rtc)
-		log_debug(f"Showing Weekday Color Indicator on Clock Display")
+		log_verbose(f"Showing Weekday Color Indicator on Clock Display")
 	else:
-		log_debug("Weekday Color Indicator Disabled")
+		log_verbose("Weekday Color Indicator Disabled")
 	
 	start_time = time.monotonic()
 	while time.monotonic() - start_time < duration:
@@ -1774,27 +1792,20 @@ def show_event_display(rtc, duration):
 	"""Display special calendar events - cycles through multiple events if present"""
 	state.memory_monitor.check_memory("event_display_start")
 	
-	month_day = f"{rtc.datetime.tm_mon:02d}{rtc.datetime.tm_mday:02d}"
+	num_events, event_list = get_today_events_info(rtc)
 	
-	# Get events from cache (loaded only once at startup)
-	events = get_events()
-	
-	if month_day not in events:
-		log_info("No events to display today")
+	if num_events == 0:
 		return False
-	
-	event_list = events[month_day]
-	num_events = len(event_list)
 	
 	if num_events == 1:
 		# Single event - use full duration
 		event_data = event_list[0]
-		log_info(f"Showing event: {event_data[1]}, for {duration_message(duration)}")
+		log_debug(f"Showing event: {event_data[1]}, for {duration_message(duration)}")
 		_display_single_event_optimized(event_data, rtc, duration)
 	else:
 		# Multiple events - split time between them
 		event_duration = max(duration // num_events, Timing.MIN_EVENT_DURATION)
-		log_info(f"Showing {num_events} events, {duration_message(event_duration)} each")
+		log_verbose(f"Showing {num_events} events, {duration_message(event_duration)} each")
 		
 		for i, event_data in enumerate(event_list):
 			state.memory_monitor.check_memory(f"event_{i+1}_start")
@@ -1912,7 +1923,7 @@ def _display_single_event_optimized(event_data, rtc, duration):
 	state.memory_monitor.check_memory("single_event_complete")
 			
 def show_color_test_display(duration=Timing.COLOR_TEST):
-	log_info(f"Displaying Color Test for {duration_message(Timing.COLOR_TEST)}")
+	log_debug(f"Displaying Color Test for {duration_message(Timing.COLOR_TEST)}")
 	clear_display()
 	gc.collect()
 	
@@ -1946,7 +1957,6 @@ def show_color_test_display(duration=Timing.COLOR_TEST):
 	
 def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 	"""Optimized forecast display - only update time text in column 1"""
-	state.memory_monitor.check_memory("forecast_display_start")
 	
 	# Check if we have real data - skip display if not
 	if not current_data or not forecast_data or len(forecast_data) < 3:
@@ -1954,11 +1964,10 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 		return False
 	
 	# Log with real data
-	log_info(f"Displaying Forecast for {duration_message(duration)}: Current {current_data['temperature']}°C, +1hr {forecast_data[0]['temperature']}°C, +2hr {forecast_data[1]['temperature']}°C")
+	log_debug(f"Displaying Forecast for {duration_message(duration)}: Current {current_data['temperature']}°C, +1hr {forecast_data[0]['temperature']}°C, +2hr {forecast_data[1]['temperature']}°C")
 	
 	clear_display()
 	gc.collect()
-	state.memory_monitor.check_memory("forecast_display_cleared")
 	
 	try:
 		# Prepare all data ONCE
@@ -2063,7 +2072,6 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 		# Add day indicator if enabled
 		if DISPLAY_CONFIG["weekday_color"]:
 			add_day_indicator(state.main_group, state.rtc_instance)
-			log_debug("Showing Weekday Color Indicator on Forecast Display")
 		
 		state.memory_monitor.check_memory("forecast_display_static_complete")
 		
@@ -2227,7 +2235,7 @@ def update_rtc_date(rtc, new_year, new_month, new_day):
 		weekday_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 		weekday_name = weekday_names[new_weekday]
 			
-		log_info(f"RTC date MANUALLY updated to {new_year:04d}/{new_month:02d}/{new_day:02d} ({weekday_name})")
+		log_debug(f"RTC date MANUALLY updated to {new_year:04d}/{new_month:02d}/{new_day:02d} ({weekday_name})")
 		return True
 			
 	except Exception as e:
@@ -2239,7 +2247,10 @@ def update_rtc_date(rtc, new_year, new_month, new_day):
 		
 def initialize_system(rtc):
 	"""Initialize all hardware and load configuration"""
-	log_info("=== WEATHER DISPLAY STARTUP ===")
+	log_info("=== STARTUP ===")
+	
+	log_debug(f"ACTIVE: {active}")
+	log_debug(f"INACTIVE: {inactive}")
 	
 	# Log debug level
 	level_names = {0: "NONE", 1: "ERROR", 2: "WARNING", 3: "INFO", 4: "DEBUG", 5: "VERBOSE"}
@@ -2255,7 +2266,9 @@ def initialize_system(rtc):
 	
 	# Load events
 	events = get_events()
-	log_debug(f"System initialized - {len(events)} events loaded")
+	event_count, _ = get_today_events_info(rtc)
+	
+	log_info(f"Hardware ready | {len(events)} events loaded | {event_count} events today")
 	state.memory_monitor.check_memory("events_loaded")
 	
 	# Handle test date if configured
@@ -2270,9 +2283,8 @@ def setup_network_and_time(rtc):
 	
 	if wifi_connected and not DISPLAY_CONFIG["test_date"]:
 		sync_time_with_timezone(rtc)
-		log_info("Time synchronized with NTP")
 	elif DISPLAY_CONFIG["test_date"]:
-		log_debug(f"Skipping NTP sync - using test date: {rtc.datetime.tm_year:04d}/{rtc.datetime.tm_mon:02d}/{rtc.datetime.tm_mday:02d}")
+		log_info(f"Manual Time Set: {rtc.datetime.tm_year:04d}/{rtc.datetime.tm_mon:02d}/{rtc.datetime.tm_mday:02d}")
 	else:
 		log_warning("Starting without WiFi - using RTC time only")
 	
@@ -2290,7 +2302,7 @@ def handle_extended_failure_mode(rtc, time_since_success):
 	
 	# Periodically retry (every ~30 minutes)
 	if int(time_since_success) % Timing.API_RECOVERY_RETRY_INTERVAL < Timing.DEFAULT_CYCLE:
-		log_info("Attempting API recovery from extended failure mode...")
+		log_verbose("Attempting API recovery from extended failure mode...")
 		current_data, forecast_data = fetch_current_and_forecast_weather()
 		if current_data:
 			log_info("API recovery successful!")
@@ -2309,33 +2321,32 @@ def display_forecast_cycle(current_duration, forecast_duration):
 		if forecast_data:
 			state.cached_forecast_data = forecast_data
 			state.last_forecast_fetch = time.monotonic()
-			log_debug("Fetched fresh forecast data")
+			log_verbose("Fetched fresh forecast data")
 	else:
 		# Fetch only current weather, use cached forecast
 		DISPLAY_CONFIG["fetch_forecast"] = False
 		current_data, _ = fetch_current_and_forecast_weather()
 		DISPLAY_CONFIG["fetch_forecast"] = True
 		forecast_data = state.cached_forecast_data
-		log_debug("Using cached forecast data")
+		log_verbose("Using cached forecast data")
 	
 	forecast_shown = False
 	if current_data and forecast_data:
 		forecast_shown = show_forecast_display(current_data, forecast_data, forecast_duration)
 	
 	if not forecast_shown:
-		log_info("Forecast skipped - extending current weather time")
+		log_debug("Forecast skipped - extending current weather time")
 		current_duration += forecast_duration
 	
 	return current_data, current_duration
 
 def run_display_cycle(rtc, cycle_count):
 	"""Execute one complete display cycle"""
-	# Memory monitoring
-	if cycle_count % Timing.CYCLES_TO_MONITOR_MEMORY == 0:
-		state.memory_monitor.check_memory(f"cycle_{cycle_count}")
+	cycle_start_time = time.monotonic()
 	
+	# Memory monitoring
 	if cycle_count % Timing.CYCLES_FOR_MEMORY_REPORT == 0:
-		state.memory_monitor.log_report()
+		state.memory_monitor.log_report(level="DEBUG")
 	
 	# System maintenance
 	check_daily_reset(rtc)
@@ -2360,24 +2371,18 @@ def run_display_cycle(rtc, cycle_count):
 	current_data = None
 	if DISPLAY_CONFIG["forecast"]:
 		current_data, current_duration = display_forecast_cycle(current_duration, forecast_duration)
-	else:
-		log_debug("Forecast display disabled")
 	
 	# Current weather display
 	if DISPLAY_CONFIG["weather"]:
 		if not current_data:
 			current_data, _ = fetch_current_and_forecast_weather()
 		show_weather_display(rtc, current_duration, current_data)
-	else:
-		log_debug("Weather display disabled")
 	
 	# Events display
 	if DISPLAY_CONFIG["events"]:
 		event_shown = show_event_display(rtc, event_duration)
 		if not event_shown:
 			interruptible_sleep(1)
-	else:
-		log_debug("Event display disabled")
 	
 	# Color test (if enabled)
 	if DISPLAY_CONFIG["color_test"]:
@@ -2386,6 +2391,15 @@ def run_display_cycle(rtc, cycle_count):
 	# Cache stats logging
 	if cycle_count % Timing.CYCLES_FOR_CACHE_STATS == 0:
 		log_debug(state.image_cache.get_stats())
+		
+	# Calculate cycle duration
+	cycle_duration = time.monotonic() - cycle_start_time
+	# Get current memory stats
+	mem_stats = state.memory_monitor.get_memory_stats()
+	
+	log_info(f"Cycle #{cycle_count} complete in {round(int(cycle_duration)/System.SECONDS_PER_MINUTE,2)} min | UT: {state.memory_monitor.get_runtime()} | Mem: {mem_stats['usage_percent']:.1f}% | API: Total={state.api_call_count}/{API.MAX_CALLS_BEFORE_RESTART}, Current={state.current_api_calls}, Forecast={state.forecast_api_calls} \n")
+		
+	
 
 
 ### ============================================ MAIN PROGRAM  =========================================== ###
@@ -2412,14 +2426,15 @@ def main():
 		state.last_successful_weather = state.startup_time
 		state.memory_monitor.log_report()
 		
-		log_info("Entering main display loop (Press CTRL+C to stop)")
-		log_debug(f"Image cache initialized: {state.image_cache.get_stats()}")
+		log_info(f"== STARTING MAIN DISPLAY LOOP == \n")
+		log_verbose(f"Image cache initialized: {state.image_cache.get_stats()}")
 		
 		# Main display loop
 		cycle_count = 0
 		while True:
 			try:
 				cycle_count += 1
+				log_info(f"## CYCLE {cycle_count} ##")
 				run_display_cycle(rtc, cycle_count)
 				
 			except Exception as e:
@@ -2438,7 +2453,7 @@ def main():
 		supervisor.reload()
 	
 	finally:
-		log_info("Cleaning up before exit...")
+		log_debug("Cleaning up before exit...")
 		state.memory_monitor.log_report()
 		clear_display()
 		cleanup_global_session()
