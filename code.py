@@ -111,7 +111,7 @@ class Timing:
 	CYCLES_FOR_MEMORY_REPORT = 100
 	CYCLES_FOR_CACHE_STATS = 10
 	
-	EVENT_CHUNCK_SIZE = 60
+	EVENT_CHUNK_SIZE = 60
 	EVENT_MEMORY_MONITORING = 600 # For long events (e.g. all day)
 	
 	API_RECOVERY_RETRY_INTERVAL = 1800
@@ -1169,14 +1169,10 @@ def fetch_current_and_forecast_weather():
 						"has_precipitation": hour_data.get("HasPrecipitation", False)
 					})
 				
-				log_info(f"Forecast: {len(forecast_data)} hours | Next: {forecast_data[0]['temperature']}°C")
-				if len(forecast_data) >= forecast_fetch_length:
-					h = 0
-					for item in forecast_data:
-						if CURRENT_DEBUG_LEVEL >= DebugLevel.VERBOSE:
-							for h, item in enumerate(forecast_data):
-								log_verbose(f"  Hour {h+1}: {item['temperature']}°C, {item['weather_text']}")
-						h += 1
+				log_info(f"Forecast: {len(forecast_data)} hours (fresh) | Next: {forecast_data[0]['temperature']}°C")
+				if len(forecast_data) >= forecast_fetch_length and CURRENT_DEBUG_LEVEL >= DebugLevel.VERBOSE:
+					for h, item in enumerate(forecast_data):
+						log_verbose(f"  Hour {h+1}: {item['temperature']}°C, {item['weather_text']}")
 				
 				state.memory_monitor.check_memory("forecast_data_complete")
 				forecast_success = True
@@ -1800,7 +1796,8 @@ def show_event_display(rtc, duration):
 	if num_events == 1:
 		# Single event - use full duration
 		event_data = event_list[0]
-		log_debug(f"Showing event: {event_data[1]}, for {duration_message(duration)}")
+		log_info(f"Showing event: {event_data[1]} {event_data[0]}")
+		log_debug(f"Showing event display for {duration_message(duration)}")
 		_display_single_event_optimized(event_data, rtc, duration)
 	else:
 		# Multiple events - split time between them
@@ -1809,7 +1806,7 @@ def show_event_display(rtc, duration):
 		
 		for i, event_data in enumerate(event_list):
 			state.memory_monitor.check_memory(f"event_{i+1}_start")
-			log_info(f"Event {i+1}/{num_events}: {event_data[1]}")
+			log_info(f"Event {i+1}/{num_events}: {event_data[1]} {event_data[0]}")
 			_display_single_event_optimized(event_data, rtc, event_duration)
 	
 	state.memory_monitor.check_memory("event_display_complete")
@@ -1895,13 +1892,13 @@ def _display_single_event_optimized(event_data, rtc, duration):
 		state.memory_monitor.check_memory("event_display_static_complete")
 		
 		# Simple strategy optimized for your usage patterns
-		if duration <= Timing.EVENT_CHUNCK_SIZE:
+		if duration <= Timing.EVENT_CHUNK_SIZE:
 			# Most common case: 10-60 second events, just sleep
 			interruptible_sleep(duration)
 		else:
 			# Rare case: all-day events, use 60-second chunks with minimal monitoring
 			elapsed = 0
-			chunk_size = Timing.EVENT_CHUCK_SIZE  # 1-minute chunks for long events
+			chunk_size = Timing.EVENT_CHUNK_SIZE  # 1-minute chunks for long events
 			
 			while elapsed < duration:
 				remaining = duration - elapsed
@@ -2264,16 +2261,19 @@ def initialize_system(rtc):
 	state.colors = get_matrix_colors()
 	state.memory_monitor.check_memory("hardware_init_complete")
 	
+	# Handle test date if configured
+	if DISPLAY_CONFIG["test_date"]:
+		update_rtc_date(rtc, TestData.TEST_YEAR, TestData.TEST_MONTH, TestData.TEST_DAY)
+		
 	# Load events
 	events = get_events()
 	event_count, _ = get_today_events_info(rtc)
 	
-	log_info(f"Hardware ready | {len(events)} events loaded | {event_count} events today")
+	if event_count == 0:
+		event_count = "No"
+		
+	log_info(f"Hardware ready | {len(events)} events loaded | Events Today: {event_count}")
 	state.memory_monitor.check_memory("events_loaded")
-	
-	# Handle test date if configured
-	if DISPLAY_CONFIG["test_date"]:
-		update_rtc_date(rtc, TestData.TEST_YEAR, TestData.TEST_MONTH, TestData.TEST_DAY)
 	
 	return events
 
@@ -2329,6 +2329,9 @@ def display_forecast_cycle(current_duration, forecast_duration):
 		DISPLAY_CONFIG["fetch_forecast"] = True
 		forecast_data = state.cached_forecast_data
 		log_verbose("Using cached forecast data")
+		
+		cache_age_minutes = int((time.monotonic() - state.last_forecast_fetch) / System.SECONDS_PER_MINUTE)
+		log_info(f"Forecast: cached {cache_age_minutes}min | Next: {forecast_data[0]['temperature']}°C")
 	
 	forecast_shown = False
 	if current_data and forecast_data:
@@ -2397,7 +2400,7 @@ def run_display_cycle(rtc, cycle_count):
 	# Get current memory stats
 	mem_stats = state.memory_monitor.get_memory_stats()
 	
-	log_info(f"Cycle #{cycle_count} complete in {round(int(cycle_duration)/System.SECONDS_PER_MINUTE,2)} min | UT: {state.memory_monitor.get_runtime()} | Mem: {mem_stats['usage_percent']:.1f}% | API: Total={state.api_call_count}/{API.MAX_CALLS_BEFORE_RESTART}, Current={state.current_api_calls}, Forecast={state.forecast_api_calls} \n")
+	log_info(f"Cycle #{cycle_count} complete in {cycle_duration/System.SECONDS_PER_MINUTE:.2f} min | UT: {state.memory_monitor.get_runtime()} | Mem: {mem_stats['usage_percent']:.1f}% | API: Total={state.api_call_count}/{API.MAX_CALLS_BEFORE_RESTART}, Current={state.current_api_calls}, Forecast={state.forecast_api_calls} \n")
 		
 	
 
