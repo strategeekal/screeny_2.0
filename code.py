@@ -327,8 +327,7 @@ class DisplayConfig:
 		
 		if self.use_test_date:
 			log_warning("Test date mode enabled - NTP sync will be skipped")
-		
-		return issues, warnings
+
 	
 	def should_fetch_weather(self):
 		"""Should we fetch current weather from API?"""
