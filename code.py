@@ -665,16 +665,6 @@ class WeatherDisplayState:
 		self.forecast_api_calls = 0
 		log_debug(f"API counters reset (was {old_total} total calls)")
 	
-	def get_api_stats(self):
-		"""Get current API statistics"""
-		return {
-			"total_calls": self.api_call_count,
-			"current_calls": self.current_api_calls,
-			"forecast_calls": self.forecast_api_calls,
-			"remaining_calls": API.MAX_CALLS_BEFORE_RESTART - self.api_call_count,
-			"restart_threshold": API.MAX_CALLS_BEFORE_RESTART
-		}
-	
 	def cleanup_session(self):
 		"""Clean up network session"""
 		if self.global_requests_session:
@@ -847,7 +837,6 @@ def setup_rtc():
 			i2c = board.I2C()
 			rtc = adafruit_ds3231.DS3231(i2c)
 			state.rtc_instance = rtc
-			state.memory_monitor.check_memory("rtc_init_success")
 			log_debug(f"RTC initialized on attempt {attempt + 1}")
 			return rtc
 		except Exception as e:
@@ -1164,7 +1153,6 @@ def fetch_current_and_forecast_weather():
 			current_json = fetch_weather_with_retries(current_url, context="Current Weather")
 			
 			if current_json:
-				state.memory_monitor.check_memory("current_data_processing")
 				state.current_api_calls += 1
 				state.api_call_count += 1
 				current_success = True
@@ -1206,7 +1194,6 @@ def fetch_current_and_forecast_weather():
 			forecast_fetch_length = min(API.DEFAULT_FORECAST_HOURS, API.MAX_FORECAST_HOURS)
 			
 			if forecast_json and len(forecast_json) >= forecast_fetch_length:
-				state.memory_monitor.check_memory("forecast_data_processing")
 				# Extract forecast data
 				forecast_data = []
 				for i in range(forecast_fetch_length):
@@ -1307,17 +1294,6 @@ def get_api_key():
 		log_error(f"Failed to read fallback API key: {e}")
 	
 	return None
-
-def get_api_call_stats():
-	"""Get detailed API call statistics"""
-	
-	return {
-		"total_calls": state.api_call_count,
-		"current_calls": state.current_api_calls,
-		"forecast_calls": state.forecast_api_calls,
-		"remaining_calls": API.MAX_CALLS_BEFORE_RESTART - state.api_call_count,
-		"restart_threshold": API.MAX_CALLS_BEFORE_RESTART
-	}
 	
 def should_fetch_forecast():
 	"""Check if forecast data needs to be refreshed"""
@@ -1443,26 +1419,22 @@ def load_events_from_csv():
 	try:
 		log_verbose(f"Loading events from {Paths.EVENTS_CSV}...")
 		with open(Paths.EVENTS_CSV, "r") as f:
-			line_count = 0
-			for line in f:
+			for line in f:  # Just remove line_count completely
 				line = line.strip()
-				if line and not line.startswith("#"):  # Skip empty lines and comments
+				if line and not line.startswith("#"):
 					parts = [part.strip() for part in line.split(",")]
 					if len(parts) >= 4:
-						date = parts[0]  # MM-DD format
+						date = parts[0]
 						line1 = parts[1] 
 						line2 = parts[2]
 						image = parts[3]
 						color = parts[4] if len(parts) > 4 else Strings.DEFAULT_EVENT_COLOR
 						
-						# Convert MM-DD to MMDD format for lookup
 						date_key = date.replace("-", "")
 						
-						# Store as list to support multiple events per day
 						if date_key not in events:
 							events[date_key] = []
 						events[date_key].append([line1, line2, image, color])
-						line_count += 1
 			
 			return events
 			
@@ -1646,7 +1618,6 @@ def show_weather_display(rtc, duration, weather_data=None):
 	
 	# Clear display and setup static elements ONCE
 	clear_display()
-	state.memory_monitor.check_memory("weather_display_cleared")
 	
 	# Create all static display elements ONCE
 	temp_text = bitmap_label.Label(
@@ -1734,7 +1705,6 @@ def show_weather_display(rtc, duration, weather_data=None):
 	else:
 		log_verbose("Weekday Color Indicator Disabled")
 	
-	state.memory_monitor.check_memory("weather_display_static_complete")
 	
 	# Optimized display update loop - ONLY update time text
 	start_time = time.monotonic()
@@ -1861,7 +1831,6 @@ def _display_single_event_optimized(event_data, rtc, duration):
 			bitmap, palette = state.image_cache.get_image(Paths.BIRTHDAY_IMAGE)
 			image_grid = displayio.TileGrid(bitmap, pixel_shader=palette)
 			state.main_group.append(image_grid)
-			state.memory_monitor.check_memory("birthday_image_loaded")
 		else:
 			# Load event-specific image (25x28 positioned at top right)
 			image_file = f"{Paths.EVENT_IMAGES}/{event_data[2]}"
@@ -1875,8 +1844,6 @@ def _display_single_event_optimized(event_data, rtc, duration):
 			image_grid = displayio.TileGrid(bitmap, pixel_shader=palette)
 			image_grid.x = Layout.EVENT_IMAGE_X
 			image_grid.y = Layout.EVENT_IMAGE_Y
-			
-			state.memory_monitor.check_memory("event_image_loaded")
 			
 			# Calculate optimal text positions dynamically
 			line1_text = event_data[1]  # e.g., "Cumple"
@@ -1917,14 +1884,11 @@ def _display_single_event_optimized(event_data, rtc, duration):
 			state.main_group.append(text1)
 			state.main_group.append(text2)
 			
-			state.memory_monitor.check_memory("event_text_created")
-			
 			# Add day indicator
 			if display_config.show_weekday_indicator:
 				add_day_indicator(state.main_group, rtc)
 				log_debug("Showing Weekday Color Indicator on Event Display")
 		
-		state.memory_monitor.check_memory("event_display_static_complete")
 		
 		# Simple strategy optimized for your usage patterns
 		if duration <= Timing.EVENT_CHUNK_SIZE:
@@ -2105,7 +2069,6 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 		if display_config.show_weekday_indicator:
 			add_day_indicator(state.main_group, state.rtc_instance)
 		
-		state.memory_monitor.check_memory("forecast_display_static_complete")
 		
 		# Optimized display update loop - ONLY update column 1 time
 		start_time = time.monotonic()
@@ -2403,11 +2366,11 @@ def run_display_cycle(rtc, cycle_count):
 		forecast_data = state.cached_forecast_data
 	
 	# Forecast display
+	forecast_shown = False
 	if display_config.show_forecast and current_data and forecast_data:
 		forecast_shown = show_forecast_display(current_data, forecast_data, forecast_duration)
-		if not forecast_shown:
-			current_duration += forecast_duration
-	else:
+	
+	if not forecast_shown:
 		current_duration += forecast_duration
 	
 	# Current weather display
