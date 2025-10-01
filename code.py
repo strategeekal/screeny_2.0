@@ -242,11 +242,11 @@ class System:
 
 class TestData:
 	# Move TEST_DATE_DATA values here
-	TEST_YEAR = 2026                    
-	TEST_MONTH = 7                      
-	TEST_DAY = 7                        
-	TEST_HOUR = 8
-	TEST_MINUTE = 2
+	TEST_YEAR = None                    
+	TEST_MONTH = None                      
+	TEST_DAY =  None                       
+	TEST_HOUR = 6
+	TEST_MINUTE = 52
 	
 	# Dummy weather values
 	DUMMY_WEATHER_DATA = {
@@ -321,7 +321,7 @@ class DisplayConfig:
 		self.use_live_forecast = True     # False = use dummy data
 		
 		# Test/debug modes
-		self.use_test_date = True
+		self.use_test_date = False
 		self.show_color_test = False
 	
 	def validate(self):
@@ -382,31 +382,61 @@ class ScheduledDisplay:
 			"get dressed": {
 				"enabled": True,
 				"days": [0, 1, 2, 3, 4, 5, 6],  # All days (0=Monday, 6=Sunday)
-				"start_hour": 7,
-				"start_min": 0,
-				"end_hour": 7,
-				"end_min": 30,
+				"start_hour": 11,
+				"start_min": 15,
+				"end_hour": 11,
+				"end_min": 45,
 				"image": "get_dressed.bmp"
 			},
 			
 			"breakfast": {
 				"enabled": True,
 				"days": [0, 1, 2, 3, 4, 5, 6],  # All days (0=Monday, 6=Sunday)
-				"start_hour": 7,
-				"start_min": 30,
-				"end_hour": 8,
-				"end_min": 0,
+				"start_hour": 11,
+				"start_min": 45,
+				"end_hour": 12,
+				"end_min": 15,
 				"image": "breakfast.bmp"
 			},
 			
 			"go to school": {
 				"enabled": True,
 				"days": [0, 1, 2, 3, 4],  # All days (0=Monday, 6=Sunday)
-				"start_hour": 8,
-				"start_min": 0,
-				"end_hour": 8,
-				"end_min": 45,
+				"start_hour": 12,
+				"start_min": 15,
+				"end_hour": 12,
+				"end_min": 30,
 				"image": "go_to_school.bmp"
+			},
+			
+			"bath time": {
+				"enabled": True,
+				"days": [0, 1, 2, 3, 4, 5, 6],  # All days (0=Monday, 6=Sunday)
+				"start_hour": 12,
+				"start_min": 32,
+				"end_hour": 12,
+				"end_min": 45,
+				"image": "bath_time.bmp"
+			},
+			
+			"pijamas on": {
+				"enabled": True,
+				"days": [0, 1, 2, 3, 4, 5, 6],  # All days (0=Monday, 6=Sunday)
+				"start_hour": 12,
+				"start_min": 45,
+				"end_hour": 13,
+				"end_min": 5,
+				"image": "get_dressed_night.bmp"
+			},
+			
+			"toilet and teeth": {
+				"enabled": True,
+				"days": [0, 1, 2, 3, 4],  # All days (0=Monday, 6=Sunday)
+				"start_hour": 13,
+				"start_min": 10,
+				"end_hour": 13,
+				"end_min": 17,
+				"image": "toilet_and_teeth.bmp"
 			}
 		}
 	
@@ -2240,6 +2270,10 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, duration, curren
 				display_config.use_live_forecast = False
 				current_data, _ = fetch_current_and_forecast_weather()
 				display_config.use_live_forecast = True
+				
+				# Update last successful weather timestamp
+				if current_data:
+					state.last_successful_weather = time.monotonic()
 			else:
 				current_data = TestData.DUMMY_WEATHER_DATA
 		
@@ -2248,7 +2282,7 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, duration, curren
 			show_clock_display(rtc, duration)
 			return
 		
-		# Extract weather data
+		# Extract initial weather data
 		temperature = f"{round(current_data['feels_like'])}°"
 		weather_icon = f"{current_data['weather_icon']}.bmp"
 		uv_index = current_data['uv_index']
@@ -2333,13 +2367,48 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, duration, curren
 		if display_config.show_weekday_indicator:
 			add_day_indicator(state.main_group, rtc)
 		
-		# Display loop with live clock
+		if current_data:
+			state.last_successful_weather = time.monotonic()
+		
+		# Display loop with live clock AND periodic weather refresh
 		start_time = time.monotonic()
 		last_minute = -1
+		last_weather_update = start_time
 		
 		while time.monotonic() - start_time < duration:
 			current_minute = rtc.datetime.tm_min
+			current_time = time.monotonic()
 			
+			# Refresh weather every 5 minutes for long scheduled displays
+			if current_time - last_weather_update >= 300:  # 300 seconds = 5 minutes
+				if display_config.use_live_weather:
+					display_config.use_live_forecast = False
+					fresh_data, _ = fetch_current_and_forecast_weather()
+					display_config.use_live_forecast = True
+					
+					if fresh_data:
+						# Update temperature label
+						new_temp = f"{round(fresh_data['feels_like'])}°"
+						temp_label.text = new_temp
+						
+						# Check if weather icon changed
+						new_icon = f"{fresh_data['weather_icon']}.bmp"
+						if new_icon != weather_icon:
+							# Reload weather icon
+							try:
+								bitmap, palette = state.image_cache.get_image(f"{Paths.COLUMN_IMAGES}/{new_icon}")
+								weather_img.bitmap = bitmap
+								weather_img.pixel_shader = palette
+								weather_icon = new_icon
+							except:
+								pass  # Keep old icon if new one fails to load
+						
+						state.last_successful_weather = current_time
+						log_debug(f"Refreshed weather during scheduled display: {new_temp}")
+				
+				last_weather_update = current_time
+			
+			# Update time when minute changes
 			if current_minute != last_minute:
 				hour = rtc.datetime.tm_hour
 				display_hour = hour % System.HOURS_IN_HALF_DAY or System.HOURS_IN_HALF_DAY
@@ -2351,7 +2420,6 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, duration, curren
 		
 	except Exception as e:
 		log_error(f"Scheduled display error: {e}")
-		# Fallback to clock for any other unexpected errors
 		show_clock_display(rtc, duration)
 	
 	gc.collect()
@@ -2413,14 +2481,17 @@ def calculate_yearday(year, month, day):
 	
 	return sum(days_in_month[:month-1]) + day
 		
-def update_rtc_datetime(rtc, new_year, new_month, new_day, new_hour=None, new_minute=None):
+def update_rtc_datetime(rtc, new_year=None, new_month=None, new_day=None, new_hour=None, new_minute=None):
 	"""Update RTC date and optionally time"""
 	try:
 		current_dt = rtc.datetime
 		
 		# Use current time if not specified
-		hour = new_hour if new_hour is not None else current_dt.tm_hour
-		minute = new_minute if new_minute is not None else current_dt.tm_min
+		new_year = new_year if new_year is not None else current_dt.tm_year
+		new_month = new_month if new_month is not None else current_dt.tm_mon
+		new_day = new_day if new_day is not None else current_dt.tm_mday
+		new_hour = new_hour if new_hour is not None else current_dt.tm_hour
+		new_minute = new_minute if new_minute is not None else current_dt.tm_min
 		
 		# Validate inputs
 		if not (1 <= new_month <= 12):
@@ -2438,7 +2509,7 @@ def update_rtc_datetime(rtc, new_year, new_month, new_day, new_hour=None, new_mi
 		# Create new datetime with updated month/day
 		new_datetime = time.struct_time((
 			new_year, new_month, new_day,
-			hour, minute, current_dt.tm_sec,
+			new_hour, new_minute, current_dt.tm_sec,
 			new_weekday, new_yearday, current_dt.tm_isdst
 		))
 		
@@ -2581,19 +2652,27 @@ def run_display_cycle(rtc, cycle_count):
 				display_config.use_live_forecast = False
 				current_data, _ = fetch_current_and_forecast_weather()
 				display_config.use_live_forecast = True
+				
+				# Update success timestamp if we got weather data
+				if current_data:
+					state.last_successful_weather = time.monotonic()
 			else:
 				current_data = TestData.DUMMY_WEATHER_DATA
 			
 			display_duration = get_remaining_schedule_time(rtc, schedule_config)
 			show_scheduled_display(rtc, schedule_name, schedule_config, display_duration, current_data)
 			
-			# Log cycle summary
+			# Update timestamp again AFTER successful display
+			if current_data:
+				state.last_successful_weather = time.monotonic()
+			
+			# Log cycle summary WITH API stats
 			cycle_duration = time.monotonic() - cycle_start_time
 			mem_stats = state.memory_monitor.get_memory_stats()
-			log_info(f"Cycle #{cycle_count} (SCHEDULED) complete in {cycle_duration/System.SECONDS_PER_MINUTE:.2f} min | UT: {state.memory_monitor.get_runtime()} | Mem: {mem_stats['usage_percent']:.1f}%\n")
+			log_info(f"Cycle #{cycle_count} (SCHEDULED) complete in {cycle_duration/System.SECONDS_PER_MINUTE:.2f} min | UT: {state.memory_monitor.get_runtime()} | Mem: {mem_stats['usage_percent']:.1f}% | API: Total={state.api_call_count}/{API.MAX_CALLS_BEFORE_RESTART}, Current={state.current_api_calls}, Forecast={state.forecast_api_calls}\n")
 			return
-		else:
-			log_debug("Scheduled displays disabled due to errors")
+	else:
+		log_debug("Scheduled displays disabled due to errors")
 	
 	# NORMAL CYCLE - Fetch data once
 	current_data, forecast_data = fetch_cycle_data(rtc)
