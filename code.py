@@ -244,9 +244,9 @@ class TestData:
 	# Move TEST_DATE_DATA values here
 	TEST_YEAR = 2026                    
 	TEST_MONTH = 7                      
-	TEST_DAY = 4                        
-	TEST_HOUR = 7
-	TEST_MINUTE = 35
+	TEST_DAY = 7                        
+	TEST_HOUR = 8
+	TEST_MINUTE = 2
 	
 	# Dummy weather values
 	DUMMY_WEATHER_DATA = {
@@ -310,10 +310,10 @@ class DisplayConfig:
 		# Core displays (always try to show if data available)
 		self.show_weather = True
 		self.show_forecast = True
-		self.show_events = False
+		self.show_events = True
 		
 		# Display Elements
-		self.show_weekday_indicator = False
+		self.show_weekday_indicator = True
 		self.show_scheduled_displays = True
 		
 		# API controls (fetch real data vs use dummy data)
@@ -379,6 +379,16 @@ class ScheduledDisplay:
 	
 	def __init__(self):
 		self.schedules = {
+			"get dressed": {
+				"enabled": True,
+				"days": [0, 1, 2, 3, 4, 5, 6],  # All days (0=Monday, 6=Sunday)
+				"start_hour": 7,
+				"start_min": 0,
+				"end_hour": 7,
+				"end_min": 30,
+				"image": "get_dressed.bmp"
+			},
+			
 			"breakfast": {
 				"enabled": True,
 				"days": [0, 1, 2, 3, 4, 5, 6],  # All days (0=Monday, 6=Sunday)
@@ -386,10 +396,17 @@ class ScheduledDisplay:
 				"start_min": 30,
 				"end_hour": 8,
 				"end_min": 0,
-				"message_line1": "EAT",
-				"message_line2": "BREAKFAST",
-				"color": "ORANGE",
-				"image": "get_dressed.bmp"
+				"image": "breakfast.bmp"
+			},
+			
+			"go to school": {
+				"enabled": True,
+				"days": [0, 1, 2, 3, 4],  # All days (0=Monday, 6=Sunday)
+				"start_hour": 8,
+				"start_min": 0,
+				"end_hour": 8,
+				"end_min": 45,
+				"image": "go_to_school.bmp"
 			}
 		}
 	
