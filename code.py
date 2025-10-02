@@ -99,7 +99,9 @@ class Timing:
 	DEFAULT_EVENT = 30          
 	MIN_EVENT_DURATION = 10     
 	CLOCK_DISPLAY_DURATION = 300
-	COLOR_TEST = 300            
+	COLOR_TEST = 300 
+	SCHEDULE_WEATHER_REFRESH_INTERVAL = 300  
+	SCHEDULE_GC_INTERVAL = 600   
 	
 	FORECAST_UPDATE_INTERVAL = 900  # 15 minutes
 	DAILY_RESET_HOUR = 3
@@ -245,12 +247,12 @@ class TestData:
 	TEST_YEAR = None                    
 	TEST_MONTH = None                      
 	TEST_DAY =  None                       
-	TEST_HOUR = 6
-	TEST_MINUTE = 52
+	TEST_HOUR = 19
+	TEST_MINUTE = 22
 	
 	# Dummy weather values
 	DUMMY_WEATHER_DATA = {
-		"weather_icon": 19,
+		"weather_icon": 1,
 		"temperature": -12,
 		"feels_like": -13.6,
 		"feels_shade": -14.6,
@@ -376,68 +378,104 @@ display_config = DisplayConfig()
 
 class ScheduledDisplay:
 	"""Configuration for time-based scheduled displays"""
+	# Schedule images should be placed in img/schedule/
+	# Weather column images (13x23px) should be in img/weather/columns/
 	
 	def __init__(self):
 		self.schedules = {
-			"get dressed": {
+			#Morning Routine
+			"Get Dressed": {
 				"enabled": True,
 				"days": [0, 1, 2, 3, 4, 5, 6],  # All days (0=Monday, 6=Sunday)
-				"start_hour": 11,
-				"start_min": 15,
-				"end_hour": 11,
-				"end_min": 45,
+				"start_hour": 7,
+				"start_min": 0,
+				"end_hour": 7,
+				"end_min": 20,
 				"image": "get_dressed.bmp"
 			},
 			
-			"breakfast": {
+			"Eat Breakfast": {
 				"enabled": True,
 				"days": [0, 1, 2, 3, 4, 5, 6],  # All days (0=Monday, 6=Sunday)
-				"start_hour": 11,
-				"start_min": 45,
-				"end_hour": 12,
-				"end_min": 15,
+				"start_hour": 7,
+				"start_min": 20,
+				"end_hour": 7,
+				"end_min": 50,
 				"image": "breakfast.bmp"
 			},
 			
-			"go to school": {
+			"Go to School": {
 				"enabled": True,
 				"days": [0, 1, 2, 3, 4],  # All days (0=Monday, 6=Sunday)
-				"start_hour": 12,
-				"start_min": 15,
-				"end_hour": 12,
-				"end_min": 30,
+				"start_hour": 7,
+				"start_min": 50,
+				"end_hour": 8,
+				"end_min": 15,
 				"image": "go_to_school.bmp"
 			},
 			
-			"bath time": {
+			# Nighttime Routine
+			
+			"Eat Dinner": {
 				"enabled": True,
 				"days": [0, 1, 2, 3, 4, 5, 6],  # All days (0=Monday, 6=Sunday)
-				"start_hour": 12,
-				"start_min": 32,
-				"end_hour": 12,
-				"end_min": 45,
+				"start_hour": 19,
+				"start_min": 0,
+				"end_hour": 19,
+				"end_min": 30,
+				"image": "dinner.bmp"
+			},
+			
+			"Bath Time": {
+				"enabled": True,
+				"days": [0, 1, 2, 3, 4, 5, 6],  # All days (0=Monday, 6=Sunday)
+				"start_hour": 19,
+				"start_min": 30,
+				"end_hour": 20,
+				"end_min": 0,
 				"image": "bath_time.bmp"
 			},
 			
-			"pijamas on": {
+			"Pijamas On": {
 				"enabled": True,
 				"days": [0, 1, 2, 3, 4, 5, 6],  # All days (0=Monday, 6=Sunday)
-				"start_hour": 12,
-				"start_min": 45,
-				"end_hour": 13,
-				"end_min": 5,
+				"start_hour": 20,
+				"start_min": 0,
+				"end_hour": 20,
+				"end_min": 15,
 				"image": "get_dressed_night.bmp"
 			},
 			
-			"toilet and teeth": {
+			"Toilet and Teeth": {
 				"enabled": True,
-				"days": [0, 1, 2, 3, 4],  # All days (0=Monday, 6=Sunday)
-				"start_hour": 13,
-				"start_min": 10,
-				"end_hour": 13,
-				"end_min": 17,
+				"days": [0, 1, 2, 3, 4, 5, 6],  # All days (0=Monday, 6=Sunday)
+				"start_hour": 20,
+				"start_min": 15,
+				"end_hour": 20,
+				"end_min": 30,
 				"image": "toilet_and_teeth.bmp"
-			}
+			},
+			
+			"Story and Sleep": {
+				"enabled": True,
+				"days": [0, 1, 2, 3, 4, 5, 6],  # All days (0=Monday, 6=Sunday)
+				"start_hour": 20,
+				"start_min": 30,
+				"end_hour": 20,
+				"end_min": 45,
+				"image": "story_and_bed.bmp"
+			},
+			
+			"Sleep": {
+				"enabled": True,
+				"days": [0, 1, 2, 3, 4, 5, 6],  # All days (0=Monday, 6=Sunday)
+				"start_hour": 20,
+				"start_min": 45,
+				"end_hour": 21,
+				"end_min": 30,
+				"image": "bed.bmp"
+			},
+			
 		}
 	
 	def is_active(self, rtc, schedule_name):
@@ -931,7 +969,6 @@ def format_datetime(iso_string):
 
 def initialize_display():
 	"""Initialize RGB matrix display"""
-	state.memory_monitor.check_memory("display_init_start")
 	
 	displayio.release_displays()
 	
@@ -1393,6 +1430,19 @@ def fetch_current_and_forecast_weather():
 		state.memory_monitor.check_memory("weather_fetch_error")
 		state.consecutive_failures += 1
 		return None, None
+		
+def fetch_current_weather_only():
+	"""Fetch only current weather (not forecast)"""
+	if display_config.use_live_weather:
+		display_config.use_live_forecast = False
+		current_data, _ = fetch_current_and_forecast_weather()
+		display_config.use_live_forecast = True
+		
+		if current_data:
+			state.last_successful_weather = time.monotonic()
+		return current_data
+	else:
+		return TestData.DUMMY_WEATHER_DATA
 
 def get_api_key():
 	"""Extract API key logic into separate function"""
@@ -2266,16 +2316,9 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, duration, curren
 	try:
 		# Fetch weather data if not provided
 		if not current_data:
-			if display_config.use_live_weather:
-				display_config.use_live_forecast = False
-				current_data, _ = fetch_current_and_forecast_weather()
-				display_config.use_live_forecast = True
-				
-				# Update last successful weather timestamp
-				if current_data:
-					state.last_successful_weather = time.monotonic()
-			else:
-				current_data = TestData.DUMMY_WEATHER_DATA
+			
+			# Fetch current weather data only
+			current_data = fetch_current_weather_only()
 		
 		if not current_data:
 			log_warning("No weather data for scheduled display")
@@ -2374,37 +2417,39 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, duration, curren
 		start_time = time.monotonic()
 		last_minute = -1
 		last_weather_update = start_time
+		last_gc = start_time
 		
 		while time.monotonic() - start_time < duration:
 			current_minute = rtc.datetime.tm_min
 			current_time = time.monotonic()
 			
+			# Garbage collect every 10 minutes
+			if current_time - last_gc >= Timing.SCHEDULE_GC_INTERVAL:
+				gc.collect()
+				log_verbose("GC during scheduled display")
+				last_gc = current_time
+			
 			# Refresh weather every 5 minutes for long scheduled displays
-			if current_time - last_weather_update >= 300:  # 300 seconds = 5 minutes
-				if display_config.use_live_weather:
-					display_config.use_live_forecast = False
-					fresh_data, _ = fetch_current_and_forecast_weather()
-					display_config.use_live_forecast = True
+			if current_time - last_weather_update >= Timing.SCHEDULE_WEATHER_REFRESH_INTERVAL:  # 300 seconds = 5 minutes
+				fresh_data = fetch_current_weather_only()
+				
+				if fresh_data:
+					# Update temperature label
+					new_temp = f"{round(fresh_data['feels_like'])}°"
+					temp_label.text = new_temp
 					
-					if fresh_data:
-						# Update temperature label
-						new_temp = f"{round(fresh_data['feels_like'])}°"
-						temp_label.text = new_temp
-						
-						# Check if weather icon changed
-						new_icon = f"{fresh_data['weather_icon']}.bmp"
-						if new_icon != weather_icon:
-							# Reload weather icon
-							try:
-								bitmap, palette = state.image_cache.get_image(f"{Paths.COLUMN_IMAGES}/{new_icon}")
-								weather_img.bitmap = bitmap
-								weather_img.pixel_shader = palette
-								weather_icon = new_icon
-							except:
-								pass  # Keep old icon if new one fails to load
-						
-						state.last_successful_weather = current_time
-						log_debug(f"Refreshed weather during scheduled display: {new_temp}")
+					# Check if weather icon changed
+					new_icon = f"{fresh_data['weather_icon']}.bmp"
+					if new_icon != weather_icon:
+						try:
+							bitmap, palette = state.image_cache.get_image(f"{Paths.COLUMN_IMAGES}/{new_icon}")
+							weather_img.bitmap = bitmap
+							weather_img.pixel_shader = palette
+							weather_icon = new_icon
+						except:
+							pass
+					
+					log_debug(f"Refreshed weather during scheduled display: {new_temp}")
 				
 				last_weather_update = current_time
 			
@@ -2514,7 +2559,7 @@ def update_rtc_datetime(rtc, new_year=None, new_month=None, new_day=None, new_ho
 		))
 		
 		rtc.datetime = new_datetime
-		log_debug(f"RTC updated to {new_year:04d}/{new_month:02d}/{new_day:02d} {hour:02d}:{minute:02d}")
+		log_debug(f"RTC updated to {new_year:04d}/{new_month:02d}/{new_day:02d} {new_hour:02d}:{new_minute:02d}")
 		return True
 	except Exception as e:
 		log_error(f"Failed to update RTC: {e}")
@@ -2562,7 +2607,7 @@ def setup_network_and_time(rtc):
 	if wifi_connected and not display_config.use_test_date:
 		sync_time_with_timezone(rtc)
 	elif display_config.use_test_date:
-		log_info(f"Manual Time Set: {rtc.datetime.tm_year:04d}/{rtc.datetime.tm_mon:02d}/{rtc.datetime.tm_mday:02d}")
+		log_info(f"Manual Time Set: {rtc.datetime.tm_year:04d}/{rtc.datetime.tm_mon:02d}/{rtc.datetime.tm_mday:02d} {rtc.datetime.tm_hour:02d}:{rtc.datetime.tm_min:02d}")
 	else:
 		log_warning("Starting without WiFi - using RTC time only")
 	
@@ -2647,24 +2692,12 @@ def run_display_cycle(rtc, cycle_count):
 	if display_config.show_scheduled_displays:
 		schedule_name, schedule_config = scheduled_display.get_active_schedule(rtc)
 		if schedule_name:
+			
 			# Fetch only current weather (not forecast) for scheduled display
-			if display_config.use_live_weather:
-				display_config.use_live_forecast = False
-				current_data, _ = fetch_current_and_forecast_weather()
-				display_config.use_live_forecast = True
-				
-				# Update success timestamp if we got weather data
-				if current_data:
-					state.last_successful_weather = time.monotonic()
-			else:
-				current_data = TestData.DUMMY_WEATHER_DATA
+			current_data = fetch_current_weather_only()
 			
 			display_duration = get_remaining_schedule_time(rtc, schedule_config)
 			show_scheduled_display(rtc, schedule_name, schedule_config, display_duration, current_data)
-			
-			# Update timestamp again AFTER successful display
-			if current_data:
-				state.last_successful_weather = time.monotonic()
 			
 			# Log cycle summary WITH API stats
 			cycle_duration = time.monotonic() - cycle_start_time
