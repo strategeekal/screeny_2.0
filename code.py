@@ -77,12 +77,19 @@ class Layout:
 	
 	# Schedule image positioning
 	SCHEDULE_IMAGE_X = 23        # Image size 40 x 28 px
-	SCHEDULE_IMAGE_Y = 2
+	SCHEDULE_IMAGE_Y = 0
 	SCHEDULE_LEFT_MARGIN_X = 2
 	SCHEDULE_W_IMAGE_Y = 9
 	SCHEDULE_TEMP_Y = 24
 	SCHEDULE_UV_Y = 30
 	SCHEDULE_X_OFFSET = -1
+	
+	# Progress bar positioning (below day indicator)
+	
+	PROGRESS_BAR_HORIZONTAL_X = 23 # 23 (aligned with image)
+	PROGRESS_BAR_HORIZONTAL_Y = 29  # Below 28px tall image + 1px gap = y=31
+	PROGRESS_BAR_HORIZONTAL_WIDTH = 40
+	PROGRESS_BAR_HORIZONTAL_HEIGHT = 2
 	
 class DayIndicator:
 	SIZE = 4
@@ -311,8 +318,8 @@ class DisplayConfig:
 	def __init__(self):
 		# Core displays (always try to show if data available)
 		self.show_weather = True
-		self.show_forecast = True
-		self.show_events = True
+		self.show_forecast = False
+		self.show_events = False
 		
 		# Display Elements
 		self.show_weekday_indicator = True
@@ -323,7 +330,7 @@ class DisplayConfig:
 		self.use_live_forecast = True     # False = use dummy data
 		
 		# Test/debug modes
-		self.use_test_date = False
+		self.use_test_date = True
 		self.show_color_test = False
 	
 	def validate(self):
@@ -2306,6 +2313,73 @@ def calculate_display_durations(rtc):
 		log_warning(f"Current weather time adjusted to minimum: {current_weather_time}s")
 	
 	return current_weather_time, Timing.DEFAULT_FORECAST, event_time
+
+def create_progress_bar_tilegrid():
+	"""Create a TileGrid-based progress bar with tick marks"""
+	# Create bitmap with extra height for tick marks (2px bar + 2px above + 1px below = 5px total)
+	progress_bitmap = displayio.Bitmap(
+		Layout.PROGRESS_BAR_HORIZONTAL_WIDTH, 
+		5,  # Increased height for tick marks
+		4  # 4 colors: background, elapsed, remaining, and tick marks
+	)
+	
+	# Create palette
+	progress_palette = displayio.Palette(4)
+	progress_palette[0] = state.colors["BLACK"]  # Background
+	progress_palette[1] = state.colors["LILAC"]  # Elapsed (darker)
+	progress_palette[2] = state.colors["MINT"]  # Remaining (lighter)
+	progress_palette[3] = state.colors["WHITE"]  # Tick marks (brightest)
+	
+	# Initialize entire bitmap with black background
+	for y in range(5):
+		for x in range(Layout.PROGRESS_BAR_HORIZONTAL_WIDTH):
+			progress_bitmap[x, y] = 0  # Black background everywhere
+	
+	# Fill only the bar area (rows 2-3) with remaining color
+	for y in range(2, 4):  # Bar is at rows 2-3
+		for x in range(Layout.PROGRESS_BAR_HORIZONTAL_WIDTH):
+			progress_bitmap[x, y] = 2  # Start with all "remaining"
+	
+	# Add tick marks: 0% (start), 25%, 50%, 75%, 100% (end)
+	tick_positions = [0, 10, 20, 30, 39]
+	
+	for pos in tick_positions:
+		if pos == 0 or pos == 20 or pos == 39:  # Start, middle, end get 2px above
+			progress_bitmap[pos, 0] = 3  # Top row
+			progress_bitmap[pos, 1] = 3  # Second row
+		else:  # 25% and 75% get 1px above
+			progress_bitmap[pos, 1] = 3  # Second row only
+		
+		# All ticks get 1px below
+		progress_bitmap[pos, 4] = 3  # Bottom row
+	
+	# Create TileGrid
+	progress_grid = displayio.TileGrid(
+		progress_bitmap, 
+		pixel_shader=progress_palette,
+		x=Layout.PROGRESS_BAR_HORIZONTAL_X,
+		y=Layout.PROGRESS_BAR_HORIZONTAL_Y - 2
+	)
+	
+	return progress_grid, progress_bitmap
+
+def update_progress_bar_bitmap(progress_bitmap, elapsed_seconds, total_seconds):
+	"""Update only the bitmap values, preserving tick marks"""
+	if total_seconds <= 0:
+		return
+	
+	# Calculate elapsed pixels (fills left to right)
+	elapsed_ratio = min(1.0, elapsed_seconds / total_seconds)
+	elapsed_width = int(Layout.PROGRESS_BAR_HORIZONTAL_WIDTH * elapsed_ratio)
+	
+	# Update bitmap: 0=background, 1=elapsed, 2=remaining, 3=tick marks
+	# Only update rows 2-3 (the bar itself)
+	for y in range(2, 4):  # Bar area only
+		for x in range(Layout.PROGRESS_BAR_HORIZONTAL_WIDTH):
+			if x < elapsed_width:
+				progress_bitmap[x, y] = 1  # Elapsed (gray) - left side
+			else:
+				progress_bitmap[x, y] = 2  # Remaining (light) - right side
 	
 def show_scheduled_display(rtc, schedule_name, schedule_config, duration, current_data=None):
 	"""Display scheduled message with live weather and clock"""
@@ -2316,7 +2390,6 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, duration, curren
 	try:
 		# Fetch weather data if not provided
 		if not current_data:
-			
 			# Fetch current weather data only
 			current_data = fetch_current_weather_only()
 		
@@ -2357,7 +2430,6 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, duration, curren
 			log_error(f"Failed to load weather icon {weather_icon}: {e}")
 			state.scheduled_display_error_count += 1
 			
-			# Disable scheduled displays after 3 failures
 			if state.scheduled_display_error_count >= 3:
 				log_error("Disabling scheduled displays due to repeated errors")
 				display_config.show_scheduled_displays = False
@@ -2366,7 +2438,7 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, duration, curren
 			return
 			
 		try:
-			bitmap, palette = state.image_cache.get_image(f"{Paths.SCHEDULE_IMAGES}/{schedule_config['image']}")
+			bitmap, palette = load_bmp_image(f"{Paths.SCHEDULE_IMAGES}/{schedule_config['image']}")
 			schedule_img = displayio.TileGrid(bitmap, pixel_shader=palette)
 			schedule_img.x = Layout.SCHEDULE_IMAGE_X
 			schedule_img.y = Layout.SCHEDULE_IMAGE_Y
@@ -2413,32 +2485,49 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, duration, curren
 		if current_data:
 			state.last_successful_weather = time.monotonic()
 		
-		# Display loop with live clock AND periodic weather refresh
+		# Track number of static elements (everything before progress bar)
+		static_elements_count = len(state.main_group)
+		
+		# Create progress bar TileGrid
+		progress_grid, progress_bitmap = create_progress_bar_tilegrid()
+		state.main_group.append(progress_grid)
+		
+		# Display loop with live clock, weather refresh, and progress bar
 		start_time = time.monotonic()
 		last_minute = -1
 		last_weather_update = start_time
 		last_gc = start_time
+		last_displayed_column = -1  # Track which column was last updated
 		
 		while time.monotonic() - start_time < duration:
 			current_minute = rtc.datetime.tm_min
 			current_time = time.monotonic()
+			elapsed = current_time - start_time  # ADD THIS LINE
+			
+			# Calculate current column for progress bar
+			elapsed_ratio = elapsed / duration
+			current_column = int(Layout.PROGRESS_BAR_HORIZONTAL_WIDTH * (1 - elapsed_ratio))
+			
+			# Update progress bar only when column changes
+			if current_column != last_displayed_column:
+				update_progress_bar_bitmap(progress_bitmap, elapsed, duration)
+				last_displayed_column = current_column
 			
 			# Garbage collect every 10 minutes
 			if current_time - last_gc >= Timing.SCHEDULE_GC_INTERVAL:
 				gc.collect()
 				log_verbose("GC during scheduled display")
 				last_gc = current_time
+
 			
-			# Refresh weather every 5 minutes for long scheduled displays
-			if current_time - last_weather_update >= Timing.SCHEDULE_WEATHER_REFRESH_INTERVAL:  # 300 seconds = 5 minutes
+			# Refresh weather every 5 minutes
+			if current_time - last_weather_update >= Timing.SCHEDULE_WEATHER_REFRESH_INTERVAL:
 				fresh_data = fetch_current_weather_only()
 				
 				if fresh_data:
-					# Update temperature label
 					new_temp = f"{round(fresh_data['feels_like'])}°"
 					temp_label.text = new_temp
 					
-					# Check if weather icon changed
 					new_icon = f"{fresh_data['weather_icon']}.bmp"
 					if new_icon != weather_icon:
 						try:
@@ -2462,7 +2551,7 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, duration, curren
 				last_minute = current_minute
 			
 			interruptible_sleep(1)
-		
+			
 	except Exception as e:
 		log_error(f"Scheduled display error: {e}")
 		show_clock_display(rtc, duration)
