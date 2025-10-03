@@ -254,8 +254,8 @@ class TestData:
 	TEST_YEAR = None                    
 	TEST_MONTH = None                      
 	TEST_DAY =  None                       
-	TEST_HOUR = 19
-	TEST_MINUTE = 22
+	TEST_HOUR = 18
+	TEST_MINUTE = 48
 	
 	# Dummy weather values
 	DUMMY_WEATHER_DATA = {
@@ -318,8 +318,8 @@ class DisplayConfig:
 	def __init__(self):
 		# Core displays (always try to show if data available)
 		self.show_weather = True
-		self.show_forecast = False
-		self.show_events = False
+		self.show_forecast = True
+		self.show_events = True
 		
 		# Display Elements
 		self.show_weekday_indicator = True
