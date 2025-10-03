@@ -398,7 +398,8 @@ class ScheduledDisplay:
 				"start_min": 0,
 				"end_hour": 7,
 				"end_min": 20,
-				"image": "get_dressed.bmp"
+				"image": "get_dressed.bmp",
+				"progressbar": True
 			},
 			
 			"Eat Breakfast": {
@@ -408,7 +409,8 @@ class ScheduledDisplay:
 				"start_min": 20,
 				"end_hour": 7,
 				"end_min": 50,
-				"image": "breakfast.bmp"
+				"image": "breakfast.bmp",
+				"progressbar": True
 			},
 			
 			"Go to School": {
@@ -418,7 +420,8 @@ class ScheduledDisplay:
 				"start_min": 50,
 				"end_hour": 8,
 				"end_min": 15,
-				"image": "go_to_school.bmp"
+				"image": "go_to_school.bmp",
+				"progressbar": True
 			},
 			
 			# Nighttime Routine
@@ -430,7 +433,8 @@ class ScheduledDisplay:
 				"start_min": 0,
 				"end_hour": 19,
 				"end_min": 30,
-				"image": "dinner.bmp"
+				"image": "dinner.bmp",
+				"progressbar": True
 			},
 			
 			"Bath Time": {
@@ -440,7 +444,8 @@ class ScheduledDisplay:
 				"start_min": 30,
 				"end_hour": 20,
 				"end_min": 0,
-				"image": "bath_time.bmp"
+				"image": "bath_time.bmp",
+				"progressbar": True
 			},
 			
 			"Pijamas On": {
@@ -450,7 +455,8 @@ class ScheduledDisplay:
 				"start_min": 0,
 				"end_hour": 20,
 				"end_min": 15,
-				"image": "get_dressed_night.bmp"
+				"image": "get_dressed_night.bmp",
+				"progressbar": True
 			},
 			
 			"Toilet and Teeth": {
@@ -460,7 +466,8 @@ class ScheduledDisplay:
 				"start_min": 15,
 				"end_hour": 20,
 				"end_min": 30,
-				"image": "toilet_and_teeth.bmp"
+				"image": "toilet_and_teeth.bmp",
+				"progressbar": True
 			},
 			
 			"Story and Sleep": {
@@ -470,7 +477,8 @@ class ScheduledDisplay:
 				"start_min": 30,
 				"end_hour": 20,
 				"end_min": 45,
-				"image": "story_and_bed.bmp"
+				"image": "story_and_bed.bmp",
+				"progressbar": True
 			},
 			
 			"Sleep": {
@@ -480,7 +488,8 @@ class ScheduledDisplay:
 				"start_min": 45,
 				"end_hour": 21,
 				"end_min": 30,
-				"image": "bed.bmp"
+				"image": "bed.bmp",
+				"progressbar": True
 			},
 			
 		}
@@ -2499,9 +2508,15 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, duration, curren
 		# Track number of static elements (everything before progress bar)
 		static_elements_count = len(state.main_group)
 		
-		# Create progress bar TileGrid
-		progress_grid, progress_bitmap = create_progress_bar_tilegrid()
-		state.main_group.append(progress_grid)
+		# Create progress bar TileGrid ONLY if enabled for this schedule
+		if schedule_config.get("progressbar", True):  # Default to True if key doesn't exist
+			progress_grid, progress_bitmap = create_progress_bar_tilegrid()
+			state.main_group.append(progress_grid)
+			show_progress_bar = True
+		else:
+			progress_grid = None
+			progress_bitmap = None
+			show_progress_bar = False
 		
 		# Display loop with live clock, weather refresh, and progress bar
 		start_time = time.monotonic()
@@ -2520,7 +2535,7 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, duration, curren
 			current_column = int(Layout.PROGRESS_BAR_HORIZONTAL_WIDTH * (elapsed_ratio))
 			
 			# Update progress bar only when column changes
-			if current_column != last_displayed_column:
+			if show_progress_bar and current_column != last_displayed_column:
 				update_progress_bar_bitmap(progress_bitmap, elapsed, duration)
 				last_displayed_column = current_column
 			
