@@ -254,8 +254,8 @@ class TestData:
 	TEST_YEAR = None                    
 	TEST_MONTH = None                      
 	TEST_DAY =  None                       
-	TEST_HOUR = 18
-	TEST_MINUTE = 48
+	TEST_HOUR = 20
+	TEST_MINUTE = 12
 	
 	# Dummy weather values
 	DUMMY_WEATHER_DATA = {
@@ -330,7 +330,7 @@ class DisplayConfig:
 		self.use_live_forecast = True     # False = use dummy data
 		
 		# Test/debug modes
-		self.use_test_date = True
+		self.use_test_date = False
 		self.show_color_test = False
 	
 	def validate(self):
@@ -2316,70 +2316,81 @@ def calculate_display_durations(rtc):
 
 def create_progress_bar_tilegrid():
 	"""Create a TileGrid-based progress bar with tick marks"""
-	# Create bitmap with extra height for tick marks (2px bar + 2px above + 1px below = 5px total)
-	progress_bitmap = displayio.Bitmap(
-		Layout.PROGRESS_BAR_HORIZONTAL_WIDTH, 
-		5,  # Increased height for tick marks
-		4  # 4 colors: background, elapsed, remaining, and tick marks
-	)
+	# Progress bar dimensions
+	bar_width = Layout.PROGRESS_BAR_HORIZONTAL_WIDTH
+	bar_height = Layout.PROGRESS_BAR_HORIZONTAL_HEIGHT
+	tick_height_above = 2
+	tick_height_below = 1
+	total_height = tick_height_above + bar_height + tick_height_below  # 5px total
+	
+	# Bar position within bitmap
+	bar_y_start = tick_height_above  # Bar starts at row 2
+	bar_y_end = bar_y_start + bar_height  # Bar ends at row 4
+	
+	# Create bitmap
+	progress_bitmap = displayio.Bitmap(bar_width, total_height, 4)
 	
 	# Create palette
 	progress_palette = displayio.Palette(4)
-	progress_palette[0] = state.colors["BLACK"]  # Background
-	progress_palette[1] = state.colors["LILAC"]  # Elapsed (darker)
-	progress_palette[2] = state.colors["MINT"]  # Remaining (lighter)
-	progress_palette[3] = state.colors["WHITE"]  # Tick marks (brightest)
+	progress_palette[0] = state.colors["BLACK"]
+	progress_palette[1] = state.colors["LILAC"]  # Elapsed
+	progress_palette[2] = state.colors["MINT"]   # Remaining
+	progress_palette[3] = state.colors["WHITE"]  # Tick marks
 	
-	# Initialize entire bitmap with black background
-	for y in range(5):
-		for x in range(Layout.PROGRESS_BAR_HORIZONTAL_WIDTH):
-			progress_bitmap[x, y] = 0  # Black background everywhere
+	# Initialize with black background
+	for y in range(total_height):
+		for x in range(bar_width):
+			progress_bitmap[x, y] = 0
 	
-	# Fill only the bar area (rows 2-3) with remaining color
-	for y in range(2, 4):  # Bar is at rows 2-3
-		for x in range(Layout.PROGRESS_BAR_HORIZONTAL_WIDTH):
-			progress_bitmap[x, y] = 2  # Start with all "remaining"
+	# Fill bar area with "remaining" color
+	for y in range(bar_y_start, bar_y_end):
+		for x in range(bar_width):
+			progress_bitmap[x, y] = 2
 	
-	# Add tick marks: 0% (start), 25%, 50%, 75%, 100% (end)
-	tick_positions = [0, 10, 20, 30, 39]
+	# Add tick marks at 0%, 25%, 50%, 75%, 100%
+	tick_positions = [0, bar_width // 4, bar_width // 2, 3 * bar_width // 4, bar_width - 1]
 	
 	for pos in tick_positions:
-		if pos == 0 or pos == 20 or pos == 39:  # Start, middle, end get 2px above
-			progress_bitmap[pos, 0] = 3  # Top row
-			progress_bitmap[pos, 1] = 3  # Second row
-		else:  # 25% and 75% get 1px above
-			progress_bitmap[pos, 1] = 3  # Second row only
+		# Major ticks (start, middle, end) get 2px above
+		if pos == 0 or pos == bar_width // 2 or pos == bar_width - 1:
+			progress_bitmap[pos, 0] = 3
+			progress_bitmap[pos, 1] = 3
+		else:  # Minor ticks (25%, 75%) get 1px above
+			progress_bitmap[pos, 1] = 3
 		
 		# All ticks get 1px below
-		progress_bitmap[pos, 4] = 3  # Bottom row
+		progress_bitmap[pos, bar_y_end] = 3
 	
 	# Create TileGrid
 	progress_grid = displayio.TileGrid(
-		progress_bitmap, 
+		progress_bitmap,
 		pixel_shader=progress_palette,
 		x=Layout.PROGRESS_BAR_HORIZONTAL_X,
-		y=Layout.PROGRESS_BAR_HORIZONTAL_Y - 2
+		y=Layout.PROGRESS_BAR_HORIZONTAL_Y - tick_height_above
 	)
 	
 	return progress_grid, progress_bitmap
 
 def update_progress_bar_bitmap(progress_bitmap, elapsed_seconds, total_seconds):
-	"""Update only the bitmap values, preserving tick marks"""
+	"""Update progress bar bitmap (fills left to right as time elapses)"""
 	if total_seconds <= 0:
 		return
 	
-	# Calculate elapsed pixels (fills left to right)
+	# Calculate elapsed pixels
 	elapsed_ratio = min(1.0, elapsed_seconds / total_seconds)
 	elapsed_width = int(Layout.PROGRESS_BAR_HORIZONTAL_WIDTH * elapsed_ratio)
 	
-	# Update bitmap: 0=background, 1=elapsed, 2=remaining, 3=tick marks
-	# Only update rows 2-3 (the bar itself)
-	for y in range(2, 4):  # Bar area only
+	# Bar position (rows 2-3 in the 5-row bitmap)
+	bar_y_start = 2
+	bar_y_end = 4
+	
+	# Update only the bar area
+	for y in range(bar_y_start, bar_y_end):
 		for x in range(Layout.PROGRESS_BAR_HORIZONTAL_WIDTH):
 			if x < elapsed_width:
-				progress_bitmap[x, y] = 1  # Elapsed (gray) - left side
+				progress_bitmap[x, y] = 1  # Elapsed (LILAC)
 			else:
-				progress_bitmap[x, y] = 2  # Remaining (light) - right side
+				progress_bitmap[x, y] = 2  # Remaining (MINT)
 	
 def show_scheduled_display(rtc, schedule_name, schedule_config, duration, current_data=None):
 	"""Display scheduled message with live weather and clock"""
@@ -2506,7 +2517,7 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, duration, curren
 			
 			# Calculate current column for progress bar
 			elapsed_ratio = elapsed / duration
-			current_column = int(Layout.PROGRESS_BAR_HORIZONTAL_WIDTH * (1 - elapsed_ratio))
+			current_column = int(Layout.PROGRESS_BAR_HORIZONTAL_WIDTH * (elapsed_ratio))
 			
 			# Update progress bar only when column changes
 			if current_column != last_displayed_column:
