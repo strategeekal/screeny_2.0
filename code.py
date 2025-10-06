@@ -26,7 +26,7 @@ gc.collect()
 
 # === CONSTANTS ===
 
-## Display Hardware 
+## Display Hardware
 
 class Display:
 	WIDTH = 64
@@ -101,14 +101,14 @@ class DayIndicator:
 ## Timing (all in seconds)
 
 class Timing:
-	DEFAULT_CYCLE = 330         
-	DEFAULT_FORECAST = 60       
-	DEFAULT_EVENT = 30          
-	MIN_EVENT_DURATION = 10     
+	DEFAULT_CYCLE = 330
+	DEFAULT_FORECAST = 60
+	DEFAULT_EVENT = 30
+	MIN_EVENT_DURATION = 10
 	CLOCK_DISPLAY_DURATION = 300
-	COLOR_TEST = 300 
-	SCHEDULE_WEATHER_REFRESH_INTERVAL = 300  
-	SCHEDULE_GC_INTERVAL = 600   
+	COLOR_TEST = 300
+	SCHEDULE_WEATHER_REFRESH_INTERVAL = 300
+	SCHEDULE_GC_INTERVAL = 600
 	
 	FORECAST_UPDATE_INTERVAL = 900  # 15 minutes
 	DAILY_RESET_HOUR = 3
@@ -148,13 +148,13 @@ MONTHS = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oc
 
 ## API Configuration
 class API:
-	TIMEOUT = 30                        
-	MAX_RETRIES = 2                     
-	RETRY_DELAY = 2                     
-	MAX_CALLS_BEFORE_RESTART = 204  
+	TIMEOUT = 30
+	MAX_RETRIES = 2
+	RETRY_DELAY = 2
+	MAX_CALLS_BEFORE_RESTART = 204
 	
 	MAX_FORECAST_HOURS = 12
-	DEFAULT_FORECAST_HOURS = 12          
+	DEFAULT_FORECAST_HOURS = 12
 	
 	# URLs (base parts)
 	BASE_URL = "https://dataservice.accuweather.com"
@@ -187,9 +187,9 @@ class Recovery:
 	
 	# Recovery actions
 	SOFT_RESET_THRESHOLD = 5         # Consecutive failures before soft reset
-	HARD_RESET_THRESHOLD = 15 
+	HARD_RESET_THRESHOLD = 15
 	WIFI_RECONNECT_COOLDOWN = 300  # 5 minutes between WiFi reconnection attempts
-	EXTENDED_FAILURE_THRESHOLD = 3600 
+	EXTENDED_FAILURE_THRESHOLD = 3600
 	
 ## Memory Management
 class Memory:
@@ -213,7 +213,7 @@ class Paths:
 class Visual:
 	# UV bar calculation breakpoints
 	UV_BREAKPOINT_1 = 3
-	UV_BREAKPOINT_2 = 6  
+	UV_BREAKPOINT_2 = 6
 	UV_BREAKPOINT_3 = 9
 	
 	# UV spacing positions
@@ -251,11 +251,11 @@ class System:
 
 class TestData:
 	# Move TEST_DATE_DATA values here
-	TEST_YEAR = None                    
-	TEST_MONTH = None                      
-	TEST_DAY =  None                       
-	TEST_HOUR = 20
-	TEST_MINUTE = 12
+	TEST_YEAR = None
+	TEST_MONTH = None
+	TEST_DAY =  None
+	TEST_HOUR = 13
+	TEST_MINUTE = 29
 	
 	# Dummy weather values
 	DUMMY_WEATHER_DATA = {
@@ -382,150 +382,6 @@ class DisplayConfig:
 		log_info(f"Features: {', '.join(self.get_active_features())}")
 		
 display_config = DisplayConfig()
-
-class ScheduledDisplay:
-	"""Configuration for time-based scheduled displays"""
-	# Schedule images should be placed in img/schedule/
-	# Weather column images (13x23px) should be in img/weather/columns/
-	
-	def __init__(self):
-		self.schedules = {
-			#Morning Routine
-			"Get Dressed": {
-				"enabled": True,
-				"days": [0, 1, 2, 3, 4, 5, 6],  # All days (0=Monday, 6=Sunday)
-				"start_hour": 7,
-				"start_min": 0,
-				"end_hour": 7,
-				"end_min": 20,
-				"image": "get_dressed.bmp",
-				"progressbar": True
-			},
-			
-			"Eat Breakfast": {
-				"enabled": True,
-				"days": [0, 1, 2, 3, 4, 5, 6],  # All days (0=Monday, 6=Sunday)
-				"start_hour": 7,
-				"start_min": 20,
-				"end_hour": 7,
-				"end_min": 50,
-				"image": "breakfast.bmp",
-				"progressbar": True
-			},
-			
-			"Go to School": {
-				"enabled": True,
-				"days": [0, 1, 2, 3, 4],  # All days (0=Monday, 6=Sunday)
-				"start_hour": 7,
-				"start_min": 50,
-				"end_hour": 8,
-				"end_min": 15,
-				"image": "go_to_school.bmp",
-				"progressbar": True
-			},
-			
-			# Nighttime Routine
-			
-			"Eat Dinner": {
-				"enabled": True,
-				"days": [0, 1, 2, 3, 4, 5, 6],  # All days (0=Monday, 6=Sunday)
-				"start_hour": 19,
-				"start_min": 0,
-				"end_hour": 19,
-				"end_min": 30,
-				"image": "dinner.bmp",
-				"progressbar": True
-			},
-			
-			"Bath Time": {
-				"enabled": True,
-				"days": [0, 1, 2, 3, 4, 5, 6],  # All days (0=Monday, 6=Sunday)
-				"start_hour": 19,
-				"start_min": 30,
-				"end_hour": 20,
-				"end_min": 0,
-				"image": "bath_time.bmp",
-				"progressbar": True
-			},
-			
-			"Pijamas On": {
-				"enabled": True,
-				"days": [0, 1, 2, 3, 4, 5, 6],  # All days (0=Monday, 6=Sunday)
-				"start_hour": 20,
-				"start_min": 0,
-				"end_hour": 20,
-				"end_min": 15,
-				"image": "get_dressed_night.bmp",
-				"progressbar": True
-			},
-			
-			"Toilet and Teeth": {
-				"enabled": True,
-				"days": [0, 1, 2, 3, 4, 5, 6],  # All days (0=Monday, 6=Sunday)
-				"start_hour": 20,
-				"start_min": 15,
-				"end_hour": 20,
-				"end_min": 30,
-				"image": "toilet_and_teeth.bmp",
-				"progressbar": True
-			},
-			
-			"Story and Sleep": {
-				"enabled": True,
-				"days": [0, 1, 2, 3, 4, 5, 6],  # All days (0=Monday, 6=Sunday)
-				"start_hour": 20,
-				"start_min": 30,
-				"end_hour": 20,
-				"end_min": 45,
-				"image": "story_and_bed.bmp",
-				"progressbar": True
-			},
-			
-			"Sleep": {
-				"enabled": True,
-				"days": [0, 1, 2, 3, 4, 5, 6],  # All days (0=Monday, 6=Sunday)
-				"start_hour": 20,
-				"start_min": 45,
-				"end_hour": 21,
-				"end_min": 30,
-				"image": "bed.bmp",
-				"progressbar": True
-			},
-			
-		}
-	
-	def is_active(self, rtc, schedule_name):
-		"""Check if a schedule is currently active"""
-		if schedule_name not in self.schedules:
-			return False
-		
-		schedule = self.schedules[schedule_name]
-		
-		if not schedule["enabled"]:
-			return False
-		
-		current = rtc.datetime
-		
-		# Check if current day is in schedule
-		if current.tm_wday not in schedule["days"]:
-			return False
-		
-		# Convert times to minutes for easier comparison
-		current_mins = current.tm_hour * 60 + current.tm_min
-		start_mins = schedule["start_hour"] * 60 + schedule["start_min"]
-		end_mins = schedule["end_hour"] * 60 + schedule["end_min"]
-		
-		return start_mins <= current_mins < end_mins
-	
-	def get_active_schedule(self, rtc):
-		"""Get the currently active schedule, if any"""
-		for name, schedule in self.schedules.items():
-			if self.is_active(rtc, name):
-				return name, schedule
-		return None, None
-
-# Create instance
-scheduled_display = ScheduledDisplay()
 
 def get_remaining_schedule_time(rtc, schedule_config):
 	"""Calculate how much time remains in the current schedule window"""
@@ -836,8 +692,8 @@ class WeatherDisplayState:
 		self.last_wifi_attempt = 0
 		self.system_error_count = 0
 		
-		self.in_extended_failure_mode = False 
-		self.scheduled_display_error_count = 0 
+		self.in_extended_failure_mode = False
+		self.scheduled_display_error_count = 0
 	
 	def reset_api_counters(self):
 		"""Reset API call tracking"""
@@ -990,11 +846,11 @@ def initialize_display():
 	
 	matrix = rgbmatrix.RGBMatrix(
 		width=Display.WIDTH, height=Display.HEIGHT, bit_depth=Display.BIT_DEPTH,
-		rgb_pins=[board.MTX_R1, board.MTX_G1, board.MTX_B1, 
+		rgb_pins=[board.MTX_R1, board.MTX_G1, board.MTX_B1,
 				board.MTX_R2, board.MTX_G2, board.MTX_B2],
-		addr_pins=[board.MTX_ADDRA, board.MTX_ADDRB, 
+		addr_pins=[board.MTX_ADDRA, board.MTX_ADDRB,
 				board.MTX_ADDRC, board.MTX_ADDRD],
-		clock_pin=board.MTX_CLK, latch_pin=board.MTX_LAT, 
+		clock_pin=board.MTX_CLK, latch_pin=board.MTX_LAT,
 		output_enable_pin=board.MTX_OE,
 		serpentine=True, doublebuffer=True,
 	)
@@ -1192,7 +1048,7 @@ def get_requests_session():
 				log_verbose("Socket timeout configuration not available")
 			
 			state.global_requests_session = adafruit_requests.Session(
-				pool, 
+				pool,
 				ssl.create_default_context()
 			)
 			log_verbose("Created new persistent requests session")
@@ -1618,7 +1474,7 @@ def load_events_from_csv():
 					parts = [part.strip() for part in line.split(",")]
 					if len(parts) >= 4:
 						date = parts[0]
-						line1 = parts[1] 
+						line1 = parts[1]
 						line2 = parts[2]
 						image = parts[3]
 						color = parts[4] if len(parts) > 4 else Strings.DEFAULT_EVENT_COLOR
@@ -1635,20 +1491,7 @@ def load_events_from_csv():
 		log_warning(f"Failed to load events.csv: {e}")
 		log_warning("Using fallback hardcoded events")
 		# Return fallback events as lists
-		return {
-			"0101": [["New Year", "Happy", "new_year.bmp", "BUGAMBILIA"]],
-			"0210": [["Emilio", "Birthday", "cake.bmp", "MINT"]],
-			"0703": [["Gaby", "Birthday", "cake.bmp", "MINT"]],
-			"0704": [["July", "4th of", "us_flag.bmp", "BUGAMBILIA"]],
-			"0825": [["Diego", "Birthday", "cake.bmp", "MINT"]],
-			"0916": [["Mexico", "Viva", "mexico_flag_v3.bmp", "BUGAMBILIA"]],
-			"0922": [["Puchis", "Cumple", "panzon.bmp", "MINT"]],
-			"1031": [["Halloween", "Happy", "halloween.bmp", "BUGAMBILIA"]],
-			"1101": [["Muertos", "Dia de", "day_of_the_death.bmp", "BUGAMBILIA"]],
-			"1109": [["Tiago", "Birthday", "cake.bmp", "MINT"]],
-			"1127": [["Thanksgiving", "Happy", "thanksgiving.bmp", "BUGAMBILIA"]],
-			"1225": [["X-MAS", "Merry", "xmas.bmp", "BUGAMBILIA"]],
-		}
+		return {}
 		
 def get_events():
 	"""Get cached events - loads from CSV only once"""
@@ -1659,6 +1502,86 @@ def get_events():
 			state.cached_events = {}
 	
 	return state.cached_events
+	
+def load_schedules_from_csv():
+	"""Load schedules from CSV file"""
+	schedules = {}
+	try:
+		log_verbose("Loading schedules from schedules.csv...")
+		with open("schedules.csv", "r") as f:
+			for line in f:
+				line = line.strip()
+				if line and not line.startswith("#"):
+					parts = [part.strip() for part in line.split(",")]
+					if len(parts) >= 8:
+						name = parts[0]
+						enabled = parts[1] == "1"
+						days = [int(d) for d in parts[2]]
+						schedules[name] = {
+							"enabled": enabled,
+							"days": days,
+							"start_hour": int(parts[3]),
+							"start_min": int(parts[4]),
+							"end_hour": int(parts[5]),
+							"end_min": int(parts[6]),
+							"image": parts[7],
+							"progressbar": parts[8] == "1" if len(parts) > 8 else True
+						}
+		
+		# Log successful load
+		if schedules:
+			log_debug(f"{len(schedules)} schedules loaded")
+		else:
+			log_warning("No schedules found in schedules.csv")
+		
+		return schedules
+		
+	except Exception as e:
+		log_warning(f"Failed to load schedules.csv: {e}")
+		return {}
+		
+class ScheduledDisplay:
+	"""Configuration for time-based scheduled displays"""
+	# Schedule images should be placed in img/schedule/
+	# Weather column images (13x23px) should be in img/weather/columns/
+	
+	def __init__(self):
+		self.schedules = load_schedules_from_csv()
+		if not self.schedules:
+			log_warning("No schedules loaded")
+	
+	def is_active(self, rtc, schedule_name):
+		"""Check if a schedule is currently active"""
+		if schedule_name not in self.schedules:
+			return False
+		
+		schedule = self.schedules[schedule_name]
+		
+		if not schedule["enabled"]:
+			return False
+		
+		current = rtc.datetime
+		
+		# Check if current day is in schedule
+		if current.tm_wday not in schedule["days"]:
+			return False
+		
+		# Convert times to minutes for easier comparison
+		current_mins = current.tm_hour * 60 + current.tm_min
+		start_mins = schedule["start_hour"] * 60 + schedule["start_min"]
+		end_mins = schedule["end_hour"] * 60 + schedule["end_min"]
+		
+		return start_mins <= current_mins < end_mins
+	
+	def get_active_schedule(self, rtc):
+		"""Get the currently active schedule, if any"""
+		for name, schedule in self.schedules.items():
+			if self.is_active(rtc, name):
+				return name, schedule
+		return None, None
+
+# Create instance
+scheduled_display = ScheduledDisplay()
 
 def calculate_bottom_aligned_positions(font, line1_text, line2_text, display_height=32, bottom_margin=2, line_spacing=1):
 	"""
@@ -1706,14 +1629,14 @@ def clear_display():
 def right_align_text(text, font, right_edge):
 	return right_edge - get_text_width(text, font)
 
-def center_text(text, font, area_x, area_width):  
+def center_text(text, font, area_x, area_width):
 	return area_x + (area_width - get_text_width(text, font)) // 2
 
 def get_day_color(rtc):
 	"""Get color for day of week indicator"""
 	day_colors = {
 		0: state.colors["RED"],      # Monday
-		1: state.colors["ORANGE"],   # Tuesday  
+		1: state.colors["ORANGE"],   # Tuesday
 		2: state.colors["YELLOW"],   # Wednesday
 		3: state.colors["GREEN"],    # Thursday
 		4: state.colors["AQUA"],     # Friday
@@ -1765,7 +1688,7 @@ def calculate_humidity_bar_length(humidity):
 	elif pixels <= 4:
 		return pixels + 1  # Add 1 spacing pixel
 	elif pixels <= 6:
-		return pixels + 2 
+		return pixels + 2
 	elif pixels <= 8:
 		return pixels + 3
 	else:
@@ -1784,7 +1707,7 @@ def add_indicator_bars(main_group, x_start, uv_index, humidity):
 			if i < uv_length:
 				main_group.append(Line(x_start + i, Layout.UV_BAR_Y, x_start + i, Layout.UV_BAR_Y, state.colors["BLACK"]))
 	
-	# Humidity bar 
+	# Humidity bar
 	if humidity > 0:
 		humidity_length = calculate_humidity_bar_length(humidity)
 		
@@ -1814,26 +1737,26 @@ def show_weather_display(rtc, duration, weather_data=None):
 	
 	# Create all static display elements ONCE
 	temp_text = bitmap_label.Label(
-		bg_font, 
-		color=state.colors["DIMMEST_WHITE"], 
+		bg_font,
+		color=state.colors["DIMMEST_WHITE"],
 		text=f"{round(weather_data['temperature'])}°",
-		x=Layout.WEATHER_TEMP_X, 
-		y=Layout.WEATHER_TEMP_Y, 
-		background_color=state.colors["BLACK"], 
-		padding_top=Layout.BG_PADDING_TOP, 
-		padding_bottom=1, 
+		x=Layout.WEATHER_TEMP_X,
+		y=Layout.WEATHER_TEMP_Y,
+		background_color=state.colors["BLACK"],
+		padding_top=Layout.BG_PADDING_TOP,
+		padding_bottom=1,
 		padding_left=1
 	)
 	
 	# Create time text - this is the ONLY element we'll update
 	time_text = bitmap_label.Label(
-		font, 
-		color=state.colors["DIMMEST_WHITE"], 
-		x=Layout.WEATHER_TIME_X, 
-		y=Layout.WEATHER_TIME_Y, 
-		background_color=state.colors["BLACK"], 
-		padding_top=Layout.BG_PADDING_TOP, 
-		padding_bottom=-2, 
+		font,
+		color=state.colors["DIMMEST_WHITE"],
+		x=Layout.WEATHER_TIME_X,
+		y=Layout.WEATHER_TIME_Y,
+		background_color=state.colors["BLACK"],
+		padding_top=Layout.BG_PADDING_TOP,
+		padding_bottom=-2,
 		padding_left=1
 	)
 	
@@ -1847,26 +1770,26 @@ def show_weather_display(rtc, duration, weather_data=None):
 	
 	if feels_like_rounded != temp_rounded:
 		feels_like_text = bitmap_label.Label(
-			font, 
-			color=state.colors["DIMMEST_WHITE"], 
+			font,
+			color=state.colors["DIMMEST_WHITE"],
 			text=f"{feels_like_rounded}°",
-			y=Layout.FEELSLIKE_Y, 
-			background_color=state.colors["BLACK"], 
-			padding_top=Layout.BG_PADDING_TOP, 
-			padding_bottom=-2, 
+			y=Layout.FEELSLIKE_Y,
+			background_color=state.colors["BLACK"],
+			padding_top=Layout.BG_PADDING_TOP,
+			padding_bottom=-2,
 			padding_left=1
 		)
 		feels_like_text.x = right_align_text(feels_like_text.text, font, Layout.RIGHT_EDGE)
 	
 	if feels_shade_rounded != feels_like_rounded:
 		feels_shade_text = bitmap_label.Label(
-			font, 
-			color=state.colors["DIMMEST_WHITE"], 
+			font,
+			color=state.colors["DIMMEST_WHITE"],
 			text=f"{feels_shade_rounded}°",
-			y=Layout.FEELSLIKE_SHADE_Y, 
-			background_color=state.colors["BLACK"], 
-			padding_top=Layout.BG_PADDING_TOP, 
-			padding_bottom=-2, 
+			y=Layout.FEELSLIKE_SHADE_Y,
+			background_color=state.colors["BLACK"],
+			padding_top=Layout.BG_PADDING_TOP,
+			padding_bottom=-2,
 			padding_left=1
 		)
 		feels_shade_text.x = right_align_text(feels_shade_text.text, font, Layout.RIGHT_EDGE)
@@ -1948,7 +1871,7 @@ def show_clock_display(rtc, duration=Timing.CLOCK_DISPLAY_DURATION):
 	
 	state.main_group.append(date_text)
 	state.main_group.append(time_text)
-			  
+			
 	# Add day indicator after other elements
 	if display_config.show_weekday_indicator:
 		add_day_indicator(state.main_group, rtc)
@@ -2048,8 +1971,8 @@ def _display_single_event_optimized(event_data, rtc, duration):
 			
 			# Get dynamic positions
 			line1_y, line2_y = calculate_bottom_aligned_positions(
-				font, 
-				line1_text, 
+				font,
+				line1_text,
 				line2_text,
 				display_height=Display.HEIGHT,
 				bottom_margin=Layout.BOTTOM_MARGIN,
@@ -2118,7 +2041,7 @@ def show_color_test_display(duration=Timing.COLOR_TEST):
 	
 	try:
 		# Get test colors dynamically from COLORS dictionary
-		test_color_names = ["MINT", "BUGAMBILIA", "LILAC", "RED", "GREEN", "BLUE", 
+		test_color_names = ["MINT", "BUGAMBILIA", "LILAC", "RED", "GREEN", "BLUE",
 						   "ORANGE", "YELLOW", "CYAN", "PURPLE", "PINK", "AQUA"]
 		texts = ["Aa", "Bb", "Cc", "Dd", "Ee", "Ff", "Gg", "Hh", "Ii", "Jj", "Kk", "Ll"]
 		
@@ -2429,9 +2352,9 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, duration, curren
 			for i in range(uv_length):
 				if i not in Visual.UV_SPACING_POSITIONS:
 					uv_pixel = Line(
-						Layout.SCHEDULE_LEFT_MARGIN_X + i, 
+						Layout.SCHEDULE_LEFT_MARGIN_X + i,
 						Layout.SCHEDULE_UV_Y,
-						Layout.SCHEDULE_LEFT_MARGIN_X + i, 
+						Layout.SCHEDULE_LEFT_MARGIN_X + i,
 						Layout.SCHEDULE_UV_Y,
 						state.colors["DIMMEST_WHITE"]
 					)
@@ -2597,8 +2520,8 @@ def check_daily_reset(rtc):
 	# Scheduled restart conditions
 	should_restart = (
 		hours_running > System.HOURS_BEFORE_DAILY_RESTART or
-		(hours_running > 1 and 
-		 rtc.datetime.tm_hour == Timing.DAILY_RESET_HOUR and 
+		(hours_running > 1 and
+		 rtc.datetime.tm_hour == Timing.DAILY_RESET_HOUR and
 		 rtc.datetime.tm_min < System.RESTART_GRACE_MINUTES)
 	)
 	
@@ -2702,7 +2625,7 @@ def initialize_system(rtc):
 	# Handle test date if configured
 	if display_config.use_test_date:
 		update_rtc_datetime(rtc, TestData.TEST_YEAR, TestData.TEST_MONTH, TestData.TEST_DAY, TestData.TEST_HOUR, TestData.TEST_MINUTE)
-		
+	
 	# Load events
 	events = get_events()
 	event_count, _ = get_today_events_info(rtc)
@@ -2710,7 +2633,7 @@ def initialize_system(rtc):
 	if event_count == 0:
 		event_count = "No"
 		
-	log_info(f"Hardware ready | {len(events)} events loaded | Events Today: {event_count}")
+	log_info(f"Hardware ready | {len(scheduled_display.schedules)} schedules loaded | {len(events)} events loaded | Events Today: {event_count}")
 	state.memory_monitor.check_memory("events_loaded")
 	
 	return events

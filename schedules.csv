@@ -1,0 +1,20 @@
+# Format: name,enabled,days,start_hour,start_min,end_hour,end_min,image,progressbar
+# enabled: 1=true, 0=false
+# days: string of digits 0-6 (0=Monday, 6=Sunday), e.g., "0123456" for all days
+# progressbar: 1=true, 0=false
+
+# Morning Routine
+Get Dressed,1,0123456,7,0,7,20,get_dressed.bmp,1
+Eat Breakfast,1,0123456,7,20,7,50,breakfast.bmp,1
+Go to School,1,01234,7,50,8,15,go_to_school.bmp,1
+
+# Day Routine
+Quiet Time,1,56,12,30,13,30,quiet_time.bmp,1
+
+# Nighttime Routine
+Eat Dinner,1,0123456,19,0,19,30,dinner.bmp,1
+Bath Time,1,0123456,19,30,20,0,bath_time.bmp,1
+Pajamas On,1,0123456,20,0,20,15,get_dressed_night.bmp,1
+Toilet and Teeth,1,0123456,20,15,20,30,toilet_and_teeth.bmp,1
+Story and Sleep,1,0123456,20,30,20,45,story_and_bed.bmp,1
+Sleep,1,0123456,20,45,21,30,bed.bmp,0
