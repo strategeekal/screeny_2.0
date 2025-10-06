@@ -2068,17 +2068,88 @@ def show_color_test_display(duration=Timing.COLOR_TEST):
 	return True
 	
 def show_forecast_display(current_data=None, forecast_data=None, duration=30):
-	"""Optimized forecast display - only update time text in column 1"""
+	"""Optimized forecast display with smart precipitation detection"""
 	
-	# Check if we have real data - skip display if not
-	if not current_data or not forecast_data or len(forecast_data) < 3:
+	# Check if we have real data
+	if not current_data or not forecast_data or len(forecast_data) < 2:
 		log_warning(f"Skipping forecast display - insufficient data")
 		return False
 	
-	# Log with real data
-	log_debug(f"Displaying Forecast for {duration_message(duration)}: Current {current_data['temperature']}°C, +1hr {forecast_data[0]['temperature']}°C, +2hr {forecast_data[1]['temperature']}°C")
+	# Analyze forecast for precipitation changes
+	current_has_precip = current_data.get('has_precipitation', False)
+	forecast_indices = None
 	
-	clear_display()
+	# DEBUG: Log what we're checking
+	log_debug(f"Analyzing precipitation - Current: {current_has_precip}")
+	for i, hour in enumerate(forecast_data):
+		log_debug(f"  Hour {i}: has_precip={hour.get('has_precipitation')}, temp={hour.get('temperature')}")
+	
+	if not current_has_precip:
+		# No current precipitation - look for when it starts
+		rain_start_idx = None
+		rain_stop_idx = None
+		
+		for i, hour in enumerate(forecast_data):
+			if hour.get('has_precipitation', False):
+				if rain_start_idx is None:
+					rain_start_idx = i  # First hour with rain
+			else:  # No precipitation in this hour
+				if rain_start_idx is not None and rain_stop_idx is None:
+					rain_stop_idx = i  # First hour after rain stops
+					break
+		
+		if rain_start_idx is not None:
+			if rain_stop_idx is not None:
+				# Show: current, rain start, rain stop
+				forecast_indices = [rain_start_idx, rain_stop_idx]
+				log_debug(f"Precipitation forecast: starts at hour {rain_start_idx+1}, stops at hour {rain_stop_idx+1}")
+			else:
+				# Rain starts but doesn't stop in 12 hours
+				if rain_start_idx >= len(forecast_data) - 1:
+					# Rain is in last hour - show previous hour and rain hour
+					forecast_indices = [max(0, rain_start_idx - 1), rain_start_idx]
+					log_debug(f"Precipitation in last hour {rain_start_idx+1}, showing hour before")
+				else:
+					# Show rain start and next hour
+					forecast_indices = [rain_start_idx, rain_start_idx + 1]
+					log_debug(f"Precipitation starts at hour {rain_start_idx+1}, continues beyond forecast")
+	else:
+		# Currently raining - look for when it stops
+		rain_stop_idx = None
+		
+		for i, hour in enumerate(forecast_data):
+			if not hour.get('has_precipitation', False):
+				rain_stop_idx = i
+				break
+		
+		if rain_stop_idx is not None:
+			# Show: current, rain stop, next hour after stop
+			forecast_indices = [rain_stop_idx, min(rain_stop_idx + 1, len(forecast_data) - 1)]
+			log_debug(f"Currently raining, stops at hour {rain_stop_idx+1}")
+		else:
+			# Rain continues - show next 2 hours
+			forecast_indices = [0, 1]
+			log_debug("Rain continues throughout forecast period")
+	
+	# Fallback to normal behavior if no precipitation found
+	if forecast_indices is None:
+		current_hour = state.rtc_instance.datetime.tm_hour
+		forecast_hour_1 = int(forecast_data[0]['datetime'][11:13]) % System.HOURS_IN_DAY
+		
+		if current_hour == forecast_hour_1 and len(forecast_data) >= 3:
+			forecast_indices = [1, 2]
+			log_debug("No precipitation, skipping duplicate hour")
+		else:
+			forecast_indices = [0, 1]
+			log_debug("No precipitation, normal forecast display")
+			
+	log_info(f"Selected forecast_indices: {forecast_indices}")
+	log_info(f"Will show hours: {forecast_indices[0]+1} and {forecast_indices[1]+1}")
+	
+	# Log with real data
+	log_debug(f"Displaying Forecast for {duration_message(duration)}: Current {current_data['temperature']}°C, Next hours: {forecast_data[forecast_indices[0]]['temperature']}°C, {forecast_data[forecast_indices[1]]['temperature']}°C")
+	
+	clear_display()  # ADD try: HERE
 	gc.collect()
 	
 	try:
@@ -2086,13 +2157,13 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 		col1_temp = f"{round(current_data['temperature'])}°"
 		col1_icon = f"{current_data['weather_icon']}.bmp"
 		
-		col2_temp = f"{round(forecast_data[0]['temperature'])}°"
-		col3_temp = f"{round(forecast_data[1]['temperature'])}°"
-		col2_icon = f"{forecast_data[0]['weather_icon']}.bmp"
-		col3_icon = f"{forecast_data[1]['weather_icon']}.bmp"
+		col2_temp = f"{round(forecast_data[forecast_indices[0]]['temperature'])}°"
+		col3_temp = f"{round(forecast_data[forecast_indices[1]]['temperature'])}°"
+		col2_icon = f"{forecast_data[forecast_indices[0]]['weather_icon']}.bmp"
+		col3_icon = f"{forecast_data[forecast_indices[1]]['weather_icon']}.bmp"
 		
-		hour_plus_1 = int(forecast_data[0]['datetime'][11:13]) % System.HOURS_IN_DAY
-		hour_plus_2 = int(forecast_data[1]['datetime'][11:13]) % System.HOURS_IN_DAY
+		hour_plus_1 = int(forecast_data[forecast_indices[0]]['datetime'][11:13]) % System.HOURS_IN_DAY
+		hour_plus_2 = int(forecast_data[forecast_indices[1]]['datetime'][11:13]) % System.HOURS_IN_DAY
 		
 		# Generate static time labels for columns 2 and 3
 		def format_hour(hour):
@@ -2104,6 +2175,14 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 				return Strings.NOON_12PM
 			else:
 				return f"{hour-System.HOURS_IN_HALF_DAY}{Strings.PM_SUFFIX}"
+				
+		# Determine colors based on forecast distance
+		def get_forecast_time_color(forecast_index):
+			"""Return color based on how far in future the forecast is"""
+			if forecast_index <= 2:
+				return state.colors["DIMMEST_WHITE"]  # Normal color for immediate hours
+			else:
+				return state.colors["MINT"]  # Dimmer color for distant hours
 		
 		col2_time = format_hour(hour_plus_1)
 		col3_time = format_hour(hour_plus_2)
@@ -2146,10 +2225,10 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 			y=time_y
 		)
 		
-		# Static time labels for columns 2 and 3
+		# Static time labels for columns 2 and 3 with conditional colors
 		col2_time_label = bitmap_label.Label(
 			font,
-			color=state.colors["DIMMEST_WHITE"],
+			color=get_forecast_time_color(forecast_indices[0]),  # Color based on index
 			text=col2_time,
 			x=max(center_text(col2_time, font, Layout.FORECAST_COL2_X, column_width), 1),
 			y=time_y
@@ -2157,7 +2236,7 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 		
 		col3_time_label = bitmap_label.Label(
 			font,
-			color=state.colors["DIMMEST_WHITE"],
+			color=get_forecast_time_color(forecast_indices[1]),  # Color based on index
 			text=col3_time,
 			x=max(center_text(col3_time, font, Layout.FORECAST_COL3_X, column_width), 1),
 			y=time_y
