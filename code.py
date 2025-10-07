@@ -2143,8 +2143,8 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 			forecast_indices = [0, 1]
 			log_debug("No precipitation, normal forecast display")
 			
-	log_info(f"Selected forecast_indices: {forecast_indices}")
-	log_info(f"Will show hours: {forecast_indices[0]+1} and {forecast_indices[1]+1}")
+	log_debug(f"Selected forecast_indices: {forecast_indices}")
+	log_debug(f"Will show hours: {forecast_indices[0]+1} and {forecast_indices[1]+1}")
 	
 	# Log with real data
 	log_debug(f"Displaying Forecast for {duration_message(duration)}: Current {current_data['temperature']}°C, Next hours: {forecast_data[forecast_indices[0]]['temperature']}°C, {forecast_data[forecast_indices[1]]['temperature']}°C")
@@ -2179,10 +2179,17 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 		# Determine colors based on forecast distance
 		def get_forecast_time_color(forecast_index):
 			"""Return color based on how far in future the forecast is"""
-			if forecast_index <= 2:
-				return state.colors["DIMMEST_WHITE"]  # Normal color for immediate hours
+			# Check actual time difference, not array index
+			forecast_hour = int(forecast_data[forecast_index]['datetime'][11:13]) % System.HOURS_IN_DAY
+			current_hour = state.rtc_instance.datetime.tm_hour
+			
+			# Calculate hours ahead (handling wrap around midnight)
+			hours_ahead = (forecast_hour - current_hour) % System.HOURS_IN_DAY
+			
+			if hours_ahead <= 2:
+				return state.colors["DIMMEST_WHITE"]  # Immediate (0-2 hours away)
 			else:
-				return state.colors["MINT"]  # Dimmer color for distant hours
+				return state.colors["MINT"]  # Distant (3+ hours away)
 		
 		col2_time = format_hour(hour_plus_1)
 		col3_time = format_hour(hour_plus_2)
