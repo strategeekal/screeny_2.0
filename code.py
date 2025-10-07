@@ -228,6 +228,9 @@ class Visual:
 	COLOR_TEST_COL_SPACING = 16
 	COLOR_TEST_ROW_SPACING = 11
 	
+	# Temperature display threshold
+	FEELS_LIKE_TEMP_THRESHOLD = 15  # Use feels-like above, feels-shade below
+	
 ## System_constants
 class System:
 	MAX_RTC_ATTEMPTS = 5
@@ -1220,7 +1223,7 @@ def fetch_current_and_forecast_weather():
 		
 		# Fetch forecast weather if enabled and (current succeeded OR current disabled)
 		if display_config.should_fetch_forecast():
-			forecast_url = f"{API.BASE_URL}/{API.FORECAST_ENDPOINT}/{os.getenv(Strings.API_LOCATION_KEY)}?apikey={api_key}&metric=true"
+			forecast_url = f"{API.BASE_URL}/{API.FORECAST_ENDPOINT}/{os.getenv(Strings.API_LOCATION_KEY)}?apikey={api_key}&metric=true&details=true"
 			
 			forecast_json = fetch_weather_with_retries(forecast_url, max_retries=1, context="Forecast")
 			
@@ -1237,6 +1240,8 @@ def fetch_current_and_forecast_weather():
 					hour_data = forecast_json[i]
 					forecast_data.append({
 						"temperature": hour_data.get("Temperature", {}).get("Value", 0),
+						"feels_like": hour_data.get("RealFeelTemperature", {}).get("Value", 0),
+						"feels_shade": hour_data.get("RealFeelTemperatureShade", {}).get("Value", 0),
 						"weather_icon": hour_data.get("WeatherIcon", 1),
 						"weather_text": hour_data.get("IconPhrase", "Unknown"),
 						"datetime": hour_data.get("DateTime", ""),
@@ -2161,8 +2166,31 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 		col1_temp = f"{round(current_data['temperature'])}°"
 		col1_icon = f"{current_data['weather_icon']}.bmp"
 		
-		col2_temp = f"{round(forecast_data[forecast_indices[0]]['temperature'])}°"
-		col3_temp = f"{round(forecast_data[forecast_indices[1]]['temperature'])}°"
+		# Column 2 - temperature with feels-like logic
+		temp_col2 = forecast_data[forecast_indices[0]]['temperature']
+		
+		if temp_col2 > Visual.FEELS_LIKE_TEMP_THRESHOLD:
+			# Warm: show feels-like
+			display_temp_col2 = forecast_data[forecast_indices[0]].get('feels_like', temp_col2)
+		else:
+			# Cool: show feels-like shade
+			display_temp_col2 = forecast_data[forecast_indices[0]].get('feels_shade', temp_col2)
+		
+		col2_temp = f"{round(display_temp_col2)}°"
+		
+		# Column 3 - temperature with feels-like logic
+		temp_col3 = forecast_data[forecast_indices[1]]['temperature']
+		
+		if temp_col3 > Visual.FEELS_LIKE_TEMP_THRESHOLD:
+			# Warm: show feels-like
+			display_temp_col3 = forecast_data[forecast_indices[1]].get('feels_like', temp_col3)
+		else:
+			# Cool: show feels-like shade
+			display_temp_col3 = forecast_data[forecast_indices[1]].get('feels_shade', temp_col3)
+		
+		col3_temp = f"{round(display_temp_col3)}°"
+		
+		# Get column icons
 		col2_icon = f"{forecast_data[forecast_indices[0]]['weather_icon']}.bmp"
 		col3_icon = f"{forecast_data[forecast_indices[1]]['weather_icon']}.bmp"
 		
