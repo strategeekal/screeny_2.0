@@ -2152,8 +2152,8 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 			forecast_indices = [1, 2]
 			log_debug(f"Adjusted indices to skip duplicate hour {current_hour}")
 	
-	log_info(f"Selected forecast_indices: {forecast_indices}")
-	log_info(f"Will show hours: {forecast_indices[0]+1} and {forecast_indices[1]+1}")
+	log_debug(f"Selected forecast_indices: {forecast_indices}")
+	log_debug(f"Will show hours: {forecast_indices[0]+1} and {forecast_indices[1]+1}")
 	
 	# Log with real data
 	log_debug(f"Displaying Forecast for {duration_message(duration)}: Current {current_data['temperature']}°C, Next hours: {forecast_data[forecast_indices[0]]['temperature']}°C, {forecast_data[forecast_indices[1]]['temperature']}°C")
