@@ -2133,23 +2133,27 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 	
 	# Fallback to normal behavior if no precipitation found
 	if forecast_indices is None:
-		current_hour = state.rtc_instance.datetime.tm_hour
-		forecast_hour_1 = int(forecast_data[0]['datetime'][11:13]) % System.HOURS_IN_DAY
-		
-		if current_hour == forecast_hour_1 and len(forecast_data) >= 3:
+		forecast_indices = [0, 1]
+		log_debug("No precipitation, normal forecast display")
+	
+	# NOW check for duplicate hour right before displaying
+	current_hour = state.rtc_instance.datetime.tm_hour
+	forecast_hour_0 = int(forecast_data[forecast_indices[0]]['datetime'][11:13]) % System.HOURS_IN_DAY
+	
+	# If the selected forecast hour matches current hour, shift indices forward
+	if forecast_hour_0 == current_hour and forecast_indices[0] == 0:
+		# Only shift if we're showing the sequential hours [0,1]
+		if len(forecast_data) >= 3:
 			forecast_indices = [1, 2]
-			log_debug("No precipitation, skipping duplicate hour")
-		else:
-			forecast_indices = [0, 1]
-			log_debug("No precipitation, normal forecast display")
-			
-	log_debug(f"Selected forecast_indices: {forecast_indices}")
-	log_debug(f"Will show hours: {forecast_indices[0]+1} and {forecast_indices[1]+1}")
+			log_debug(f"Adjusted indices to skip duplicate hour {current_hour}")
+	
+	log_info(f"Selected forecast_indices: {forecast_indices}")
+	log_info(f"Will show hours: {forecast_indices[0]+1} and {forecast_indices[1]+1}")
 	
 	# Log with real data
 	log_debug(f"Displaying Forecast for {duration_message(duration)}: Current {current_data['temperature']}°C, Next hours: {forecast_data[forecast_indices[0]]['temperature']}°C, {forecast_data[forecast_indices[1]]['temperature']}°C")
 	
-	clear_display()  # ADD try: HERE
+	clear_display()
 	gc.collect()
 	
 	try:
@@ -2165,6 +2169,28 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 		hour_plus_1 = int(forecast_data[forecast_indices[0]]['datetime'][11:13]) % System.HOURS_IN_DAY
 		hour_plus_2 = int(forecast_data[forecast_indices[1]]['datetime'][11:13]) % System.HOURS_IN_DAY
 		
+		# Calculate actual hours from datetime strings
+		current_hour = state.rtc_instance.datetime.tm_hour
+		col2_hour = int(forecast_data[forecast_indices[0]]['datetime'][11:13]) % System.HOURS_IN_DAY
+		col3_hour = int(forecast_data[forecast_indices[1]]['datetime'][11:13]) % System.HOURS_IN_DAY
+		
+		# Calculate hours ahead from current time (handle midnight wraparound)
+		col2_hours_ahead = (col2_hour - current_hour) % System.HOURS_IN_DAY
+		col3_hours_ahead = (col3_hour - current_hour) % System.HOURS_IN_DAY
+		
+		# Determine colors based on hour gaps
+		if col2_hours_ahead <= 1:
+			col2_color = state.colors["DIMMEST_WHITE"]  # Immediate
+			# If col2 is immediate, check col3
+			if col3_hours_ahead <= 2:
+				col3_color = state.colors["DIMMEST_WHITE"]  # Also immediate
+			else:
+				col3_color = state.colors["MINT"]  # Col3 jumped ahead
+		else:
+			# Col2 jumped ahead, so col3 definitely did too
+			col2_color = state.colors["MINT"]
+			col3_color = state.colors["MINT"]
+		
 		# Generate static time labels for columns 2 and 3
 		def format_hour(hour):
 			if hour == 0:
@@ -2175,18 +2201,6 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 				return Strings.NOON_12PM
 			else:
 				return f"{hour-System.HOURS_IN_HALF_DAY}{Strings.PM_SUFFIX}"
-				
-		# Determine colors based on forecast distance
-		def get_forecast_time_color(col_number, forecast_index):
-			"""Return color - dim if showing non-sequential future hour"""
-			# Column 2 should normally show index 0 or 1
-			# Column 3 should normally show index 1 or 2
-			expected_max_index = col_number  # col 2 expects max index 2, col 3 expects max index 3
-			
-			if forecast_index <= expected_max_index:
-				return state.colors["DIMMEST_WHITE"]  # Normal sequential
-			else:
-				return state.colors["MINT"]  # Jumped ahead
 		
 		col2_time = format_hour(hour_plus_1)
 		col3_time = format_hour(hour_plus_2)
@@ -2220,6 +2234,7 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 				state.main_group.append(col_img)
 			except Exception as e:
 				log_warning(f"Failed to load column {i+1} image: {e}")
+
 		
 		# Create time labels - only column 1 will be updated
 		col1_time_label = bitmap_label.Label(
@@ -2229,10 +2244,10 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 			y=time_y
 		)
 		
-		# Static time labels for columns 2 and 3 with conditional colors
+		# Use these colors in the labels
 		col2_time_label = bitmap_label.Label(
 			font,
-			color=get_forecast_time_color(2, forecast_indices[0]),  # Pass column number
+			color=col2_color,
 			text=col2_time,
 			x=max(center_text(col2_time, font, Layout.FORECAST_COL2_X, column_width), 1),
 			y=time_y
@@ -2240,7 +2255,7 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 		
 		col3_time_label = bitmap_label.Label(
 			font,
-			color=get_forecast_time_color(3, forecast_indices[1]),  # Pass column number
+			color=col3_color,
 			text=col3_time,
 			x=max(center_text(col3_time, font, Layout.FORECAST_COL3_X, column_width), 1),
 			y=time_y
