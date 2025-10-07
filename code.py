@@ -2177,19 +2177,16 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 				return f"{hour-System.HOURS_IN_HALF_DAY}{Strings.PM_SUFFIX}"
 				
 		# Determine colors based on forecast distance
-		def get_forecast_time_color(forecast_index):
-			"""Return color based on how far in future the forecast is"""
-			# Check actual time difference, not array index
-			forecast_hour = int(forecast_data[forecast_index]['datetime'][11:13]) % System.HOURS_IN_DAY
-			current_hour = state.rtc_instance.datetime.tm_hour
+		def get_forecast_time_color(col_number, forecast_index):
+			"""Return color - dim if showing non-sequential future hour"""
+			# Column 2 should normally show index 0 or 1
+			# Column 3 should normally show index 1 or 2
+			expected_max_index = col_number  # col 2 expects max index 2, col 3 expects max index 3
 			
-			# Calculate hours ahead (handling wrap around midnight)
-			hours_ahead = (forecast_hour - current_hour) % System.HOURS_IN_DAY
-			
-			if hours_ahead <= 2:
-				return state.colors["DIMMEST_WHITE"]  # Immediate (0-2 hours away)
+			if forecast_index <= expected_max_index:
+				return state.colors["DIMMEST_WHITE"]  # Normal sequential
 			else:
-				return state.colors["MINT"]  # Distant (3+ hours away)
+				return state.colors["MINT"]  # Jumped ahead
 		
 		col2_time = format_hour(hour_plus_1)
 		col3_time = format_hour(hour_plus_2)
@@ -2235,7 +2232,7 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 		# Static time labels for columns 2 and 3 with conditional colors
 		col2_time_label = bitmap_label.Label(
 			font,
-			color=get_forecast_time_color(forecast_indices[0]),  # Color based on index
+			color=get_forecast_time_color(2, forecast_indices[0]),  # Pass column number
 			text=col2_time,
 			x=max(center_text(col2_time, font, Layout.FORECAST_COL2_X, column_width), 1),
 			y=time_y
@@ -2243,7 +2240,7 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 		
 		col3_time_label = bitmap_label.Label(
 			font,
-			color=get_forecast_time_color(forecast_indices[1]),  # Color based on index
+			color=get_forecast_time_color(3, forecast_indices[1]),  # Pass column number
 			text=col3_time,
 			x=max(center_text(col3_time, font, Layout.FORECAST_COL3_X, column_width), 1),
 			y=time_y
