@@ -151,7 +151,7 @@ class API:
 	TIMEOUT = 30
 	MAX_RETRIES = 2
 	RETRY_DELAY = 2
-	MAX_CALLS_BEFORE_RESTART = 204
+	MAX_CALLS_BEFORE_RESTART = 350
 	
 	MAX_FORECAST_HOURS = 12
 	DEFAULT_FORECAST_HOURS = 12
@@ -2938,6 +2938,11 @@ def main():
 		state.startup_time = time.monotonic()
 		state.last_successful_weather = state.startup_time
 		state.memory_monitor.log_report()
+		
+		# Log active display features
+		active_features = display_config.get_active_features()
+		formatted_features = [feature.replace("_", " ") for feature in active_features]
+		log_info(f"Active displays: {', '.join(formatted_features)}")
 		
 		log_info(f"== STARTING MAIN DISPLAY LOOP == \n")
 		log_verbose(f"Image cache initialized: {state.image_cache.get_stats()}")
