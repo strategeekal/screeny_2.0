@@ -1216,7 +1216,7 @@ def fetch_current_and_forecast_weather():
 				}
 				log_verbose(f"CURRENT DATA: {current_data}")
 				
-				log_info(f"Weather: {current_data['weather_text']}, {current_data['temperature']}°C")
+				log_info(f"Weather: {current_data['weather_text']}, {current_data['feels_like']}°C")
 				
 			else:
 				log_warning("Current weather fetch failed")
@@ -1248,7 +1248,7 @@ def fetch_current_and_forecast_weather():
 						"has_precipitation": hour_data.get("HasPrecipitation", False)
 					})
 				
-				log_info(f"Forecast: {len(forecast_data)} hours (fresh) | Next: {forecast_data[0]['temperature']}°C")
+				log_info(f"Forecast: {len(forecast_data)} hours (fresh) | Next: {forecast_data[0]['feels_like']}°C")
 				if len(forecast_data) >= forecast_fetch_length and CURRENT_DEBUG_LEVEL >= DebugLevel.VERBOSE:
 					for h, item in enumerate(forecast_data):
 						log_verbose(f"  Hour {h+1}: {item['temperature']}°C, {item['weather_text']}")
@@ -2162,8 +2162,15 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 	gc.collect()
 	
 	try:
-		# Prepare all data ONCE
-		col1_temp = f"{round(current_data['temperature'])}°"
+		# Column 1 - current temperature with feels-like logic
+		temp_col1 = current_data['temperature']
+		
+		if temp_col1 > Visual.FEELS_LIKE_TEMP_THRESHOLD:
+			display_temp_col1 = current_data.get('feels_like', temp_col1)
+		else:
+			display_temp_col1 = current_data.get('feels_shade', temp_col1)
+		
+		col1_temp = f"{round(display_temp_col1)}°"
 		col1_icon = f"{current_data['weather_icon']}.bmp"
 		
 		# Column 2 - temperature with feels-like logic
