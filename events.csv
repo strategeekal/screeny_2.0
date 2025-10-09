@@ -1,0 +1,49 @@
+# Events CSV - Format: MM-DD,Line1,Line2,ImageFile,Color
+# Available colors: MINT, BUGAMBILIA, LILAC, DIMMEST_WHITE, BLACK
+01-01,New Year,Happy,new_year.bmp,BUGAMBILIA
+01-04,Lu,Cumple,cake_sq.bmp,PINK
+01-05,Anto,Cumple,cake_sq.bmp,PINK
+01-12,Lorencita,Cumple,cake_sq.bmp,LILAC
+01-18,Abuelo,Cumple,cake_sq.bmp,MINT
+01-18,Rafa,Cumple,cake_sq.bmp,BLUE
+01-19,Pallis,Cumple,cake_sq.bmp,LILAC
+02-10,Emilio,Birthday,cake.bmp,MINT
+02-14,Didiculo,Dia,valentines.bmp,RED
+03-01,Spring,Hello,spring.bmp,BUGAMBILIA
+03-06,Tay,Cumple,cake_sq.bmp,AQUA
+03-19,Pichono,Cumple,cake_sq.bmp,MINT
+03-27,Lupis,Cumple,cake_sq.bmp,LILAC
+04-16,Pa,Cumple,cake_sq.bmp,MINT
+04-18,Nico,Cumple,cake_sq.bmp,ORANGE
+05-18,Jime,Cumple,cake_sq.bmp,BLUE
+06-01,Summer,Hello,summer.bmp,BUGAMBILIA
+06-07,Erin,Cumple,cake_sq.bmp,LILAC
+06-07,Luquitas,Cumple,cake_sq.bmp,AQUA
+06-11,Pablito,Cumple,cake_sq.bmp,CYAN
+06-16,Aniversary,Happy,anniversary.bmp,LILAC
+06-22,Jose,Cumple,cake_sq.bmp,AQUA
+07-03,Gaby,Birthday,cake.bmp,MINT
+07-04,July,4th of,us_flag.bmp,BUGAMBILIA
+07-10,Lucia,Cumple,cake_sq.bmp,LILAC
+07-11,Tio Paco,Cumple,cake_sq.bmp,MINT
+08-11,Alan,Cumple,cake_sq.bmp,MINT
+08-12,Isa,Cumple,cake_sq.bmp,BUGAMBILIA
+08-14,Tia Sofi,Cumple,cake_sq.bmp,LILAC
+08-24,Abuela,Cumple,cake_sq.bmp,MINT
+08-25,Diego,Birthday,cake.bmp,MINT
+09-22,Begins,Fall,fall.bmp,ORANGE
+09-16,Mexico,Viva,mexico_flag_v3.bmp,BUGAMBILIA
+09-22,Puchis,Cumple,panzon.bmp,MINT
+10-09,Alvaro,Cumple,cake_sq.bmp,MINT
+10-09,Popi,Cumple,cake_sq.bmp,PINK
+10-25,Jack,Fiesta,party.bmp,YELLOW
+10-26,Jack,Cumple,cake_sq.bmp,YELLOW
+10-31,Halloween,Happy,halloween.bmp,BUGAMBILIA
+11-01,Muertos,Dia de,day_of_the_death.bmp,BUGAMBILIA
+11-02,Tiago,Fiesta,party.bmp,PURPLE
+11-09,Tiago,Birthday,cake.bmp,MINT
+11-21,Nico Coshi,Cumple,cake_sq.bmp,ORANGE
+11-23,Ric,Cumple,cake_sq.bmp,MINT
+11-27,Thanksgiving,Happy,thanksgiving.bmp,LILAC
+12-01,Winter,Hello,winter.bmp,LILAC
+12-25,X-MAS,Merry,xmas.bmp,BUGAMBILIA

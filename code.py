@@ -20,12 +20,13 @@ import adafruit_requests
 import adafruit_ds3231
 import time
 import adafruit_ntp
+import microcontroller
 
 gc.collect()
 
 # === CONSTANTS ===
 
-## Display Hardware 
+## Display Hardware
 
 class Display:
 	WIDTH = 64
@@ -74,6 +75,22 @@ class Layout:
 	BOTTOM_MARGIN = 2
 	DESCENDER_EXTRA_MARGIN = 2
 	
+	# Schedule image positioning
+	SCHEDULE_IMAGE_X = 23        # Image size 40 x 28 px
+	SCHEDULE_IMAGE_Y = 0
+	SCHEDULE_LEFT_MARGIN_X = 2
+	SCHEDULE_W_IMAGE_Y = 9
+	SCHEDULE_TEMP_Y = 24
+	SCHEDULE_UV_Y = 30
+	SCHEDULE_X_OFFSET = -1
+	
+	# Progress bar positioning (below day indicator)
+	
+	PROGRESS_BAR_HORIZONTAL_X = 23 # 23 (aligned with image)
+	PROGRESS_BAR_HORIZONTAL_Y = 29  # Below 28px tall image + 1px gap = y=31
+	PROGRESS_BAR_HORIZONTAL_WIDTH = 40
+	PROGRESS_BAR_HORIZONTAL_HEIGHT = 2
+	
 class DayIndicator:
 	SIZE = 4
 	X = 60              # 64 - 4
@@ -84,14 +101,16 @@ class DayIndicator:
 ## Timing (all in seconds)
 
 class Timing:
-	DEFAULT_CYCLE = 330         
-	DEFAULT_FORECAST = 60       
-	DEFAULT_EVENT = 30          
-	MIN_EVENT_DURATION = 10     
+	DEFAULT_CYCLE = 420
+	DEFAULT_FORECAST = 60
+	DEFAULT_EVENT = 30
+	MIN_EVENT_DURATION = 10
 	CLOCK_DISPLAY_DURATION = 300
-	COLOR_TEST = 300            
+	COLOR_TEST = 300
+	SCHEDULE_WEATHER_REFRESH_INTERVAL = 420
+	SCHEDULE_GC_INTERVAL = 600
 	
-	FORECAST_UPDATE_INTERVAL = 900  # 15 minutes
+	FORECAST_UPDATE_INTERVAL = 1260  # 21 minutes - 3 cycles
 	DAILY_RESET_HOUR = 3
 	EXTENDED_FAILURE_THRESHOLD = 600  # 10 minutes   When to enter clock-only mode for recovery
 	INTERRUPTIBLE_SLEEP_INTERVAL = 0.1
@@ -129,13 +148,13 @@ MONTHS = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oc
 
 ## API Configuration
 class API:
-	TIMEOUT = 30                        
-	MAX_RETRIES = 2                     
-	RETRY_DELAY = 2                     
-	MAX_CALLS_BEFORE_RESTART = 204  
+	TIMEOUT = 30
+	MAX_RETRIES = 2
+	RETRY_DELAY = 2
+	MAX_CALLS_BEFORE_RESTART = 350
 	
 	MAX_FORECAST_HOURS = 12
-	DEFAULT_FORECAST_HOURS = 12          
+	DEFAULT_FORECAST_HOURS = 12
 	
 	# URLs (base parts)
 	BASE_URL = "https://dataservice.accuweather.com"
@@ -168,9 +187,9 @@ class Recovery:
 	
 	# Recovery actions
 	SOFT_RESET_THRESHOLD = 5         # Consecutive failures before soft reset
-	HARD_RESET_THRESHOLD = 15 
+	HARD_RESET_THRESHOLD = 15
 	WIFI_RECONNECT_COOLDOWN = 300  # 5 minutes between WiFi reconnection attempts
-	EXTENDED_FAILURE_THRESHOLD = 3600 
+	EXTENDED_FAILURE_THRESHOLD = 3600
 	
 ## Memory Management
 class Memory:
@@ -188,12 +207,13 @@ class Paths:
 	COLUMN_IMAGES = "img/weather/columns"
 	FALLBACK_EVENT_IMAGE = "img/events/blank_sq.bmp"
 	BIRTHDAY_IMAGE = "img/events/cake.bmp"
+	SCHEDULE_IMAGES = "img/schedule"
 	
 ## Colors & Visual
 class Visual:
 	# UV bar calculation breakpoints
 	UV_BREAKPOINT_1 = 3
-	UV_BREAKPOINT_2 = 6  
+	UV_BREAKPOINT_2 = 6
 	UV_BREAKPOINT_3 = 9
 	
 	# UV spacing positions
@@ -207,6 +227,9 @@ class Visual:
 	COLOR_TEST_GRID_COLS = 3
 	COLOR_TEST_COL_SPACING = 16
 	COLOR_TEST_ROW_SPACING = 11
+	
+	# Temperature display threshold
+	FEELS_LIKE_TEMP_THRESHOLD = 15  # Use feels-like above, feels-shade below
 	
 ## System_constants
 class System:
@@ -227,17 +250,22 @@ class System:
 	SECONDS_PER_HOUR = 3600
 	SECONDS_HALF_HOUR = 1800
 	
+	# Startup Delay for extra crash protection
+	STARTUP_DELAY_TIME = 60
+	
 ## Test Data Constants
 
 class TestData:
 	# Move TEST_DATE_DATA values here
-	TEST_YEAR = 2026                    # TEST_DATE_DATA["new_year"]
-	TEST_MONTH = 7                      # TEST_DATE_DATA["new_month"] 
-	TEST_DAY = 4                        # TEST_DATE_DATA["new_day"]
+	TEST_YEAR = None
+	TEST_MONTH = None
+	TEST_DAY =  None
+	TEST_HOUR = 13
+	TEST_MINUTE = 29
 	
 	# Dummy weather values
 	DUMMY_WEATHER_DATA = {
-		"weather_icon": 19,
+		"weather_icon": 1,
 		"temperature": -12,
 		"feels_like": -13.6,
 		"feels_shade": -14.6,
@@ -294,6 +322,9 @@ class DisplayConfig:
 	"""
 	
 	def __init__(self):
+		# DEVELOPMENT vs PRODUCTION toggle
+		self.delayed_start = False  # False for dev (faster), True for production (safer)
+		
 		# Core displays (always try to show if data available)
 		self.show_weather = True
 		self.show_forecast = True
@@ -301,6 +332,7 @@ class DisplayConfig:
 		
 		# Display Elements
 		self.show_weekday_indicator = True
+		self.show_scheduled_displays = True
 		
 		# API controls (fetch real data vs use dummy data)
 		self.use_live_weather = True      # False = use dummy data
@@ -349,7 +381,7 @@ class DisplayConfig:
 		# Add data source info
 		if not self.use_live_weather: features.append("dummy_weather")
 		if not self.use_live_forecast: features.append("dummy_forecast")
-		if self.use_test_date: features.append("test_date")
+		# if self.use_test_date: features.append("test_date")
 		if self.show_color_test: features.append("color_test")
 		
 		return features
@@ -359,6 +391,20 @@ class DisplayConfig:
 		log_info(f"Features: {', '.join(self.get_active_features())}")
 		
 display_config = DisplayConfig()
+
+def get_remaining_schedule_time(rtc, schedule_config):
+	"""Calculate how much time remains in the current schedule window"""
+	current = rtc.datetime
+	current_mins = current.tm_hour * 60 + current.tm_min
+	end_mins = schedule_config["end_hour"] * 60 + schedule_config["end_min"]
+	
+	# Calculate remaining minutes
+	remaining_mins = end_mins - current_mins
+	
+	# Convert to seconds, with minimum of 1 minute
+	remaining_seconds = max(remaining_mins * 60, 60)
+	
+	return remaining_seconds
 
 # Base colors use standard RGB (works correctly on type2)
 _BASE_COLORS = {
@@ -655,7 +701,8 @@ class WeatherDisplayState:
 		self.last_wifi_attempt = 0
 		self.system_error_count = 0
 		
-		self.in_extended_failure_mode = False  
+		self.in_extended_failure_mode = False
+		self.scheduled_display_error_count = 0
 	
 	def reset_api_counters(self):
 		"""Reset API call tracking"""
@@ -803,17 +850,16 @@ def format_datetime(iso_string):
 
 def initialize_display():
 	"""Initialize RGB matrix display"""
-	state.memory_monitor.check_memory("display_init_start")
 	
 	displayio.release_displays()
 	
 	matrix = rgbmatrix.RGBMatrix(
 		width=Display.WIDTH, height=Display.HEIGHT, bit_depth=Display.BIT_DEPTH,
-		rgb_pins=[board.MTX_R1, board.MTX_G1, board.MTX_B1, 
+		rgb_pins=[board.MTX_R1, board.MTX_G1, board.MTX_B1,
 				board.MTX_R2, board.MTX_G2, board.MTX_B2],
-		addr_pins=[board.MTX_ADDRA, board.MTX_ADDRB, 
+		addr_pins=[board.MTX_ADDRA, board.MTX_ADDRB,
 				board.MTX_ADDRC, board.MTX_ADDRD],
-		clock_pin=board.MTX_CLK, latch_pin=board.MTX_LAT, 
+		clock_pin=board.MTX_CLK, latch_pin=board.MTX_LAT,
 		output_enable_pin=board.MTX_OE,
 		serpentine=True, doublebuffer=True,
 	)
@@ -1011,7 +1057,7 @@ def get_requests_session():
 				log_verbose("Socket timeout configuration not available")
 			
 			state.global_requests_session = adafruit_requests.Session(
-				pool, 
+				pool,
 				ssl.create_default_context()
 			)
 			log_verbose("Created new persistent requests session")
@@ -1172,18 +1218,18 @@ def fetch_current_and_forecast_weather():
 					"uv_index": current.get("UVIndex", 0),
 					"weather_text": current.get("WeatherText", "Unknown"),
 					"is_day_time": current.get("IsDayTime", True),
-					"has_precipitation": current.get("HasPrecipitation:", False),
+					"has_precipitation": current.get("HasPrecipitation", False),
 				}
 				log_verbose(f"CURRENT DATA: {current_data}")
 				
-				log_info(f"Weather: {current_data['weather_text']}, {current_data['temperature']}°C")
+				log_info(f"Weather: {current_data['weather_text']}, {current_data['feels_like']}°C")
 				
 			else:
 				log_warning("Current weather fetch failed")
 		
 		# Fetch forecast weather if enabled and (current succeeded OR current disabled)
 		if display_config.should_fetch_forecast():
-			forecast_url = f"{API.BASE_URL}/{API.FORECAST_ENDPOINT}/{os.getenv(Strings.API_LOCATION_KEY)}?apikey={api_key}&metric=true"
+			forecast_url = f"{API.BASE_URL}/{API.FORECAST_ENDPOINT}/{os.getenv(Strings.API_LOCATION_KEY)}?apikey={api_key}&metric=true&details=true"
 			
 			forecast_json = fetch_weather_with_retries(forecast_url, max_retries=1, context="Forecast")
 			
@@ -1200,13 +1246,15 @@ def fetch_current_and_forecast_weather():
 					hour_data = forecast_json[i]
 					forecast_data.append({
 						"temperature": hour_data.get("Temperature", {}).get("Value", 0),
+						"feels_like": hour_data.get("RealFeelTemperature", {}).get("Value", 0),
+						"feels_shade": hour_data.get("RealFeelTemperatureShade", {}).get("Value", 0),
 						"weather_icon": hour_data.get("WeatherIcon", 1),
 						"weather_text": hour_data.get("IconPhrase", "Unknown"),
 						"datetime": hour_data.get("DateTime", ""),
 						"has_precipitation": hour_data.get("HasPrecipitation", False)
 					})
 				
-				log_info(f"Forecast: {len(forecast_data)} hours (fresh) | Next: {forecast_data[0]['temperature']}°C")
+				log_info(f"Forecast: {len(forecast_data)} hours (fresh) | Next: {forecast_data[0]['feels_like']}°C")
 				if len(forecast_data) >= forecast_fetch_length and CURRENT_DEBUG_LEVEL >= DebugLevel.VERBOSE:
 					for h, item in enumerate(forecast_data):
 						log_verbose(f"  Hour {h+1}: {item['temperature']}°C, {item['weather_text']}")
@@ -1265,6 +1313,19 @@ def fetch_current_and_forecast_weather():
 		state.memory_monitor.check_memory("weather_fetch_error")
 		state.consecutive_failures += 1
 		return None, None
+		
+def fetch_current_weather_only():
+	"""Fetch only current weather (not forecast)"""
+	if display_config.use_live_weather:
+		display_config.use_live_forecast = False
+		current_data, _ = fetch_current_and_forecast_weather()
+		display_config.use_live_forecast = True
+		
+		if current_data:
+			state.last_successful_weather = time.monotonic()
+		return current_data
+	else:
+		return TestData.DUMMY_WEATHER_DATA
 
 def get_api_key():
 	"""Extract API key logic into separate function"""
@@ -1320,7 +1381,6 @@ def detect_matrix_type():
 	if state.matrix_type_cache is not None:
 		return state.matrix_type_cache
 	
-	import microcontroller
 	uid = microcontroller.cpu.uid
 	device_id = "".join([f"{b:02x}" for b in uid[-3:]])
 	
@@ -1425,7 +1485,7 @@ def load_events_from_csv():
 					parts = [part.strip() for part in line.split(",")]
 					if len(parts) >= 4:
 						date = parts[0]
-						line1 = parts[1] 
+						line1 = parts[1]
 						line2 = parts[2]
 						image = parts[3]
 						color = parts[4] if len(parts) > 4 else Strings.DEFAULT_EVENT_COLOR
@@ -1442,20 +1502,7 @@ def load_events_from_csv():
 		log_warning(f"Failed to load events.csv: {e}")
 		log_warning("Using fallback hardcoded events")
 		# Return fallback events as lists
-		return {
-			"0101": [["New Year", "Happy", "new_year.bmp", "BUGAMBILIA"]],
-			"0210": [["Emilio", "Birthday", "cake.bmp", "MINT"]],
-			"0703": [["Gaby", "Birthday", "cake.bmp", "MINT"]],
-			"0704": [["July", "4th of", "us_flag.bmp", "BUGAMBILIA"]],
-			"0825": [["Diego", "Birthday", "cake.bmp", "MINT"]],
-			"0916": [["Mexico", "Viva", "mexico_flag_v3.bmp", "BUGAMBILIA"]],
-			"0922": [["Puchis", "Cumple", "panzon.bmp", "MINT"]],
-			"1031": [["Halloween", "Happy", "halloween.bmp", "BUGAMBILIA"]],
-			"1101": [["Muertos", "Dia de", "day_of_the_death.bmp", "BUGAMBILIA"]],
-			"1109": [["Tiago", "Birthday", "cake.bmp", "MINT"]],
-			"1127": [["Thanksgiving", "Happy", "thanksgiving.bmp", "BUGAMBILIA"]],
-			"1225": [["X-MAS", "Merry", "xmas.bmp", "BUGAMBILIA"]],
-		}
+		return {}
 		
 def get_events():
 	"""Get cached events - loads from CSV only once"""
@@ -1466,6 +1513,86 @@ def get_events():
 			state.cached_events = {}
 	
 	return state.cached_events
+	
+def load_schedules_from_csv():
+	"""Load schedules from CSV file"""
+	schedules = {}
+	try:
+		log_verbose("Loading schedules from schedules.csv...")
+		with open("schedules.csv", "r") as f:
+			for line in f:
+				line = line.strip()
+				if line and not line.startswith("#"):
+					parts = [part.strip() for part in line.split(",")]
+					if len(parts) >= 8:
+						name = parts[0]
+						enabled = parts[1] == "1"
+						days = [int(d) for d in parts[2]]
+						schedules[name] = {
+							"enabled": enabled,
+							"days": days,
+							"start_hour": int(parts[3]),
+							"start_min": int(parts[4]),
+							"end_hour": int(parts[5]),
+							"end_min": int(parts[6]),
+							"image": parts[7],
+							"progressbar": parts[8] == "1" if len(parts) > 8 else True
+						}
+		
+		# Log successful load
+		if schedules:
+			log_debug(f"{len(schedules)} schedules loaded")
+		else:
+			log_warning("No schedules found in schedules.csv")
+		
+		return schedules
+		
+	except Exception as e:
+		log_warning(f"Failed to load schedules.csv: {e}")
+		return {}
+		
+class ScheduledDisplay:
+	"""Configuration for time-based scheduled displays"""
+	# Schedule images should be placed in img/schedule/
+	# Weather column images (13x23px) should be in img/weather/columns/
+	
+	def __init__(self):
+		self.schedules = load_schedules_from_csv()
+		if not self.schedules:
+			log_warning("No schedules loaded")
+	
+	def is_active(self, rtc, schedule_name):
+		"""Check if a schedule is currently active"""
+		if schedule_name not in self.schedules:
+			return False
+		
+		schedule = self.schedules[schedule_name]
+		
+		if not schedule["enabled"]:
+			return False
+		
+		current = rtc.datetime
+		
+		# Check if current day is in schedule
+		if current.tm_wday not in schedule["days"]:
+			return False
+		
+		# Convert times to minutes for easier comparison
+		current_mins = current.tm_hour * 60 + current.tm_min
+		start_mins = schedule["start_hour"] * 60 + schedule["start_min"]
+		end_mins = schedule["end_hour"] * 60 + schedule["end_min"]
+		
+		return start_mins <= current_mins < end_mins
+	
+	def get_active_schedule(self, rtc):
+		"""Get the currently active schedule, if any"""
+		for name, schedule in self.schedules.items():
+			if self.is_active(rtc, name):
+				return name, schedule
+		return None, None
+
+# Create instance
+scheduled_display = ScheduledDisplay()
 
 def calculate_bottom_aligned_positions(font, line1_text, line2_text, display_height=32, bottom_margin=2, line_spacing=1):
 	"""
@@ -1513,14 +1640,14 @@ def clear_display():
 def right_align_text(text, font, right_edge):
 	return right_edge - get_text_width(text, font)
 
-def center_text(text, font, area_x, area_width):  
+def center_text(text, font, area_x, area_width):
 	return area_x + (area_width - get_text_width(text, font)) // 2
 
 def get_day_color(rtc):
 	"""Get color for day of week indicator"""
 	day_colors = {
 		0: state.colors["RED"],      # Monday
-		1: state.colors["ORANGE"],   # Tuesday  
+		1: state.colors["ORANGE"],   # Tuesday
 		2: state.colors["YELLOW"],   # Wednesday
 		3: state.colors["GREEN"],    # Thursday
 		4: state.colors["AQUA"],     # Friday
@@ -1572,7 +1699,7 @@ def calculate_humidity_bar_length(humidity):
 	elif pixels <= 4:
 		return pixels + 1  # Add 1 spacing pixel
 	elif pixels <= 6:
-		return pixels + 2 
+		return pixels + 2
 	elif pixels <= 8:
 		return pixels + 3
 	else:
@@ -1591,7 +1718,7 @@ def add_indicator_bars(main_group, x_start, uv_index, humidity):
 			if i < uv_length:
 				main_group.append(Line(x_start + i, Layout.UV_BAR_Y, x_start + i, Layout.UV_BAR_Y, state.colors["BLACK"]))
 	
-	# Humidity bar 
+	# Humidity bar
 	if humidity > 0:
 		humidity_length = calculate_humidity_bar_length(humidity)
 		
@@ -1621,26 +1748,26 @@ def show_weather_display(rtc, duration, weather_data=None):
 	
 	# Create all static display elements ONCE
 	temp_text = bitmap_label.Label(
-		bg_font, 
-		color=state.colors["DIMMEST_WHITE"], 
+		bg_font,
+		color=state.colors["DIMMEST_WHITE"],
 		text=f"{round(weather_data['temperature'])}°",
-		x=Layout.WEATHER_TEMP_X, 
-		y=Layout.WEATHER_TEMP_Y, 
-		background_color=state.colors["BLACK"], 
-		padding_top=Layout.BG_PADDING_TOP, 
-		padding_bottom=1, 
+		x=Layout.WEATHER_TEMP_X,
+		y=Layout.WEATHER_TEMP_Y,
+		background_color=state.colors["BLACK"],
+		padding_top=Layout.BG_PADDING_TOP,
+		padding_bottom=1,
 		padding_left=1
 	)
 	
 	# Create time text - this is the ONLY element we'll update
 	time_text = bitmap_label.Label(
-		font, 
-		color=state.colors["DIMMEST_WHITE"], 
-		x=Layout.WEATHER_TIME_X, 
-		y=Layout.WEATHER_TIME_Y, 
-		background_color=state.colors["BLACK"], 
-		padding_top=Layout.BG_PADDING_TOP, 
-		padding_bottom=-2, 
+		font,
+		color=state.colors["DIMMEST_WHITE"],
+		x=Layout.WEATHER_TIME_X,
+		y=Layout.WEATHER_TIME_Y,
+		background_color=state.colors["BLACK"],
+		padding_top=Layout.BG_PADDING_TOP,
+		padding_bottom=-2,
 		padding_left=1
 	)
 	
@@ -1654,26 +1781,26 @@ def show_weather_display(rtc, duration, weather_data=None):
 	
 	if feels_like_rounded != temp_rounded:
 		feels_like_text = bitmap_label.Label(
-			font, 
-			color=state.colors["DIMMEST_WHITE"], 
+			font,
+			color=state.colors["DIMMEST_WHITE"],
 			text=f"{feels_like_rounded}°",
-			y=Layout.FEELSLIKE_Y, 
-			background_color=state.colors["BLACK"], 
-			padding_top=Layout.BG_PADDING_TOP, 
-			padding_bottom=-2, 
+			y=Layout.FEELSLIKE_Y,
+			background_color=state.colors["BLACK"],
+			padding_top=Layout.BG_PADDING_TOP,
+			padding_bottom=-2,
 			padding_left=1
 		)
 		feels_like_text.x = right_align_text(feels_like_text.text, font, Layout.RIGHT_EDGE)
 	
 	if feels_shade_rounded != feels_like_rounded:
 		feels_shade_text = bitmap_label.Label(
-			font, 
-			color=state.colors["DIMMEST_WHITE"], 
+			font,
+			color=state.colors["DIMMEST_WHITE"],
 			text=f"{feels_shade_rounded}°",
-			y=Layout.FEELSLIKE_SHADE_Y, 
-			background_color=state.colors["BLACK"], 
-			padding_top=Layout.BG_PADDING_TOP, 
-			padding_bottom=-2, 
+			y=Layout.FEELSLIKE_SHADE_Y,
+			background_color=state.colors["BLACK"],
+			padding_top=Layout.BG_PADDING_TOP,
+			padding_bottom=-2,
 			padding_left=1
 		)
 		feels_shade_text.x = right_align_text(feels_shade_text.text, font, Layout.RIGHT_EDGE)
@@ -1755,7 +1882,7 @@ def show_clock_display(rtc, duration=Timing.CLOCK_DISPLAY_DURATION):
 	
 	state.main_group.append(date_text)
 	state.main_group.append(time_text)
-			  
+			
 	# Add day indicator after other elements
 	if display_config.show_weekday_indicator:
 		add_day_indicator(state.main_group, rtc)
@@ -1776,18 +1903,19 @@ def show_clock_display(rtc, duration=Timing.CLOCK_DISPLAY_DURATION):
 		time_text.text = time_str
 		interruptible_sleep(1)
 	
-	# Check for restart conditions
-	time_since_success = time.monotonic() - state.last_successful_weather
-	
-	# Hard reset after 1 hour of failures (gives plenty of time for transient issues)
-	if time_since_success > System.SECONDS_PER_HOUR:  # 1 hour
-		log_error(f"Hard reset after {int(time_since_success/System.SECONDS_PER_MINUTE)} minutes without successful weather fetch")
-		interruptible_sleep(Timing.RESTART_DELAY)
-		supervisor.reload()
-	
-	# Warn after 30 minutes
-	elif time_since_success > System.SECONDS_HALF_HOUR and state.consecutive_failures >= System.MAX_LOG_FAILURES_BEFORE_RESTART:
-		log_warning(f"Extended failure: {int(time_since_success/System.SECONDS_PER_MINUTE)}min without success, {state.consecutive_failures} consecutive failures")
+	# Check for restart conditions ONLY if not in startup phase
+	if state.startup_time > 0:  # Only check if we've completed initialization
+		time_since_success = time.monotonic() - state.last_successful_weather
+		
+		# Hard reset after 1 hour of failures
+		if time_since_success > System.SECONDS_PER_HOUR:
+			log_error(f"Hard reset after {int(time_since_success/System.SECONDS_PER_MINUTE)} minutes without successful weather fetch")
+			interruptible_sleep(Timing.RESTART_DELAY)
+			supervisor.reload()
+		
+		# Warn after 30 minutes
+		elif time_since_success > System.SECONDS_HALF_HOUR and state.consecutive_failures >= System.MAX_LOG_FAILURES_BEFORE_RESTART:
+			log_warning(f"Extended failure: {int(time_since_success/System.SECONDS_PER_MINUTE)}min without success, {state.consecutive_failures} consecutive failures")
 		
 def show_event_display(rtc, duration):
 	"""Display special calendar events - cycles through multiple events if present"""
@@ -1855,8 +1983,8 @@ def _display_single_event_optimized(event_data, rtc, duration):
 			
 			# Get dynamic positions
 			line1_y, line2_y = calculate_bottom_aligned_positions(
-				font, 
-				line1_text, 
+				font,
+				line1_text,
 				line2_text,
 				display_height=Display.HEIGHT,
 				bottom_margin=Layout.BOTTOM_MARGIN,
@@ -1925,7 +2053,7 @@ def show_color_test_display(duration=Timing.COLOR_TEST):
 	
 	try:
 		# Get test colors dynamically from COLORS dictionary
-		test_color_names = ["MINT", "BUGAMBILIA", "LILAC", "RED", "GREEN", "BLUE", 
+		test_color_names = ["MINT", "BUGAMBILIA", "LILAC", "RED", "GREEN", "BLUE",
 						   "ORANGE", "YELLOW", "CYAN", "PURPLE", "PINK", "AQUA"]
 		texts = ["Aa", "Bb", "Cc", "Dd", "Ee", "Ff", "Gg", "Hh", "Ii", "Jj", "Kk", "Ll"]
 		
@@ -1952,31 +2080,157 @@ def show_color_test_display(duration=Timing.COLOR_TEST):
 	return True
 	
 def show_forecast_display(current_data=None, forecast_data=None, duration=30):
-	"""Optimized forecast display - only update time text in column 1"""
+	"""Optimized forecast display with smart precipitation detection"""
 	
-	# Check if we have real data - skip display if not
-	if not current_data or not forecast_data or len(forecast_data) < 3:
+	# Check if we have real data
+	if not current_data or not forecast_data or len(forecast_data) < 2:
 		log_warning(f"Skipping forecast display - insufficient data")
 		return False
 	
+	# Analyze forecast for precipitation changes
+	current_has_precip = current_data.get('has_precipitation', False)
+	forecast_indices = None
+	
+	# DEBUG: Log what we're checking
+	log_verbose(f"Analyzing precipitation - Current: {current_has_precip}")
+	for i, hour in enumerate(forecast_data):
+		log_debug(f"  Hour {i}: has_precip={hour.get('has_precipitation')}, temp={hour.get('temperature')}")
+	
+	if not current_has_precip:
+		# No current precipitation - look for when it starts
+		rain_start_idx = None
+		rain_stop_idx = None
+		
+		for i, hour in enumerate(forecast_data):
+			if hour.get('has_precipitation', False):
+				if rain_start_idx is None:
+					rain_start_idx = i  # First hour with rain
+			else:  # No precipitation in this hour
+				if rain_start_idx is not None and rain_stop_idx is None:
+					rain_stop_idx = i  # First hour after rain stops
+					break
+		
+		if rain_start_idx is not None:
+			if rain_stop_idx is not None:
+				# Show: current, rain start, rain stop
+				forecast_indices = [rain_start_idx, rain_stop_idx]
+				log_debug(f"Precipitation forecast: starts at hour {rain_start_idx+1}, stops at hour {rain_stop_idx+1}")
+			else:
+				# Rain starts but doesn't stop in 12 hours
+				if rain_start_idx >= len(forecast_data) - 1:
+					# Rain is in last hour - show previous hour and rain hour
+					forecast_indices = [max(0, rain_start_idx - 1), rain_start_idx]
+					log_debug(f"Precipitation in last hour {rain_start_idx+1}, showing hour before")
+				else:
+					# Show rain start and next hour
+					forecast_indices = [rain_start_idx, rain_start_idx + 1]
+					log_debug(f"Precipitation starts at hour {rain_start_idx+1}, continues beyond forecast")
+	else:
+		# Currently raining - look for when it stops
+		rain_stop_idx = None
+		
+		for i, hour in enumerate(forecast_data):
+			if not hour.get('has_precipitation', False):
+				rain_stop_idx = i
+				break
+		
+		if rain_stop_idx is not None:
+			# Show: current, rain stop, next hour after stop
+			forecast_indices = [rain_stop_idx, min(rain_stop_idx + 1, len(forecast_data) - 1)]
+			log_debug(f"Currently raining, stops at hour {rain_stop_idx+1}")
+		else:
+			# Rain continues - show next 2 hours
+			forecast_indices = [0, 1]
+			log_debug("Rain continues throughout forecast period")
+	
+	# Fallback to normal behavior if no precipitation found
+	if forecast_indices is None:
+		forecast_indices = [0, 1]
+		log_debug("No precipitation, normal forecast display")
+	
+	# NOW check for duplicate hour right before displaying
+	current_hour = state.rtc_instance.datetime.tm_hour
+	forecast_hour_0 = int(forecast_data[forecast_indices[0]]['datetime'][11:13]) % System.HOURS_IN_DAY
+	
+	# If the selected forecast hour matches current hour, shift indices forward
+	if forecast_hour_0 == current_hour and forecast_indices[0] == 0:
+		# Only shift if we're showing the sequential hours [0,1]
+		if len(forecast_data) >= 3:
+			forecast_indices = [1, 2]
+			log_debug(f"Adjusted indices to skip duplicate hour {current_hour}")
+	
+	log_debug(f"Will show hours: {forecast_indices[0]+1} and {forecast_indices[1]+1}")
+	
 	# Log with real data
-	log_debug(f"Displaying Forecast for {duration_message(duration)}: Current {current_data['temperature']}°C, +1hr {forecast_data[0]['temperature']}°C, +2hr {forecast_data[1]['temperature']}°C")
+	log_debug(f"Displaying Forecast for {duration_message(duration)}: Current {current_data['temperature']}°C, Next hours: {forecast_data[forecast_indices[0]]['temperature']}°C, {forecast_data[forecast_indices[1]]['temperature']}°C")
 	
 	clear_display()
 	gc.collect()
 	
 	try:
-		# Prepare all data ONCE
-		col1_temp = f"{round(current_data['temperature'])}°"
+		# Column 1 - current temperature with feels-like logic
+		temp_col1 = current_data['temperature']
+		
+		if temp_col1 > Visual.FEELS_LIKE_TEMP_THRESHOLD:
+			display_temp_col1 = current_data.get('feels_like', temp_col1)
+		else:
+			display_temp_col1 = current_data.get('feels_shade', temp_col1)
+		
+		col1_temp = f"{round(display_temp_col1)}°"
 		col1_icon = f"{current_data['weather_icon']}.bmp"
 		
-		col2_temp = f"{round(forecast_data[0]['temperature'])}°"
-		col3_temp = f"{round(forecast_data[1]['temperature'])}°"
-		col2_icon = f"{forecast_data[0]['weather_icon']}.bmp"
-		col3_icon = f"{forecast_data[1]['weather_icon']}.bmp"
+		# Column 2 - temperature with feels-like logic
+		temp_col2 = forecast_data[forecast_indices[0]]['temperature']
 		
-		hour_plus_1 = int(forecast_data[0]['datetime'][11:13]) % System.HOURS_IN_DAY
-		hour_plus_2 = int(forecast_data[1]['datetime'][11:13]) % System.HOURS_IN_DAY
+		if temp_col2 > Visual.FEELS_LIKE_TEMP_THRESHOLD:
+			# Warm: show feels-like
+			display_temp_col2 = forecast_data[forecast_indices[0]].get('feels_like', temp_col2)
+		else:
+			# Cool: show feels-like shade
+			display_temp_col2 = forecast_data[forecast_indices[0]].get('feels_shade', temp_col2)
+		
+		col2_temp = f"{round(display_temp_col2)}°"
+		
+		# Column 3 - temperature with feels-like logic
+		temp_col3 = forecast_data[forecast_indices[1]]['temperature']
+		
+		if temp_col3 > Visual.FEELS_LIKE_TEMP_THRESHOLD:
+			# Warm: show feels-like
+			display_temp_col3 = forecast_data[forecast_indices[1]].get('feels_like', temp_col3)
+		else:
+			# Cool: show feels-like shade
+			display_temp_col3 = forecast_data[forecast_indices[1]].get('feels_shade', temp_col3)
+		
+		col3_temp = f"{round(display_temp_col3)}°"
+		
+		# Get column icons
+		col2_icon = f"{forecast_data[forecast_indices[0]]['weather_icon']}.bmp"
+		col3_icon = f"{forecast_data[forecast_indices[1]]['weather_icon']}.bmp"
+		
+		hour_plus_1 = int(forecast_data[forecast_indices[0]]['datetime'][11:13]) % System.HOURS_IN_DAY
+		hour_plus_2 = int(forecast_data[forecast_indices[1]]['datetime'][11:13]) % System.HOURS_IN_DAY
+		
+		# Calculate actual hours from datetime strings
+		current_hour = state.rtc_instance.datetime.tm_hour
+		col2_hour = int(forecast_data[forecast_indices[0]]['datetime'][11:13]) % System.HOURS_IN_DAY
+		col3_hour = int(forecast_data[forecast_indices[1]]['datetime'][11:13]) % System.HOURS_IN_DAY
+		
+		# Calculate hours ahead from current time (handle midnight wraparound)
+		col2_hours_ahead = (col2_hour - current_hour) % System.HOURS_IN_DAY
+		col3_hours_ahead = (col3_hour - current_hour) % System.HOURS_IN_DAY
+		
+		# Determine colors based on hour gaps
+		if col2_hours_ahead <= 1:
+			col2_color = state.colors["DIMMEST_WHITE"]  # Immediate
+			# If col2 is immediate, check col3
+			if col3_hours_ahead <= 2:
+				col3_color = state.colors["DIMMEST_WHITE"]  # Also immediate
+			else:
+				col3_color = state.colors["MINT"]  # Col3 jumped ahead
+		else:
+			# Col2 jumped ahead, so col3 definitely did too
+			col2_color = state.colors["MINT"]
+			col3_color = state.colors["MINT"]
 		
 		# Generate static time labels for columns 2 and 3
 		def format_hour(hour):
@@ -2021,6 +2275,7 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 				state.main_group.append(col_img)
 			except Exception as e:
 				log_warning(f"Failed to load column {i+1} image: {e}")
+
 		
 		# Create time labels - only column 1 will be updated
 		col1_time_label = bitmap_label.Label(
@@ -2030,10 +2285,10 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 			y=time_y
 		)
 		
-		# Static time labels for columns 2 and 3
+		# Use these colors in the labels
 		col2_time_label = bitmap_label.Label(
 			font,
-			color=state.colors["DIMMEST_WHITE"],
+			color=col2_color,
 			text=col2_time,
 			x=max(center_text(col2_time, font, Layout.FORECAST_COL2_X, column_width), 1),
 			y=time_y
@@ -2041,7 +2296,7 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 		
 		col3_time_label = bitmap_label.Label(
 			font,
-			color=state.colors["DIMMEST_WHITE"],
+			color=col3_color,
 			text=col3_time,
 			x=max(center_text(col3_time, font, Layout.FORECAST_COL3_X, column_width), 1),
 			y=time_y
@@ -2130,6 +2385,267 @@ def calculate_display_durations(rtc):
 	
 	return current_weather_time, Timing.DEFAULT_FORECAST, event_time
 
+def create_progress_bar_tilegrid():
+	"""Create a TileGrid-based progress bar with tick marks"""
+	# Progress bar dimensions
+	bar_width = Layout.PROGRESS_BAR_HORIZONTAL_WIDTH
+	bar_height = Layout.PROGRESS_BAR_HORIZONTAL_HEIGHT
+	tick_height_above = 2
+	tick_height_below = 1
+	total_height = tick_height_above + bar_height + tick_height_below  # 5px total
+	
+	# Bar position within bitmap
+	bar_y_start = tick_height_above  # Bar starts at row 2
+	bar_y_end = bar_y_start + bar_height  # Bar ends at row 4
+	
+	# Create bitmap
+	progress_bitmap = displayio.Bitmap(bar_width, total_height, 4)
+	
+	# Create palette
+	progress_palette = displayio.Palette(4)
+	progress_palette[0] = state.colors["BLACK"]
+	progress_palette[1] = state.colors["LILAC"]  # Elapsed
+	progress_palette[2] = state.colors["MINT"]   # Remaining
+	progress_palette[3] = state.colors["WHITE"]  # Tick marks
+	
+	# Initialize with black background
+	for y in range(total_height):
+		for x in range(bar_width):
+			progress_bitmap[x, y] = 0
+	
+	# Fill bar area with "remaining" color
+	for y in range(bar_y_start, bar_y_end):
+		for x in range(bar_width):
+			progress_bitmap[x, y] = 2
+	
+	# Add tick marks at 0%, 25%, 50%, 75%, 100%
+	tick_positions = [0, bar_width // 4, bar_width // 2, 3 * bar_width // 4, bar_width - 1]
+	
+	for pos in tick_positions:
+		# Major ticks (start, middle, end) get 2px above
+		if pos == 0 or pos == bar_width // 2 or pos == bar_width - 1:
+			progress_bitmap[pos, 0] = 3
+			progress_bitmap[pos, 1] = 3
+		else:  # Minor ticks (25%, 75%) get 1px above
+			progress_bitmap[pos, 1] = 3
+		
+		# All ticks get 1px below
+		progress_bitmap[pos, bar_y_end] = 3
+	
+	# Create TileGrid
+	progress_grid = displayio.TileGrid(
+		progress_bitmap,
+		pixel_shader=progress_palette,
+		x=Layout.PROGRESS_BAR_HORIZONTAL_X,
+		y=Layout.PROGRESS_BAR_HORIZONTAL_Y - tick_height_above
+	)
+	
+	return progress_grid, progress_bitmap
+
+def update_progress_bar_bitmap(progress_bitmap, elapsed_seconds, total_seconds):
+	"""Update progress bar bitmap (fills left to right as time elapses)"""
+	if total_seconds <= 0:
+		return
+	
+	# Calculate elapsed pixels
+	elapsed_ratio = min(1.0, elapsed_seconds / total_seconds)
+	elapsed_width = int(Layout.PROGRESS_BAR_HORIZONTAL_WIDTH * elapsed_ratio)
+	
+	# Bar position (rows 2-3 in the 5-row bitmap)
+	bar_y_start = 2
+	bar_y_end = 4
+	
+	# Update only the bar area
+	for y in range(bar_y_start, bar_y_end):
+		for x in range(Layout.PROGRESS_BAR_HORIZONTAL_WIDTH):
+			if x < elapsed_width:
+				progress_bitmap[x, y] = 1  # Elapsed (LILAC)
+			else:
+				progress_bitmap[x, y] = 2  # Remaining (MINT)
+	
+def show_scheduled_display(rtc, schedule_name, schedule_config, duration, current_data=None):
+	"""Display scheduled message with live weather and clock"""
+	log_info(f"Showing scheduled display: {schedule_name}")
+	clear_display()
+	gc.collect()
+	
+	try:
+		# Fetch weather data if not provided
+		if not current_data:
+			# Fetch current weather data only
+			current_data = fetch_current_weather_only()
+		
+		if not current_data:
+			log_warning("No weather data for scheduled display")
+			show_clock_display(rtc, duration)
+			return
+		
+		# Extract initial weather data
+		temperature = f"{round(current_data['feels_like'])}°"
+		weather_icon = f"{current_data['weather_icon']}.bmp"
+		uv_index = current_data['uv_index']
+		
+		# Add UV bar if present
+		if uv_index > 0:
+			uv_length = calculate_uv_bar_length(uv_index)
+			for i in range(uv_length):
+				if i not in Visual.UV_SPACING_POSITIONS:
+					uv_pixel = Line(
+						Layout.SCHEDULE_LEFT_MARGIN_X + i,
+						Layout.SCHEDULE_UV_Y,
+						Layout.SCHEDULE_LEFT_MARGIN_X + i,
+						Layout.SCHEDULE_UV_Y,
+						state.colors["DIMMEST_WHITE"]
+					)
+					state.main_group.append(uv_pixel)
+		
+		# Vertical offset for elements when UV bar present
+		y_offset = Layout.SCHEDULE_X_OFFSET if uv_index > 0 else 0
+		
+		# Weather icon (left column)
+		try:
+			bitmap, palette = state.image_cache.get_image(f"{Paths.COLUMN_IMAGES}/{weather_icon}")
+			weather_img = displayio.TileGrid(bitmap, pixel_shader=palette)
+			weather_img.x = Layout.SCHEDULE_LEFT_MARGIN_X
+			weather_img.y = Layout.SCHEDULE_W_IMAGE_Y + y_offset
+		except Exception as e:
+			log_error(f"Failed to load weather icon {weather_icon}: {e}")
+			state.scheduled_display_error_count += 1
+			
+			if state.scheduled_display_error_count >= 3:
+				log_error("Disabling scheduled displays due to repeated errors")
+				display_config.show_scheduled_displays = False
+			
+			show_clock_display(rtc, duration)
+			return
+			
+		try:
+			bitmap, palette = load_bmp_image(f"{Paths.SCHEDULE_IMAGES}/{schedule_config['image']}")
+			schedule_img = displayio.TileGrid(bitmap, pixel_shader=palette)
+			schedule_img.x = Layout.SCHEDULE_IMAGE_X
+			schedule_img.y = Layout.SCHEDULE_IMAGE_Y
+		except Exception as e:
+			log_error(f"Failed to load schedule image {schedule_config['image']}: {e}")
+			state.scheduled_display_error_count += 1
+			
+			if state.scheduled_display_error_count >= 3:
+				log_error("Disabling scheduled displays due to repeated errors")
+				display_config.show_scheduled_displays = False
+			
+			show_clock_display(rtc, duration)
+			return
+		
+		# Success - reset error counter
+		state.scheduled_display_error_count = 0
+		
+		# Time label (updates in loop)
+		time_label = bitmap_label.Label(
+			font,
+			color=state.colors["DIMMEST_WHITE"],
+			x=Layout.SCHEDULE_LEFT_MARGIN_X,
+			y=Layout.FORECAST_TIME_Y
+		)
+		
+		# Temperature label (static)
+		temp_label = bitmap_label.Label(
+			font,
+			color=state.colors["DIMMEST_WHITE"],
+			text=temperature,
+			x=Layout.SCHEDULE_LEFT_MARGIN_X,
+			y=Layout.SCHEDULE_TEMP_Y + y_offset
+		)
+		
+		# Add all elements
+		state.main_group.append(weather_img)
+		state.main_group.append(schedule_img)
+		state.main_group.append(time_label)
+		state.main_group.append(temp_label)
+		
+		if display_config.show_weekday_indicator:
+			add_day_indicator(state.main_group, rtc)
+		
+		if current_data:
+			state.last_successful_weather = time.monotonic()
+		
+		# Track number of static elements (everything before progress bar)
+		static_elements_count = len(state.main_group)
+		
+		# Create progress bar TileGrid ONLY if enabled for this schedule
+		if schedule_config.get("progressbar", True):  # Default to True if key doesn't exist
+			progress_grid, progress_bitmap = create_progress_bar_tilegrid()
+			state.main_group.append(progress_grid)
+			show_progress_bar = True
+		else:
+			progress_grid = None
+			progress_bitmap = None
+			show_progress_bar = False
+		
+		# Display loop with live clock, weather refresh, and progress bar
+		start_time = time.monotonic()
+		last_minute = -1
+		last_weather_update = start_time
+		last_gc = start_time
+		last_displayed_column = -1  # Track which column was last updated
+		
+		while time.monotonic() - start_time < duration:
+			current_minute = rtc.datetime.tm_min
+			current_time = time.monotonic()
+			elapsed = current_time - start_time  # ADD THIS LINE
+			
+			# Calculate current column for progress bar
+			elapsed_ratio = elapsed / duration
+			current_column = int(Layout.PROGRESS_BAR_HORIZONTAL_WIDTH * (elapsed_ratio))
+			
+			# Update progress bar only when column changes
+			if show_progress_bar and current_column != last_displayed_column:
+				update_progress_bar_bitmap(progress_bitmap, elapsed, duration)
+				last_displayed_column = current_column
+			
+			# Garbage collect every 10 minutes
+			if current_time - last_gc >= Timing.SCHEDULE_GC_INTERVAL:
+				gc.collect()
+				log_verbose("GC during scheduled display")
+				last_gc = current_time
+
+			
+			# Refresh weather every 5 minutes
+			if current_time - last_weather_update >= Timing.SCHEDULE_WEATHER_REFRESH_INTERVAL:
+				fresh_data = fetch_current_weather_only()
+				
+				if fresh_data:
+					new_temp = f"{round(fresh_data['feels_like'])}°"
+					temp_label.text = new_temp
+					
+					new_icon = f"{fresh_data['weather_icon']}.bmp"
+					if new_icon != weather_icon:
+						try:
+							bitmap, palette = state.image_cache.get_image(f"{Paths.COLUMN_IMAGES}/{new_icon}")
+							weather_img.bitmap = bitmap
+							weather_img.pixel_shader = palette
+							weather_icon = new_icon
+						except:
+							pass
+					
+					log_debug(f"Refreshed weather during scheduled display: {new_temp}")
+				
+				last_weather_update = current_time
+			
+			# Update time when minute changes
+			if current_minute != last_minute:
+				hour = rtc.datetime.tm_hour
+				display_hour = hour % System.HOURS_IN_HALF_DAY or System.HOURS_IN_HALF_DAY
+				
+				time_label.text = f"{display_hour}:{current_minute:02d}"
+				last_minute = current_minute
+			
+			interruptible_sleep(1)
+			
+	except Exception as e:
+		log_error(f"Scheduled display error: {e}")
+		show_clock_display(rtc, duration)
+	
+	gc.collect()
+	
 ### SYSTEM MANAGEMENT ###
 
 def check_daily_reset(rtc):
@@ -2143,8 +2659,8 @@ def check_daily_reset(rtc):
 	# Scheduled restart conditions
 	should_restart = (
 		hours_running > System.HOURS_BEFORE_DAILY_RESTART or
-		(hours_running > 1 and 
-		 rtc.datetime.tm_hour == Timing.DAILY_RESET_HOUR and 
+		(hours_running > 1 and
+		 rtc.datetime.tm_hour == Timing.DAILY_RESET_HOUR and
 		 rtc.datetime.tm_min < System.RESTART_GRACE_MINUTES)
 	)
 	
@@ -2187,19 +2703,17 @@ def calculate_yearday(year, month, day):
 	
 	return sum(days_in_month[:month-1]) + day
 		
-def update_rtc_date(rtc, new_year, new_month, new_day):
-	"""
-	Update only the year, month and day of the RTC, preserving all other values
-	
-	Args:
-		rtc: The DS3231 RTC instance
-		new_year: New year
-		new_month: New month (1-12)
-		new_day: New day (1-31)
-	"""
+def update_rtc_datetime(rtc, new_year=None, new_month=None, new_day=None, new_hour=None, new_minute=None):
+	"""Update RTC date and optionally time"""
 	try:
-		# Get current datetime
 		current_dt = rtc.datetime
+		
+		# Use current time if not specified
+		new_year = new_year if new_year is not None else current_dt.tm_year
+		new_month = new_month if new_month is not None else current_dt.tm_mon
+		new_day = new_day if new_day is not None else current_dt.tm_mday
+		new_hour = new_hour if new_hour is not None else current_dt.tm_hour
+		new_minute = new_minute if new_minute is not None else current_dt.tm_min
 		
 		# Validate inputs
 		if not (1 <= new_month <= 12):
@@ -2215,30 +2729,17 @@ def update_rtc_date(rtc, new_year, new_month, new_day):
 		new_yearday = calculate_yearday(new_year, new_month, new_day)
 		
 		# Create new datetime with updated month/day
-		import time
 		new_datetime = time.struct_time((
-			new_year,    # Keep current year
-			new_month,             # New month
-			new_day,               # New day
-			current_dt.tm_hour,    # Keep current hour
-			current_dt.tm_min,     # Keep current minute
-			current_dt.tm_sec,     # Keep current second
-			new_weekday,           # Calculated weekday
-			new_yearday,           # Calculated yearday
-			current_dt.tm_isdst    # Keep current DST flag
+			new_year, new_month, new_day,
+			new_hour, new_minute, current_dt.tm_sec,
+			new_weekday, new_yearday, current_dt.tm_isdst
 		))
 		
-		# Update the RTC
 		rtc.datetime = new_datetime
-		
-		weekday_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-		weekday_name = weekday_names[new_weekday]
-			
-		log_debug(f"RTC date MANUALLY updated to {new_year:04d}/{new_month:02d}/{new_day:02d} ({weekday_name})")
+		log_debug(f"RTC updated to {new_year:04d}/{new_month:02d}/{new_day:02d} {new_hour:02d}:{new_minute:02d}")
 		return True
-			
 	except Exception as e:
-		log_error(f"Failed to update RTC date: {e}")
+		log_error(f"Failed to update RTC: {e}")
 		return False
 
 
@@ -2262,8 +2763,8 @@ def initialize_system(rtc):
 	
 	# Handle test date if configured
 	if display_config.use_test_date:
-		update_rtc_date(rtc, TestData.TEST_YEAR, TestData.TEST_MONTH, TestData.TEST_DAY)
-		
+		update_rtc_datetime(rtc, TestData.TEST_YEAR, TestData.TEST_MONTH, TestData.TEST_DAY, TestData.TEST_HOUR, TestData.TEST_MINUTE)
+	
 	# Load events
 	events = get_events()
 	event_count, _ = get_today_events_info(rtc)
@@ -2271,7 +2772,7 @@ def initialize_system(rtc):
 	if event_count == 0:
 		event_count = "No"
 		
-	log_info(f"Hardware ready | {len(events)} events loaded | Events Today: {event_count}")
+	log_info(f"Hardware ready | {len(scheduled_display.schedules)} schedules loaded | {len(events)} events loaded | Events Today: {event_count}")
 	state.memory_monitor.check_memory("events_loaded")
 	
 	return events
@@ -2283,7 +2784,7 @@ def setup_network_and_time(rtc):
 	if wifi_connected and not display_config.use_test_date:
 		sync_time_with_timezone(rtc)
 	elif display_config.use_test_date:
-		log_info(f"Manual Time Set: {rtc.datetime.tm_year:04d}/{rtc.datetime.tm_mon:02d}/{rtc.datetime.tm_mday:02d}")
+		log_info(f"Manual Time Set: {rtc.datetime.tm_year:04d}/{rtc.datetime.tm_mon:02d}/{rtc.datetime.tm_mday:02d} {rtc.datetime.tm_hour:02d}:{rtc.datetime.tm_min:02d}")
 	else:
 		log_warning("Starting without WiFi - using RTC time only")
 	
@@ -2308,62 +2809,84 @@ def handle_extended_failure_mode(rtc, time_since_success):
 			return True  # Signal recovery
 	
 	return False  # Still in failure mode
+	
+def fetch_cycle_data(rtc):
+	"""Fetch all data needed for this display cycle"""
+	current_data = None
+	forecast_data = None
+	
+	needs_fresh_forecast = should_fetch_forecast() and display_config.show_forecast
+	
+	if needs_fresh_forecast:
+		current_data, forecast_data = fetch_current_and_forecast_weather()
+		if forecast_data:
+			state.cached_forecast_data = forecast_data
+			state.last_forecast_fetch = time.monotonic()
+	else:
+		if display_config.show_weather and not display_config.use_live_weather:
+			current_data = TestData.DUMMY_WEATHER_DATA
+			log_debug("Using DUMMY weather data")
+		elif display_config.show_weather:
+			display_config.use_live_forecast = False
+			current_data, _ = fetch_current_and_forecast_weather()
+			display_config.use_live_forecast = True
+		
+		forecast_data = state.cached_forecast_data
+	
+	return current_data, forecast_data
 
 def run_display_cycle(rtc, cycle_count):
-	"""Execute one complete display cycle"""
 	cycle_start_time = time.monotonic()
 	
-	# Memory monitoring
+	# Detect rapid cycling (completing in < 10 seconds suggests errors)
+	if cycle_count > 1:
+		time_since_startup = time.monotonic() - state.startup_time
+		avg_cycle_time = time_since_startup / cycle_count
+		
+		if avg_cycle_time < 10 and cycle_count > 10:
+			log_error(f"Rapid cycling detected ({avg_cycle_time:.1f}s/cycle) - restarting")
+			interruptible_sleep(Timing.RESTART_DELAY)
+			supervisor.reload()
+	
+	# Memory monitoring and maintenance
 	if cycle_count % Timing.CYCLES_FOR_MEMORY_REPORT == 0:
 		state.memory_monitor.log_report(level="DEBUG")
-	
-	# System maintenance
 	check_daily_reset(rtc)
 	
 	# Check for extended failure mode
 	time_since_success = time.monotonic() - state.last_successful_weather
 	in_failure_mode = time_since_success > Timing.EXTENDED_FAILURE_THRESHOLD
 	
-	# Log exit from extended failure mode (only once)
 	if not in_failure_mode and state.in_extended_failure_mode:
-		log_info(f"EXITING extended failure mode - weather API recovered")
+		log_info("EXITING extended failure mode")
 		state.in_extended_failure_mode = False
 	
 	if in_failure_mode:
 		handle_extended_failure_mode(rtc, time_since_success)
 		return
 	
-	# Calculate display durations
-	current_duration, forecast_duration, event_duration = calculate_display_durations(rtc)
-	
-	# SINGLE weather fetch for the entire cycle
-	current_data = None
-	forecast_data = None
-	
-	# Determine if we need fresh forecast data
-	needs_fresh_forecast = should_fetch_forecast() and display_config.show_forecast
-	
-	if needs_fresh_forecast:
-		# Fetch both current and forecast together
-		current_data, forecast_data = fetch_current_and_forecast_weather()
-		if forecast_data:
-			state.cached_forecast_data = forecast_data
-			state.last_forecast_fetch = time.monotonic()
+	# CHECK FOR SCHEDULED DISPLAY FIRST
+	if display_config.show_scheduled_displays:
+		schedule_name, schedule_config = scheduled_display.get_active_schedule(rtc)
+		if schedule_name:
+			
+			# Fetch only current weather (not forecast) for scheduled display
+			current_data = fetch_current_weather_only()
+			
+			display_duration = get_remaining_schedule_time(rtc, schedule_config)
+			show_scheduled_display(rtc, schedule_name, schedule_config, display_duration, current_data)
+			
+			# Log cycle summary WITH API stats
+			cycle_duration = time.monotonic() - cycle_start_time
+			mem_stats = state.memory_monitor.get_memory_stats()
+			log_info(f"Cycle #{cycle_count} (SCHEDULED) complete in {cycle_duration/System.SECONDS_PER_MINUTE:.2f} min | UT: {state.memory_monitor.get_runtime()} | Mem: {mem_stats['usage_percent']:.1f}% | API: Total={state.api_call_count}/{API.MAX_CALLS_BEFORE_RESTART}, Current={state.current_api_calls}, Forecast={state.forecast_api_calls}\n")
+			return
 	else:
-		# Check if we should use dummy data for weather
-		if display_config.show_weather and not display_config.use_live_weather:
-			# Use dummy weather data
-			current_data = TestData.DUMMY_WEATHER_DATA
-			log_debug("Using DUMMY weather data")
-			log_info(f"Weather: {current_data['weather_text']}, {current_data['temperature']}°C")
-		elif display_config.show_weather:
-			# Fetch only current weather from API
-			display_config.use_live_forecast = False
-			current_data, _ = fetch_current_and_forecast_weather()
-			display_config.use_live_forecast = True
-		
-		# Use cached forecast data if available
-		forecast_data = state.cached_forecast_data
+		log_debug("Scheduled displays disabled due to errors")
+	
+	# NORMAL CYCLE - Fetch data once
+	current_data, forecast_data = fetch_cycle_data(rtc)
+	current_duration, forecast_duration, event_duration = calculate_display_durations(rtc)
 	
 	# Forecast display
 	forecast_shown = False
@@ -2378,7 +2901,7 @@ def run_display_cycle(rtc, cycle_count):
 		show_weather_display(rtc, current_duration, current_data)
 	
 	# Events display
-	if display_config.show_events:
+	if display_config.show_events and event_duration > 0:
 		event_shown = show_event_display(rtc, event_duration)
 		if not event_shown:
 			interruptible_sleep(1)
@@ -2390,7 +2913,7 @@ def run_display_cycle(rtc, cycle_count):
 	# Cache stats logging
 	if cycle_count % Timing.CYCLES_FOR_CACHE_STATS == 0:
 		log_debug(state.image_cache.get_stats())
-		
+	
 	# Calculate cycle duration and log
 	cycle_duration = time.monotonic() - cycle_start_time
 	mem_stats = state.memory_monitor.get_memory_stats()
@@ -2414,6 +2937,12 @@ def main():
 		# System initialization
 		events = initialize_system(rtc)
 		
+		# Brief startup delay to prevent rapid API calls on boot loops
+		if display_config.delayed_start:
+			STARTUP_DELAY = System.STARTUP_DELAY_TIME
+			log_info(f"Startup delay: {STARTUP_DELAY}s")
+			show_clock_display(rtc, STARTUP_DELAY)
+		
 		# Network setup
 		setup_network_and_time(rtc)
 		
@@ -2421,6 +2950,11 @@ def main():
 		state.startup_time = time.monotonic()
 		state.last_successful_weather = state.startup_time
 		state.memory_monitor.log_report()
+		
+		# Log active display features
+		active_features = display_config.get_active_features()
+		formatted_features = [feature.replace("_", " ") for feature in active_features]
+		log_info(f"Active displays: {', '.join(formatted_features)}")
 		
 		log_info(f"== STARTING MAIN DISPLAY LOOP == \n")
 		log_verbose(f"Image cache initialized: {state.image_cache.get_stats()}")
@@ -2436,7 +2970,15 @@ def main():
 			except Exception as e:
 				log_error(f"Display loop error: {e}")
 				state.memory_monitor.check_memory("display_loop_error")
-				interruptible_sleep(Timing.SLEEP_BETWEEN_ERRORS)
+				
+				# CRITICAL: Add delay to prevent rapid retry loops
+				state.consecutive_failures += 1
+				
+				if state.consecutive_failures >= 3:
+					log_error(f"Multiple consecutive failures ({state.consecutive_failures}) - longer delay")
+					interruptible_sleep(30)  # 30 second delay after repeated failures
+				else:
+					interruptible_sleep(Timing.SLEEP_BETWEEN_ERRORS)
 				
 	except KeyboardInterrupt:
 		log_info("Program interrupted by user")
