@@ -250,6 +250,9 @@ class System:
 	SECONDS_PER_HOUR = 3600
 	SECONDS_HALF_HOUR = 1800
 	
+	# Startup Delay for extra crash protection
+	STARTUP_DELAY_TIME = 60
+	
 ## Test Data Constants
 
 class TestData:
@@ -319,6 +322,9 @@ class DisplayConfig:
 	"""
 	
 	def __init__(self):
+		# DEVELOPMENT vs PRODUCTION toggle
+		self.delayed_start = False  # False for dev (faster), True for production (safer)
+		
 		# Core displays (always try to show if data available)
 		self.show_weather = True
 		self.show_forecast = True
@@ -375,7 +381,7 @@ class DisplayConfig:
 		# Add data source info
 		if not self.use_live_weather: features.append("dummy_weather")
 		if not self.use_live_forecast: features.append("dummy_forecast")
-		if self.use_test_date: features.append("test_date")
+		# if self.use_test_date: features.append("test_date")
 		if self.show_color_test: features.append("color_test")
 		
 		return features
@@ -1212,7 +1218,7 @@ def fetch_current_and_forecast_weather():
 					"uv_index": current.get("UVIndex", 0),
 					"weather_text": current.get("WeatherText", "Unknown"),
 					"is_day_time": current.get("IsDayTime", True),
-					"has_precipitation": current.get("HasPrecipitation:", False),
+					"has_precipitation": current.get("HasPrecipitation", False),
 				}
 				log_verbose(f"CURRENT DATA: {current_data}")
 				
@@ -1897,18 +1903,19 @@ def show_clock_display(rtc, duration=Timing.CLOCK_DISPLAY_DURATION):
 		time_text.text = time_str
 		interruptible_sleep(1)
 	
-	# Check for restart conditions
-	time_since_success = time.monotonic() - state.last_successful_weather
-	
-	# Hard reset after 1 hour of failures (gives plenty of time for transient issues)
-	if time_since_success > System.SECONDS_PER_HOUR:  # 1 hour
-		log_error(f"Hard reset after {int(time_since_success/System.SECONDS_PER_MINUTE)} minutes without successful weather fetch")
-		interruptible_sleep(Timing.RESTART_DELAY)
-		supervisor.reload()
-	
-	# Warn after 30 minutes
-	elif time_since_success > System.SECONDS_HALF_HOUR and state.consecutive_failures >= System.MAX_LOG_FAILURES_BEFORE_RESTART:
-		log_warning(f"Extended failure: {int(time_since_success/System.SECONDS_PER_MINUTE)}min without success, {state.consecutive_failures} consecutive failures")
+	# Check for restart conditions ONLY if not in startup phase
+	if state.startup_time > 0:  # Only check if we've completed initialization
+		time_since_success = time.monotonic() - state.last_successful_weather
+		
+		# Hard reset after 1 hour of failures
+		if time_since_success > System.SECONDS_PER_HOUR:
+			log_error(f"Hard reset after {int(time_since_success/System.SECONDS_PER_MINUTE)} minutes without successful weather fetch")
+			interruptible_sleep(Timing.RESTART_DELAY)
+			supervisor.reload()
+		
+		# Warn after 30 minutes
+		elif time_since_success > System.SECONDS_HALF_HOUR and state.consecutive_failures >= System.MAX_LOG_FAILURES_BEFORE_RESTART:
+			log_warning(f"Extended failure: {int(time_since_success/System.SECONDS_PER_MINUTE)}min without success, {state.consecutive_failures} consecutive failures")
 		
 def show_event_display(rtc, duration):
 	"""Display special calendar events - cycles through multiple events if present"""
@@ -2085,7 +2092,7 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 	forecast_indices = None
 	
 	# DEBUG: Log what we're checking
-	log_debug(f"Analyzing precipitation - Current: {current_has_precip}")
+	log_verbose(f"Analyzing precipitation - Current: {current_has_precip}")
 	for i, hour in enumerate(forecast_data):
 		log_debug(f"  Hour {i}: has_precip={hour.get('has_precipitation')}, temp={hour.get('temperature')}")
 	
@@ -2152,7 +2159,6 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 			forecast_indices = [1, 2]
 			log_debug(f"Adjusted indices to skip duplicate hour {current_hour}")
 	
-	log_debug(f"Selected forecast_indices: {forecast_indices}")
 	log_debug(f"Will show hours: {forecast_indices[0]+1} and {forecast_indices[1]+1}")
 	
 	# Log with real data
@@ -2930,6 +2936,12 @@ def main():
 	try:
 		# System initialization
 		events = initialize_system(rtc)
+		
+		# Brief startup delay to prevent rapid API calls on boot loops
+		if display_config.delayed_start:
+			STARTUP_DELAY = System.STARTUP_DELAY_TIME
+			log_info(f"Startup delay: {STARTUP_DELAY}s")
+			show_clock_display(rtc, STARTUP_DELAY)
 		
 		# Network setup
 		setup_network_and_time(rtc)

@@ -4,8 +4,9 @@
 # progressbar: 1=true, 0=false
 
 # Morning Routine
-Get Dressed,1,0123456,7,0,7,20,get_dressed.bmp,1
-Eat Breakfast,1,0123456,7,20,7,50,breakfast.bmp,1
+Get Dressed,1,0123456,7,0,7,15,get_dressed.bmp,1
+Eat Breakfast,1,0123456,7,15,7,40,breakfast.bmp,1
+Toilet and Teeth,1,0123456,7,40,7,50,toilet_and_teeth.bmp,1
 Go to School,1,01234,7,50,8,15,go_to_school.bmp,1
 
 # Day Routine
