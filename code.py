@@ -112,6 +112,8 @@ class Timing:
 	
 	FORECAST_UPDATE_INTERVAL = 1260  # 21 minutes - 3 cycles
 	DAILY_RESET_HOUR = 3
+	DAILY_RESET_MINUTE_DEVICE1 = 0
+	DAILY_RESET_MINUTE_DEVICE2 = 2
 	EXTENDED_FAILURE_THRESHOLD = 600  # 10 minutes   When to enter clock-only mode for recovery
 	INTERRUPTIBLE_SLEEP_INTERVAL = 0.1
 	
@@ -2656,16 +2658,21 @@ def check_daily_reset(rtc):
 	current_time = time.monotonic()
 	hours_running = (current_time - state.startup_time) / System.SECONDS_PER_HOUR
 	
+	# Get device ID to determine restart minute offset
+	uid = microcontroller.cpu.uid
+	device_id = "".join([f"{b:02x}" for b in uid[-3:]])
+	restart_minute = Timing.DAILY_RESET_MINUTE_DEVICE1 if device_id == System.DEVICE_TYPE1_ID else Timing.DAILY_RESET_MINUTE_DEVICE2
+	
 	# Scheduled restart conditions
 	should_restart = (
 		hours_running > System.HOURS_BEFORE_DAILY_RESTART or
-		(hours_running > 1 and
-		 rtc.datetime.tm_hour == Timing.DAILY_RESET_HOUR and
-		 rtc.datetime.tm_min < System.RESTART_GRACE_MINUTES)
+		(hours_running > 1 and 
+		rtc.datetime.tm_hour == Timing.DAILY_RESET_HOUR and 
+		rtc.datetime.tm_min == restart_minute)
 	)
 	
 	if should_restart:
-		log_info(f"Daily restart triggered ({hours_running:.1f}h runtime)")
+		log_info(f"Daily restart triggered ({hours_running:.1f}h runtime) at :0{restart_minute}")
 		interruptible_sleep(API.RETRY_DELAY)
 		supervisor.reload()
 		
