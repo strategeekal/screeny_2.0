@@ -101,7 +101,7 @@ class DayIndicator:
 ## Timing (all in seconds)
 
 class Timing:
-	DEFAULT_CYCLE = 330
+	DEFAULT_CYCLE = 420
 	DEFAULT_FORECAST = 60
 	DEFAULT_EVENT = 30
 	MIN_EVENT_DURATION = 10
@@ -110,7 +110,7 @@ class Timing:
 	SCHEDULE_WEATHER_REFRESH_INTERVAL = 300
 	SCHEDULE_GC_INTERVAL = 600
 	
-	FORECAST_UPDATE_INTERVAL = 900  # 15 minutes
+	FORECAST_UPDATE_INTERVAL = 1260  # 21 minutes - 3 cycles
 	DAILY_RESET_HOUR = 3
 	EXTENDED_FAILURE_THRESHOLD = 600  # 10 minutes   When to enter clock-only mode for recovery
 	INTERRUPTIBLE_SLEEP_INTERVAL = 0.1
