@@ -101,18 +101,20 @@ class DayIndicator:
 ## Timing (all in seconds)
 
 class Timing:
-	DEFAULT_CYCLE = 420
+	DEFAULT_CYCLE = 300
 	DEFAULT_FORECAST = 60
 	DEFAULT_EVENT = 30
 	MIN_EVENT_DURATION = 10
 	CLOCK_DISPLAY_DURATION = 300
 	COLOR_TEST = 300
-	SCHEDULE_WEATHER_REFRESH_INTERVAL = 420
+	SCHEDULE_WEATHER_REFRESH_INTERVAL = 300
 	SCHEDULE_GC_INTERVAL = 600
 	
-	FORECAST_UPDATE_INTERVAL = 1260  # 21 minutes - 3 cycles
+	FORECAST_UPDATE_INTERVAL = 900  # - 3 cycles
 	DAILY_RESET_HOUR = 3
-	EXTENDED_FAILURE_THRESHOLD = 600  # 10 minutes   When to enter clock-only mode for recovery
+	DAILY_RESET_MINUTE_DEVICE1 = 0
+	DAILY_RESET_MINUTE_DEVICE2 = 2
+	EXTENDED_FAILURE_THRESHOLD = 900  # 15 minutes   When to enter clock-only mode for recovery
 	INTERRUPTIBLE_SLEEP_INTERVAL = 0.1
 	
 	# Retry delays
@@ -123,13 +125,13 @@ class Timing:
 	RESTART_DELAY = 10
 	
 	WEATHER_UPDATE_INTERVAL = 60
-	MEMORY_CHECK_INTERVAL = 30
-	GC_INTERVAL = 60
+	MEMORY_CHECK_INTERVAL = 60
+	GC_INTERVAL = 120
 	
 	CYCLES_TO_MONITOR_MEMORY = 10
 	CYCLES_FOR_FORCE_CLEANUP = 25
 	CYCLES_FOR_MEMORY_REPORT = 100
-	CYCLES_FOR_CACHE_STATS = 10
+	CYCLES_FOR_CACHE_STATS = 50
 	
 	EVENT_CHUNK_SIZE = 60
 	EVENT_MEMORY_MONITORING = 600 # For long events (e.g. all day)
@@ -250,8 +252,10 @@ class System:
 	SECONDS_PER_HOUR = 3600
 	SECONDS_HALF_HOUR = 1800
 	
-	# Startup Delay for extra crash protection
+	# Startup and Restart timing control
 	STARTUP_DELAY_TIME = 60
+	RESTART_GRACE_MINUTES = 10
+	MINIMUM_RUNTIME_BEFORE_RESTART = 0.2
 	
 ## Test Data Constants
 
@@ -462,6 +466,9 @@ def validate_configuration():
 	
 	if Timing.EXTENDED_FAILURE_THRESHOLD < Timing.CLOCK_DISPLAY_DURATION:
 		issues.append(f"EXTENDED_FAILURE_THRESHOLD ({Timing.EXTENDED_FAILURE_THRESHOLD}s) should be >= CLOCK_DISPLAY_DURATION ({Timing.CLOCK_DISPLAY_DURATION}s)")
+		
+	if System.RESTART_GRACE_MINUTES < (Timing.DEFAULT_CYCLE / 60) + 3:
+		warnings.append(f"RESTART_GRACE_MINUTES ({System.RESTART_GRACE_MINUTES}) should be at least {int(Timing.DEFAULT_CYCLE/60) + 3} minutes to accommodate cycle length")
 	
 	# API validations
 	if API.MAX_RETRIES > 5:
@@ -1068,7 +1075,11 @@ def get_requests_session():
 	return state.global_requests_session
 
 def cleanup_global_session():
-	"""Clean up the global session"""
+	"""
+	Clean up the global session
+	Used only for soft resets on repeated failures
+	NOT used during normal operation - session reuse is preferred
+	"""
 	if state.global_requests_session:
 		try:
 			state.global_requests_session.close()
@@ -2094,7 +2105,7 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 	# DEBUG: Log what we're checking
 	log_verbose(f"Analyzing precipitation - Current: {current_has_precip}")
 	for i, hour in enumerate(forecast_data):
-		log_debug(f"  Hour {i}: has_precip={hour.get('has_precipitation')}, temp={hour.get('temperature')}")
+		log_verbose(f"  Hour {i}: has_precip={hour.get('has_precipitation')}, temp={hour.get('temperature')}")
 	
 	if not current_has_precip:
 		# No current precipitation - look for when it starts
@@ -2564,8 +2575,10 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, duration, curren
 		if display_config.show_weekday_indicator:
 			add_day_indicator(state.main_group, rtc)
 		
+		# Reset failure tracking on successful initial weather fetch
 		if current_data:
 			state.last_successful_weather = time.monotonic()
+			state.consecutive_failures = 0
 		
 		# Track number of static elements (everything before progress bar)
 		static_elements_count = len(state.main_group)
@@ -2590,7 +2603,7 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, duration, curren
 		while time.monotonic() - start_time < duration:
 			current_minute = rtc.datetime.tm_min
 			current_time = time.monotonic()
-			elapsed = current_time - start_time  # ADD THIS LINE
+			elapsed = current_time - start_time
 			
 			# Calculate current column for progress bar
 			elapsed_ratio = elapsed / duration
@@ -2606,27 +2619,15 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, duration, curren
 				gc.collect()
 				log_verbose("GC during scheduled display")
 				last_gc = current_time
-
 			
-			# Refresh weather every 5 minutes
-			if current_time - last_weather_update >= Timing.SCHEDULE_WEATHER_REFRESH_INTERVAL:
+			# Refresh weather every X minutes
+			if current_time - last_weather_update >= 300:  # 5 minutes
 				fresh_data = fetch_current_weather_only()
-				
+			
 				if fresh_data:
-					new_temp = f"{round(fresh_data['feels_like'])}°"
-					temp_label.text = new_temp
-					
-					new_icon = f"{fresh_data['weather_icon']}.bmp"
-					if new_icon != weather_icon:
-						try:
-							bitmap, palette = state.image_cache.get_image(f"{Paths.COLUMN_IMAGES}/{new_icon}")
-							weather_img.bitmap = bitmap
-							weather_img.pixel_shader = palette
-							weather_icon = new_icon
-						except:
-							pass
-					
-					log_debug(f"Refreshed weather during scheduled display: {new_temp}")
+					temp_label.text = f"{round(fresh_data['feels_like'])}°"
+					state.last_successful_weather = time.monotonic()
+					state.consecutive_failures = 0
 				
 				last_weather_update = current_time
 			
@@ -2644,6 +2645,11 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, duration, curren
 		log_error(f"Scheduled display error: {e}")
 		show_clock_display(rtc, duration)
 	
+	# Reset failure timer when exiting schedule IF we had at least one success
+	# This prevents triggering extended failure mode between consecutive schedules
+	if state.consecutive_failures == 0:
+		state.last_successful_weather = time.monotonic()
+	
 	gc.collect()
 	
 ### SYSTEM MANAGEMENT ###
@@ -2659,9 +2665,9 @@ def check_daily_reset(rtc):
 	# Scheduled restart conditions
 	should_restart = (
 		hours_running > System.HOURS_BEFORE_DAILY_RESTART or
-		(hours_running > 1 and
-		 rtc.datetime.tm_hour == Timing.DAILY_RESET_HOUR and
-		 rtc.datetime.tm_min < System.RESTART_GRACE_MINUTES)
+		(hours_running > System.MINIMUM_RUNTIME_BEFORE_RESTART and 
+		rtc.datetime.tm_hour == Timing.DAILY_RESET_HOUR and 
+		rtc.datetime.tm_min < System.RESTART_GRACE_MINUTES)
 	)
 	
 	if should_restart:
@@ -2869,9 +2875,13 @@ def run_display_cycle(rtc, cycle_count):
 	if display_config.show_scheduled_displays:
 		schedule_name, schedule_config = scheduled_display.get_active_schedule(rtc)
 		if schedule_name:
-			
 			# Fetch only current weather (not forecast) for scheduled display
 			current_data = fetch_current_weather_only()
+			
+			# Reset failure timer if we got weather data
+			if current_data:
+				state.last_successful_weather = time.monotonic()
+				state.consecutive_failures = 0
 			
 			display_duration = get_remaining_schedule_time(rtc, schedule_config)
 			show_scheduled_display(rtc, schedule_name, schedule_config, display_duration, current_data)
