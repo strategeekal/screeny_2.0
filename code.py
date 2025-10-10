@@ -85,11 +85,20 @@ class Layout:
 	SCHEDULE_X_OFFSET = -1
 	
 	# Progress bar positioning (below day indicator)
-	
 	PROGRESS_BAR_HORIZONTAL_X = 23 # 23 (aligned with image)
 	PROGRESS_BAR_HORIZONTAL_Y = 29  # Below 28px tall image + 1px gap = y=31
 	PROGRESS_BAR_HORIZONTAL_WIDTH = 40
 	PROGRESS_BAR_HORIZONTAL_HEIGHT = 2
+	
+	# Icon test layout (2 rows x 3 columns)
+	ICON_TEST_COL_WIDTH = 21  # 64 / 3 ≈ 21
+	ICON_TEST_ROW_HEIGHT = 16  # 32 / 2 = 16
+	ICON_TEST_COL1_X = 4
+	ICON_TEST_COL2_X = 25
+	ICON_TEST_COL3_X = 46
+	ICON_TEST_ROW1_Y = 5
+	ICON_TEST_ROW2_Y = 17
+	ICON_TEST_NUMBER_Y_OFFSET = 17  # Below 23px tall icon
 	
 class DayIndicator:
 	SIZE = 4
@@ -107,6 +116,7 @@ class Timing:
 	MIN_EVENT_DURATION = 10
 	CLOCK_DISPLAY_DURATION = 300
 	COLOR_TEST = 300
+	ICON_TEST = 5
 	SCHEDULE_WEATHER_REFRESH_INTERVAL = 300
 	SCHEDULE_GC_INTERVAL = 600
 	
@@ -325,18 +335,20 @@ class DisplayConfig:
 	Changes take effect on next cycle.
 	"""
 	
+	### ================== ### ================== ### ================== ### ================== ### ==================
+	
 	def __init__(self):
 		# DEVELOPMENT vs PRODUCTION toggle
 		self.delayed_start = False  # False for dev (faster), True for production (safer)
 		
 		# Core displays (always try to show if data available)
-		self.show_weather = True
-		self.show_forecast = True
-		self.show_events = True
+		self.show_weather = False
+		self.show_forecast = False
+		self.show_events = False
 		
 		# Display Elements
-		self.show_weekday_indicator = True
-		self.show_scheduled_displays = True
+		self.show_weekday_indicator = False
+		self.show_scheduled_displays = False
 		
 		# API controls (fetch real data vs use dummy data)
 		self.use_live_weather = True      # False = use dummy data
@@ -345,6 +357,9 @@ class DisplayConfig:
 		# Test/debug modes
 		self.use_test_date = False
 		self.show_color_test = False
+		self.show_icon_test = True
+		
+	### ================== ### ================== ### ================== ### ================== ### ==================
 	
 	def validate(self):
 		"""Validate configuration and return list of issues"""
@@ -387,6 +402,7 @@ class DisplayConfig:
 		if not self.use_live_forecast: features.append("dummy_forecast")
 		# if self.use_test_date: features.append("test_date")
 		if self.show_color_test: features.append("color_test")
+		if self.show_icon_test: features.append("icon_test")
 		
 		return features
 	
@@ -2090,6 +2106,90 @@ def show_color_test_display(duration=Timing.COLOR_TEST):
 	gc.collect()
 	return True
 	
+def show_icon_test_display(duration_per_batch=Timing.ICON_TEST):
+	"""Test display for weather icon columns - cycles through all AccuWeather icons"""
+	log_info("Starting Icon Test Display")
+	
+	# AccuWeather icon numbers (skipping 9, 10, 27, 28)
+	all_icons = []
+	for i in range(1, 45):  # 1-44
+		if i not in [9, 10, 27, 28]:
+			all_icons.append(i)
+	
+	# Total: 40 icons
+	total_icons = len(all_icons)
+	icons_per_batch = 3
+	num_batches = (total_icons + icons_per_batch - 1) // icons_per_batch  # Ceiling division
+	
+	log_info(f"Testing {total_icons} icons in {num_batches} batches ({icons_per_batch} icons per batch)")
+	
+	for batch_num in range(num_batches):
+		start_idx = batch_num * icons_per_batch
+		end_idx = min(start_idx + icons_per_batch, total_icons)
+		batch_icons = all_icons[start_idx:end_idx]
+		
+		log_info(f"Batch {batch_num + 1}/{num_batches}: Icons {batch_icons}")
+		
+		clear_display()
+		gc.collect()
+		
+		try:
+			# Position icons in 2x3 grid
+			positions = [
+				(Layout.ICON_TEST_COL1_X, Layout.ICON_TEST_ROW1_Y),  # Top left
+				(Layout.ICON_TEST_COL2_X, Layout.ICON_TEST_ROW1_Y),  # Top middle
+				(Layout.ICON_TEST_COL3_X, Layout.ICON_TEST_ROW1_Y),  # Top right
+				# (Layout.ICON_TEST_COL1_X, Layout.ICON_TEST_ROW2_Y),  # Bottom left
+				# (Layout.ICON_TEST_COL2_X, Layout.ICON_TEST_ROW2_Y),  # Bottom middle
+				# (Layout.ICON_TEST_COL3_X, Layout.ICON_TEST_ROW2_Y),  # Bottom right
+			]
+			
+			for i, icon_num in enumerate(batch_icons):
+				if i >= len(positions):
+					break
+				
+				x, y = positions[i]
+				
+				# Load icon image
+				try:
+					bitmap, palette = state.image_cache.get_image(f"{Paths.COLUMN_IMAGES}/{icon_num}.bmp")
+					icon_img = displayio.TileGrid(bitmap, pixel_shader=palette)
+					icon_img.x = x
+					icon_img.y = y
+					state.main_group.append(icon_img)
+				except Exception as e:
+					log_warning(f"Failed to load icon {icon_num}: {e}")
+					# Show error text instead
+					error_label = bitmap_label.Label(
+						font,
+						color=state.colors["RED"],
+						text="ERR",
+						x=x + 0,
+						y=y + 3
+					)
+					state.main_group.append(error_label)
+				
+				# Add icon number below image
+				number_label = bitmap_label.Label(
+					font,
+					color=state.colors["DIMMEST_WHITE"],
+					text=str(icon_num),
+					x=x + (5 if icon_num < 10 else 3),  # Center single vs double digits
+					y=y + Layout.ICON_TEST_NUMBER_Y_OFFSET
+				)
+				state.main_group.append(number_label)
+			
+			# Show this batch for specified duration
+			interruptible_sleep(duration_per_batch)
+			
+		except Exception as e:
+			log_error(f"Icon test display error in batch {batch_num + 1}: {e}")
+			interruptible_sleep(2)
+	
+	log_info("Icon Test Display complete")
+	gc.collect()
+	return True
+	
 def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 	"""Optimized forecast display with smart precipitation detection"""
 	
@@ -2919,6 +3019,10 @@ def run_display_cycle(rtc, cycle_count):
 	# Color test (if enabled)
 	if display_config.show_color_test:
 		show_color_test_display(Timing.COLOR_TEST)
+		
+	# Icon test (if enabled)
+	if display_config.show_icon_test:
+		show_icon_test_display(Timing.ICON_TEST)
 	
 	# Cache stats logging
 	if cycle_count % Timing.CYCLES_FOR_CACHE_STATS == 0:
