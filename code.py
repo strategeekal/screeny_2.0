@@ -101,16 +101,16 @@ class DayIndicator:
 ## Timing (all in seconds)
 
 class Timing:
-	DEFAULT_CYCLE = 420
+	DEFAULT_CYCLE = 300
 	DEFAULT_FORECAST = 60
 	DEFAULT_EVENT = 30
 	MIN_EVENT_DURATION = 10
 	CLOCK_DISPLAY_DURATION = 300
 	COLOR_TEST = 300
-	SCHEDULE_WEATHER_REFRESH_INTERVAL = 420
+	SCHEDULE_WEATHER_REFRESH_INTERVAL = 300
 	SCHEDULE_GC_INTERVAL = 600
 	
-	FORECAST_UPDATE_INTERVAL = 1260  # 21 minutes - 3 cycles
+	FORECAST_UPDATE_INTERVAL = 900  # - 3 cycles
 	DAILY_RESET_HOUR = 3
 	DAILY_RESET_MINUTE_DEVICE1 = 0
 	DAILY_RESET_MINUTE_DEVICE2 = 2
@@ -125,13 +125,13 @@ class Timing:
 	RESTART_DELAY = 10
 	
 	WEATHER_UPDATE_INTERVAL = 60
-	MEMORY_CHECK_INTERVAL = 30
-	GC_INTERVAL = 60
+	MEMORY_CHECK_INTERVAL = 60
+	GC_INTERVAL = 120
 	
 	CYCLES_TO_MONITOR_MEMORY = 10
 	CYCLES_FOR_FORCE_CLEANUP = 25
 	CYCLES_FOR_MEMORY_REPORT = 100
-	CYCLES_FOR_CACHE_STATS = 10
+	CYCLES_FOR_CACHE_STATS = 50
 	
 	EVENT_CHUNK_SIZE = 60
 	EVENT_MEMORY_MONITORING = 600 # For long events (e.g. all day)
@@ -1075,7 +1075,11 @@ def get_requests_session():
 	return state.global_requests_session
 
 def cleanup_global_session():
-	"""Clean up the global session"""
+	"""
+	Clean up the global session
+	Used only for soft resets on repeated failures
+	NOT used during normal operation - session reuse is preferred
+	"""
 	if state.global_requests_session:
 		try:
 			state.global_requests_session.close()
@@ -2617,30 +2621,15 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, duration, curren
 				last_gc = current_time
 			
 			# Refresh weather every X minutes
-			if current_time - last_weather_update >= Timing.SCHEDULE_WEATHER_REFRESH_INTERVAL:
-			fresh_data = fetch_current_weather_only()
+			if current_time - last_weather_update >= 300:  # 5 minutes
+				fresh_data = fetch_current_weather_only()
 			
-			if fresh_data:
-				new_temp = f"{round(fresh_data['feels_like'])}°"
-				temp_label.text = new_temp
+				if fresh_data:
+					temp_label.text = f"{round(fresh_data['feels_like'])}°"
+					state.last_successful_weather = time.monotonic()
+					state.consecutive_failures = 0
 				
-				new_icon = f"{fresh_data['weather_icon']}.bmp"
-				if new_icon != weather_icon:
-					try:
-						bitmap, palette = state.image_cache.get_image(f"{Paths.COLUMN_IMAGES}/{new_icon}")
-						weather_img.bitmap = bitmap
-						weather_img.pixel_shader = palette
-						weather_icon = new_icon
-					except:
-						pass
-				
-				state.last_successful_weather = time.monotonic()
-				state.consecutive_failures = 0
-				log_debug(f"Refreshed weather: {new_temp}")
-			else:
-				log_warning(f"Schedule refresh failed - keeping stale data")
-			
-			last_weather_update = current_time
+				last_weather_update = current_time
 			
 			# Update time when minute changes
 			if current_minute != last_minute:
