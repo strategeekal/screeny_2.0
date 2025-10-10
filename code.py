@@ -2618,37 +2618,29 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, duration, curren
 			
 			# Refresh weather every X minutes
 			if current_time - last_weather_update >= Timing.SCHEDULE_WEATHER_REFRESH_INTERVAL:
-				# Clean up session before fetching to prevent socket exhaustion
-				cleanup_global_session()
-				gc.collect()
+			fresh_data = fetch_current_weather_only()
+			
+			if fresh_data:
+				new_temp = f"{round(fresh_data['feels_like'])}°"
+				temp_label.text = new_temp
 				
-				fresh_data = fetch_current_weather_only()
+				new_icon = f"{fresh_data['weather_icon']}.bmp"
+				if new_icon != weather_icon:
+					try:
+						bitmap, palette = state.image_cache.get_image(f"{Paths.COLUMN_IMAGES}/{new_icon}")
+						weather_img.bitmap = bitmap
+						weather_img.pixel_shader = palette
+						weather_icon = new_icon
+					except:
+						pass
 				
-				if fresh_data:
-					# Success - update display with fresh data
-					new_temp = f"{round(fresh_data['feels_like'])}°"
-					temp_label.text = new_temp
-					
-					new_icon = f"{fresh_data['weather_icon']}.bmp"
-					if new_icon != weather_icon:
-						try:
-							bitmap, palette = state.image_cache.get_image(f"{Paths.COLUMN_IMAGES}/{new_icon}")
-							weather_img.bitmap = bitmap
-							weather_img.pixel_shader = palette
-							weather_icon = new_icon
-						except:
-							pass
-					
-					# Reset failure tracking on success
-					state.last_successful_weather = time.monotonic()
-					state.consecutive_failures = 0
-					log_debug(f"Refreshed weather during scheduled display: {new_temp}")
-				else:
-					# Failed refresh - keep showing cached weather data
-					log_warning(f"Schedule weather refresh failed - keeping stale data")
-					# Don't update last_successful_weather, but continue showing schedule
-				
-				last_weather_update = current_time
+				state.last_successful_weather = time.monotonic()
+				state.consecutive_failures = 0
+				log_debug(f"Refreshed weather: {new_temp}")
+			else:
+				log_warning(f"Schedule refresh failed - keeping stale data")
+			
+			last_weather_update = current_time
 			
 			# Update time when minute changes
 			if current_minute != last_minute:

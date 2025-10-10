@@ -1,4 +1,4 @@
-0# Format: name,enabled,days,start_hour,start_min,end_hour,end_min,image,progressbar
+# Format: name,enabled,days,start_hour,start_min,end_hour,end_min,image,progressbar
 # enabled: 1=true, 0=false
 # days: string of digits 0-6 (0=Monday, 6=Sunday), e.g., "0123456" for all days
 # progressbar: 1=true, 0=false
