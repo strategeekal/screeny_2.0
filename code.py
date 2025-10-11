@@ -293,7 +293,7 @@ class TestData:
 ## String Constants
 class Strings:
 	DEFAULT_EVENT_COLOR = "MINT"
-	TIMEZONE_DEFAULT = "America/Chicago"    # TIMEZONE_CONFIG["timezone"]
+	TIMEZONE_DEFAULT = os.getenv("TIMEZONE")    # TIMEZONE_CONFIG["timezone"]
 	
 	# API key names
 	API_KEY_TYPE1 = "ACCUWEATHER_API_KEY_TYPE1"
@@ -335,6 +335,9 @@ class DisplayConfig:
 	Changes take effect on next cycle.
 	"""
 	
+	
+	### ================== ### ================== ### ================== ### ================== ### ==================
+
 	### ================== ### ================== ### ================== ### ================== ### ==================
 	
 	def __init__(self):
@@ -360,7 +363,10 @@ class DisplayConfig:
 		self.show_icon_test = True
 		
 	### ================== ### ================== ### ================== ### ================== ### ==================
+
+	### ================== ### ================== ### ================== ### ================== ### ==================
 	
+
 	def validate(self):
 		"""Validate configuration and return list of issues"""
 		issues = []
@@ -1036,31 +1042,80 @@ def is_dst_active_for_timezone(timezone_name, utc_datetime):
 		return day < dst_end_day
 	
 	return False
+	
+def get_timezone_from_location_api():
+	"""Get timezone and location info from AccuWeather Location API"""
+	try:
+		api_key = get_api_key()
+		location_key = os.getenv(Strings.API_LOCATION_KEY)
+		url = f"http://dataservice.accuweather.com/locations/v1/{location_key}?apikey={api_key}"
+		
+		session = get_requests_session()
+		response = session.get(url)
+		
+		if response.status_code == 200:
+			data = response.json()
+			timezone_info = data.get("TimeZone", {})
+			
+			# Extract location details
+			city = data.get("LocalizedName", "Unknown")
+			state = data.get("AdministrativeArea", {}).get("ID", "")
+			
+			return {
+				"name": timezone_info.get("Name", Strings.TIMEZONE_DEFAULT),
+				"offset": int(timezone_info.get("GmtOffset", -6)),
+				"is_dst": timezone_info.get("IsDaylightSaving", False),
+				"city": city,  # NEW
+				"state": state,  # NEW
+				"location": f"{city}, {state}" if state else city  # NEW
+			}
+		else:
+			log_warning(f"Location API failed: {response.status_code}")
+			return None
+			
+	except Exception as e:
+		log_warning(f"Location API error: {e}")
+		return None
 
 def sync_time_with_timezone(rtc):
-	"""Enhanced NTP sync with configurable timezone support"""
+	"""Enhanced NTP sync with Location API timezone detection"""
 	
-	timezone_name = Strings.TIMEZONE_DEFAULT
+	# Try to get timezone from Location API
+	tz_info = get_timezone_from_location_api()
+	
+	if tz_info:
+		timezone_name = tz_info["name"]
+		offset = tz_info["offset"]
+		log_debug(f"Timezone from API: {timezone_name} (UTC{offset:+d})")
+	else:
+		# Fallback to hardcoded timezone
+		timezone_name = Strings.TIMEZONE_DEFAULT
+		log_warning(f"Using fallback timezone: {timezone_name}")
+		
+		# Use existing hardcoded logic
+		try:
+			cleanup_sockets()
+			pool = socketpool.SocketPool(wifi.radio)
+			ntp_utc = adafruit_ntp.NTP(pool, tz_offset=0)
+			utc_time = ntp_utc.datetime
+			offset = get_timezone_offset(timezone_name, utc_time)
+		except Exception as e:
+			log_error(f"NTP sync failed: {e}")
+			return None  # IMPORTANT: Return None on failure
 	
 	try:
 		cleanup_sockets()
 		pool = socketpool.SocketPool(wifi.radio)
-		
-		# Get UTC time first
-		ntp_utc = adafruit_ntp.NTP(pool, tz_offset=0)
-		utc_time = ntp_utc.datetime
-		
-		# Calculate timezone offset
-		offset = get_timezone_offset(timezone_name, utc_time)
-		
-		# Apply timezone offset
 		ntp = adafruit_ntp.NTP(pool, tz_offset=offset)
 		rtc.datetime = ntp.datetime
 		
 		log_info(f"Time synced to {timezone_name} (UTC{offset:+d})")
 		
+		return tz_info  # Return location info (or None if using fallback)
+		
 	except Exception as e:
 		log_error(f"NTP sync failed: {e}")
+		return None  # IMPORTANT: Return None on failure
 
 def cleanup_sockets():
 	"""Aggressive socket cleanup to prevent memory issues"""
@@ -2886,15 +2941,18 @@ def initialize_system(rtc):
 def setup_network_and_time(rtc):
 	"""Setup WiFi and synchronize time"""
 	wifi_connected = setup_wifi_with_recovery()
+	location_info = None  # Initialize at the start
 	
 	if wifi_connected and not display_config.use_test_date:
-		sync_time_with_timezone(rtc)
+		location_info = sync_time_with_timezone(rtc)
 	elif display_config.use_test_date:
 		log_info(f"Manual Time Set: {rtc.datetime.tm_year:04d}/{rtc.datetime.tm_mon:02d}/{rtc.datetime.tm_mday:02d} {rtc.datetime.tm_hour:02d}:{rtc.datetime.tm_min:02d}")
+		# location_info stays None
 	else:
 		log_warning("Starting without WiFi - using RTC time only")
+		# location_info stays None
 	
-	return wifi_connected
+	return location_info  # Always return (either dict or None)
 
 def handle_extended_failure_mode(rtc, time_since_success):
 	"""Handle extended failure mode with periodic recovery attempts"""
@@ -3057,8 +3115,8 @@ def main():
 			log_info(f"Startup delay: {STARTUP_DELAY}s")
 			show_clock_display(rtc, STARTUP_DELAY)
 		
-		# Network setup
-		setup_network_and_time(rtc)
+		# Network setup - CAPTURE the return value!
+		location_info = setup_network_and_time(rtc)  # ← ADD location_info =
 		
 		# Set startup time
 		state.startup_time = time.monotonic()
@@ -3068,10 +3126,13 @@ def main():
 		# Log active display features
 		active_features = display_config.get_active_features()
 		formatted_features = [feature.replace("_", " ") for feature in active_features]
-		log_info(f"Active displays: {', '.join(formatted_features)}")
 		
+		# Add location if available
+		if location_info and "location" in location_info:
+			log_info(f"Fetching time and weather for: {location_info['location']}")
+		
+		log_info(f"Active displays: {', '.join(formatted_features)}")
 		log_info(f"== STARTING MAIN DISPLAY LOOP == \n")
-		log_verbose(f"Image cache initialized: {state.image_cache.get_stats()}")
 		
 		# Main display loop
 		cycle_count = 0
