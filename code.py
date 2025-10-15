@@ -290,6 +290,8 @@ class TestData:
 		"has_precipitation": False,
 	}
 	
+	TEST_ICONS = [1, 2, 3]
+	
 ## String Constants
 class Strings:
 	DEFAULT_EVENT_COLOR = "MINT"
@@ -2161,89 +2163,125 @@ def show_color_test_display(duration=Timing.COLOR_TEST):
 	gc.collect()
 	return True
 	
-def show_icon_test_display(duration_per_batch=Timing.ICON_TEST):
-	"""Test display for weather icon columns - cycles through all AccuWeather icons"""
-	log_info("Starting Icon Test Display")
+def show_icon_test_display(icon_numbers=None, duration=Timing.ICON_TEST):
+	"""
+	Test display for weather icon columns
 	
-	# AccuWeather icon numbers (skipping 9, 10, 27, 28)
-	all_icons = []
-	for i in range(1, 45):  # 1-44
-		if i not in [9, 10, 27, 28]:
-			all_icons.append(i)
+	Args:
+		icon_numbers: List of up to 3 icon numbers to display, e.g. [1, 5, 33]
+					 If None, cycles through all icons
+		duration: How long to display (only used when cycling all icons)
+	"""
 	
-	# Total: 40 icons
-	total_icons = len(all_icons)
-	icons_per_batch = 3
-	num_batches = (total_icons + icons_per_batch - 1) // icons_per_batch  # Ceiling division
-	
-	log_info(f"Testing {total_icons} icons in {num_batches} batches ({icons_per_batch} icons per batch)")
-	
-	for batch_num in range(num_batches):
-		start_idx = batch_num * icons_per_batch
-		end_idx = min(start_idx + icons_per_batch, total_icons)
-		batch_icons = all_icons[start_idx:end_idx]
+	if icon_numbers is None:
+		# Original behavior - cycle through all icons
+		log_info("Starting Icon Test Display - All Icons (Ctrl+C to exit)")
 		
-		log_info(f"Batch {batch_num + 1}/{num_batches}: Icons {batch_icons}")
+		# AccuWeather icon numbers (skipping 9, 10, 27, 28)
+		all_icons = []
+		for i in range(1, 45):
+			if i not in [9, 10, 27, 28]:
+				all_icons.append(i)
 		
-		clear_display()
-		gc.collect()
+		total_icons = len(all_icons)
+		icons_per_batch = 3
+		num_batches = (total_icons + icons_per_batch - 1) // icons_per_batch
+		
+		log_info(f"Testing {total_icons} icons in {num_batches} batches")
 		
 		try:
-			# Position icons in 2x3 grid
-			positions = [
-				(Layout.ICON_TEST_COL1_X, Layout.ICON_TEST_ROW1_Y),  # Top left
-				(Layout.ICON_TEST_COL2_X, Layout.ICON_TEST_ROW1_Y),  # Top middle
-				(Layout.ICON_TEST_COL3_X, Layout.ICON_TEST_ROW1_Y),  # Top right
-				# (Layout.ICON_TEST_COL1_X, Layout.ICON_TEST_ROW2_Y),  # Bottom left
-				# (Layout.ICON_TEST_COL2_X, Layout.ICON_TEST_ROW2_Y),  # Bottom middle
-				# (Layout.ICON_TEST_COL3_X, Layout.ICON_TEST_ROW2_Y),  # Bottom right
-			]
-			
-			for i, icon_num in enumerate(batch_icons):
-				if i >= len(positions):
-					break
+			for batch_num in range(num_batches):
+				start_idx = batch_num * icons_per_batch
+				end_idx = min(start_idx + icons_per_batch, total_icons)
+				batch_icons = all_icons[start_idx:end_idx]
 				
-				x, y = positions[i]
+				_display_icon_batch(batch_icons, batch_num + 1, num_batches)
 				
-				# Load icon image
-				try:
-					bitmap, palette = state.image_cache.get_image(f"{Paths.COLUMN_IMAGES}/{icon_num}.bmp")
-					icon_img = displayio.TileGrid(bitmap, pixel_shader=palette)
-					icon_img.x = x
-					icon_img.y = y
-					state.main_group.append(icon_img)
-				except Exception as e:
-					log_warning(f"Failed to load icon {icon_num}: {e}")
-					# Show error text instead
-					error_label = bitmap_label.Label(
-						font,
-						color=state.colors["RED"],
-						text="ERR",
-						x=x + 0,
-						y=y + 3
-					)
-					state.main_group.append(error_label)
-				
-				# Add icon number below image
-				number_label = bitmap_label.Label(
-					font,
-					color=state.colors["DIMMEST_WHITE"],
-					text=str(icon_num),
-					x=x + (5 if icon_num < 10 else 3),  # Center single vs double digits
-					y=y + Layout.ICON_TEST_NUMBER_Y_OFFSET
-				)
-				state.main_group.append(number_label)
-			
-			# Show this batch for specified duration
-			interruptible_sleep(duration_per_batch)
-			
-		except Exception as e:
-			log_error(f"Icon test display error in batch {batch_num + 1}: {e}")
-			interruptible_sleep(2)
+				# Shorter sleep intervals for better interrupt response
+				for _ in range(int(duration * 10)):
+					time.sleep(0.1)
+					
+		except KeyboardInterrupt:
+			log_info("Icon test interrupted by user")
+			clear_display()
+			raise
+	else:
+		# Manual mode - display specific icons indefinitely
+		if len(icon_numbers) > 3:
+			log_warning(f"Too many icons specified ({len(icon_numbers)}), showing first 3")
+			icon_numbers = icon_numbers[:3]
+		
+		log_info(f"Displaying icons: {icon_numbers} (Ctrl+C to exit)")
+		_display_icon_batch(icon_numbers, manual_mode=True)
+		
+		# Loop indefinitely until interrupted
+		try:
+			while True:
+				time.sleep(0.1)  # Keep display active, check for interrupt
+		except KeyboardInterrupt:
+			log_info("Icon test interrupted")
+			clear_display()
+			raise
 	
 	log_info("Icon Test Display complete")
 	gc.collect()
 	return True
+
+
+def _display_icon_batch(icon_numbers, batch_num=None, total_batches=None, manual_mode=False):
+	"""Helper function to display a batch of icons"""
+	
+	if not manual_mode:
+		log_info(f"Batch {batch_num}/{total_batches}: Icons {icon_numbers}")
+	
+	clear_display()
+	gc.collect()
+	
+	try:
+		# Position icons horizontally (up to 3)
+		positions = [
+			(Layout.ICON_TEST_COL1_X, Layout.ICON_TEST_ROW1_Y),  # Left
+			(Layout.ICON_TEST_COL2_X, Layout.ICON_TEST_ROW1_Y),  # Center
+			(Layout.ICON_TEST_COL3_X, Layout.ICON_TEST_ROW1_Y),  # Right
+		]
+		
+		for i, icon_num in enumerate(icon_numbers):
+			if i >= len(positions):
+				break
+			
+			x, y = positions[i]
+			
+			# Load icon image
+			try:
+				bitmap, palette = state.image_cache.get_image(f"{Paths.COLUMN_IMAGES}/{icon_num}.bmp")
+				icon_img = displayio.TileGrid(bitmap, pixel_shader=palette)
+				icon_img.x = x
+				icon_img.y = y
+				state.main_group.append(icon_img)
+			except Exception as e:
+				log_warning(f"Failed to load icon {icon_num}: {e}")
+				# Show error text instead
+				error_label = bitmap_label.Label(
+					font,
+					color=state.colors["RED"],
+					text="ERR",
+					x=x + 3,
+					y=y + 10
+				)
+				state.main_group.append(error_label)
+			
+			# Add icon number below image
+			number_label = bitmap_label.Label(
+				font,
+				color=state.colors["DIMMEST_WHITE"],
+				text=str(icon_num),
+				x=x + (5 if icon_num < 10 else 3),  # Center single vs double digits
+				y=y + Layout.ICON_TEST_NUMBER_Y_OFFSET
+			)
+			state.main_group.append(number_label)
+			
+	except Exception as e:
+		log_error(f"Icon display error: {e}")
 	
 def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 	"""Optimized forecast display with smart precipitation detection"""
@@ -3080,7 +3118,7 @@ def run_display_cycle(rtc, cycle_count):
 		
 	# Icon test (if enabled)
 	if display_config.show_icon_test:
-		show_icon_test_display(Timing.ICON_TEST)
+		show_icon_test_display(TestData.TEST_ICONS)
 	
 	# Cache stats logging
 	if cycle_count % Timing.CYCLES_FOR_CACHE_STATS == 0:
