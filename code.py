@@ -734,6 +734,7 @@ class WeatherDisplayState:
 		
 		self.in_extended_failure_mode = False
 		self.scheduled_display_error_count = 0
+		self.has_permanent_error = False  # Track 401/404 errors
 	
 	def reset_api_counters(self):
 		"""Reset API call tracking"""
@@ -997,6 +998,13 @@ def check_and_recover_wifi():
 	except Exception as e:
 		log_error(f"WiFi check failed: {e}")
 		return False
+		
+def is_wifi_connected():
+		"""Simple WiFi status check without recovery attempt"""
+		try:
+			return wifi.radio.connected
+		except:
+			return False
 
 def get_timezone_offset(timezone_name, utc_datetime):
 	"""Calculate timezone offset including DST for a given timezone"""
@@ -1212,11 +1220,13 @@ def fetch_weather_with_retries(url, max_retries=None, context="API"):
 					
 			elif response.status_code == API.HTTP_UNAUTHORIZED:
 				log_error(f"{context}: Unauthorized (401) - check API key")
-				return None  # Don't retry auth failures
+				state.has_permanent_error = True  # Mark as permanent error
+				return None
 				
 			elif response.status_code == API.HTTP_NOT_FOUND:
 				log_error(f"{context}: Not found (404) - check location key")
-				return None  # Don't retry not found
+				state.has_permanent_error = True  # Mark as permanent error
+				return None
 				
 			else:
 				log_error(f"{context}: HTTP {response.status_code}")
@@ -1374,7 +1384,18 @@ def fetch_current_and_forecast_weather():
 			if state.consecutive_failures >= Recovery.SOFT_RESET_THRESHOLD:
 				log_warning("Soft reset: clearing network session")
 				cleanup_global_session()
-				state.consecutive_failures = 0  # Reset consecutive, but keep system_error_count
+				state.consecutive_failures = 0
+				
+				# Enter temporary extended failure mode for cooldown
+				was_in_extended_mode = state.in_extended_failure_mode
+				state.in_extended_failure_mode = True
+				
+				# Show purple clock during 30s cooldown
+				log_info("Cooling down for 30 seconds before retry...")
+				show_clock_display(state.rtc_instance, 30)
+			
+			# Restore previous extended mode state
+			state.in_extended_failure_mode = was_in_extended_mode
 			
 			# Hard reset if soft resets aren't helping
 			if state.system_error_count >= Recovery.HARD_RESET_THRESHOLD:
@@ -1439,6 +1460,42 @@ def get_api_key():
 		log_error(f"Failed to read fallback API key: {e}")
 	
 	return None
+	
+def get_current_error_state():
+	"""Determine current error state based on system status"""
+	
+	# During startup (before first weather attempt), show OK
+	if state.startup_time == 0:
+		return None
+	
+	# Extended failure mode takes priority over permanent errors
+	# (shows system is degraded, even if error is permanent)
+	if state.in_extended_failure_mode:
+		return "extended"  # PURPLE
+	
+	# Check for permanent configuration errors
+	if hasattr(state, 'has_permanent_error') and state.has_permanent_error:
+		return "general"  # WHITE
+	
+	# Check for WiFi issues
+	if not is_wifi_connected():
+		return "wifi"  # RED
+	
+	# Check for schedule display errors (file system issues)
+	if state.scheduled_display_error_count >= 3:
+		return "general"  # WHITE
+	
+	# Check for weather API failures (only after startup)
+	time_since_success = time.monotonic() - state.last_successful_weather
+	if state.last_successful_weather > 0 and time_since_success > 600:
+		return "weather"  # YELLOW
+	
+	# Check for consecutive failures
+	if state.consecutive_failures >= 3:
+		return "weather"  # YELLOW
+	
+	# All OK
+	return None  # MINT
 	
 def should_fetch_forecast():
 	"""Check if forecast data needs to be refreshed"""
@@ -1961,12 +2018,35 @@ def show_clock_display(rtc, duration=Timing.CLOCK_DISPLAY_DURATION):
 	log_warning(f"Displaying clock for {duration_message(duration)}...")
 	clear_display()
 	
-	date_text = bitmap_label.Label(font, color=state.colors["DIMMEST_WHITE"], x=Layout.CLOCK_DATE_X, y=Layout.CLOCK_DATE_Y)
-	time_text = bitmap_label.Label(bg_font, color=state.colors[Strings.DEFAULT_EVENT_COLOR], x=Layout.CLOCK_TIME_X, y=Layout.CLOCK_TIME_Y)
+	# Determine clock color based on error state
+	error_state = get_current_error_state()
+	
+	clock_colors = {
+		None: state.colors[Strings.DEFAULT_EVENT_COLOR],  # MINT = All OK
+		"wifi": state.colors["RED"],                      # WiFi failure
+		"weather": state.colors["YELLOW"],                # Weather API failure
+		"extended": state.colors["PURPLE"],               # Extended failure
+		"general": state.colors["WHITE"]                  # Unknown error
+	}
+	
+	clock_color = clock_colors.get(error_state, state.colors["MINT"])
+	
+	date_text = bitmap_label.Label(
+		font, 
+		color=state.colors["DIMMEST_WHITE"], 
+		x=Layout.CLOCK_DATE_X, 
+		y=Layout.CLOCK_DATE_Y
+	)
+	time_text = bitmap_label.Label(
+		bg_font, 
+		color=clock_color,  # Use error-based color
+		x=Layout.CLOCK_TIME_X, 
+		y=Layout.CLOCK_TIME_Y
+	)
 	
 	state.main_group.append(date_text)
 	state.main_group.append(time_text)
-			
+	
 	# Add day indicator after other elements
 	if display_config.show_weekday_indicator:
 		add_day_indicator(state.main_group, rtc)
@@ -3052,10 +3132,27 @@ def run_display_cycle(rtc, cycle_count):
 	
 	# Memory monitoring and maintenance
 	if cycle_count % Timing.CYCLES_FOR_MEMORY_REPORT == 0:
-		state.memory_monitor.log_report(level="DEBUG")
+		state.memory_monitor.log_report()
 	check_daily_reset(rtc)
 	
-	# Check for extended failure mode
+	# Check WiFi and attempt recovery if needed
+	wifi_available = is_wifi_connected()
+	
+	if not wifi_available:
+		# Try to recover (respects cooldown)
+		log_debug("WiFi disconnected, attempting recovery...")
+		wifi_available = check_and_recover_wifi()
+	
+	if not wifi_available:
+		log_warning("No WiFi - showing clock")
+		show_clock_display(rtc, Timing.CLOCK_DISPLAY_DURATION)
+		
+		cycle_duration = time.monotonic() - cycle_start_time
+		mem_stats = state.memory_monitor.get_memory_stats()
+		log_info(f"Cycle #{cycle_count} (NO WIFI) complete in {cycle_duration/System.SECONDS_PER_MINUTE:.2f} min\n")
+		return  # Exit early
+	
+	# WiFi is available - check for extended failure mode
 	time_since_success = time.monotonic() - state.last_successful_weather
 	in_failure_mode = time_since_success > Timing.EXTENDED_FAILURE_THRESHOLD
 	
@@ -3115,10 +3212,10 @@ def run_display_cycle(rtc, cycle_count):
 	# Color test (if enabled)
 	if display_config.show_color_test:
 		show_color_test_display(Timing.COLOR_TEST)
-		
+	
 	# Icon test (if enabled)
 	if display_config.show_icon_test:
-		show_icon_test_display(TestData.TEST_ICONS)
+		show_icon_test_display(icon_numbers=[1, 5, 33])
 	
 	# Cache stats logging
 	if cycle_count % Timing.CYCLES_FOR_CACHE_STATS == 0:
