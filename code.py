@@ -307,6 +307,9 @@ class Strings:
 	WIFI_SSID_VAR = "CIRCUITPY_WIFI_SSID"
 	WIFI_PASSWORD_VAR = "CIRCUITPY_WIFI_PASSWORD"
 	
+	# Event sources
+	EPHEMERAL_EVENTS_URL = "https://raw.githubusercontent.com/strategeekal/pantallita-events/refs/heads/main/ephemeral_events.csv"
+	
 	# Font test characters
 	FONT_METRICS_TEST_CHARS = "Aygjpq"
 	DESCENDER_CHARS = {'g', 'j', 'p', 'q', 'y'}
@@ -347,13 +350,13 @@ class DisplayConfig:
 		self.delayed_start = False  # False for dev (faster), True for production (safer)
 		
 		# Core displays (always try to show if data available)
-		self.show_weather = False
-		self.show_forecast = False
-		self.show_events = False
+		self.show_weather = True
+		self.show_forecast = True
+		self.show_events = True
 		
 		# Display Elements
-		self.show_weekday_indicator = False
-		self.show_scheduled_displays = False
+		self.show_weekday_indicator = True
+		self.show_scheduled_displays = True
 		
 		# API controls (fetch real data vs use dummy data)
 		self.use_live_weather = True      # False = use dummy data
@@ -362,7 +365,7 @@ class DisplayConfig:
 		# Test/debug modes
 		self.use_test_date = False
 		self.show_color_test = False
-		self.show_icon_test = True
+		self.show_icon_test = False
 		
 	### ================== ### ================== ### ================== ### ================== ### ==================
 	###################### === ################## === ################## === ################## === ##################
@@ -735,6 +738,11 @@ class WeatherDisplayState:
 		self.in_extended_failure_mode = False
 		self.scheduled_display_error_count = 0
 		self.has_permanent_error = False  # Track 401/404 errors
+		
+		# Event tracking
+		self.ephemeral_event_count = 0
+		self.permanent_event_count = 0
+		self.total_event_count = 0
 	
 	def reset_api_counters(self):
 		"""Reset API call tracking"""
@@ -1644,11 +1652,125 @@ def load_events_from_csv():
 		log_warning("Using fallback hardcoded events")
 		# Return fallback events as lists
 		return {}
+
+def fetch_ephemeral_events():
+	"""Fetch ephemeral events from online source, filtering out past events"""
+	try:
+		url = Strings.EPHEMERAL_EVENTS_URL
 		
+		session = get_requests_session()
+		if not session:
+			log_warning("No session available for ephemeral events")
+			return {}
+		
+		log_debug("Fetching ephemeral events from GitHub...")
+		response = session.get(url, timeout=10)
+		
+		if response.status_code == 200:
+			content = response.text
+			events = {}
+			skipped_count = 0
+			
+			# Get today's date for comparison
+			if state.rtc_instance:
+				today_year = state.rtc_instance.datetime.tm_year
+				today_month = state.rtc_instance.datetime.tm_mon
+				today_day = state.rtc_instance.datetime.tm_mday
+			else:
+				# Fallback if RTC not available - import all
+				today_year = 1900
+				today_month = 1
+				today_day = 1
+			
+			for line in content.split('\n'):
+				line = line.strip()
+				if line and not line.startswith("#"):
+					parts = [part.strip() for part in line.split(",")]
+					if len(parts) >= 4:
+						date = parts[0]  # YYYY-MM-DD format
+						line1 = parts[1]
+						line2 = parts[2]
+						image = parts[3]
+						color = parts[4] if len(parts) > 4 else Strings.DEFAULT_EVENT_COLOR
+						
+						# Parse date to check if it's in the past
+						try:
+							date_parts = date.split("-")
+							if len(date_parts) == 3:
+								event_year = int(date_parts[0])
+								event_month = int(date_parts[1])
+								event_day = int(date_parts[2])
+								
+								# Skip if event is in the past
+								if (event_year < today_year or 
+									(event_year == today_year and event_month < today_month) or
+									(event_year == today_year and event_month == today_month and event_day < today_day)):
+									skipped_count += 1
+									log_verbose(f"Skipping past event: {date} - {line1} {line2}")
+									continue
+								
+								# Convert YYYY-MM-DD to MMDD for lookup
+								date_key = date_parts[1] + date_parts[2]  # MMDD only
+								
+								if date_key not in events:
+									events[date_key] = []
+								events[date_key].append([line1, line2, image, color])
+						except (ValueError, IndexError):
+							log_warning(f"Invalid date format in ephemeral events: {date}")
+							continue
+			
+			if skipped_count > 0:
+				log_debug(f"Loaded {len(events)} ephemeral event dates from GitHub ({skipped_count} past events skipped)")
+			else:
+				log_debug(f"Loaded {len(events)} ephemeral event dates from GitHub")
+			
+			return events
+		else:
+			log_warning(f"Failed to fetch ephemeral events: HTTP {response.status_code}")
+			return {}
+			
+	except Exception as e:
+		log_warning(f"Failed to fetch ephemeral events: {e}")
+		return {}
+		
+def load_all_events():
+	"""Load events from both local CSV and online source"""
+	# Load permanent events from local CSV
+	permanent_events = load_events_from_csv()
+	permanent_count = len(permanent_events)
+	log_verbose(f"Loaded {permanent_count} permanent event dates")
+	
+	# Load ephemeral events from online
+	ephemeral_events = fetch_ephemeral_events()
+	ephemeral_count = len(ephemeral_events)
+	
+	# Merge (ephemeral events append to permanent if same date)
+	all_events = permanent_events.copy()
+	for date_key, event_list in ephemeral_events.items():
+		if date_key in all_events:
+			# Append ephemeral to existing permanent events
+			all_events[date_key].extend(event_list)
+			log_verbose(f"Date {date_key}: merged ephemeral with permanent")
+		else:
+			all_events[date_key] = event_list
+	
+	# Count total individual events (not just dates)
+	total_event_count = sum(len(event_list) for event_list in all_events.values())
+	total_dates = len(all_events)
+	
+	# Store counts in state for later use
+	state.ephemeral_event_count = ephemeral_count
+	state.permanent_event_count = permanent_count
+	state.total_event_count = total_event_count  # NEW
+	
+	log_debug(f"Events: {permanent_count} permanent + {ephemeral_count} imported = {total_dates} dates, {total_event_count} total events")
+	
+	return all_events
+
 def get_events():
-	"""Get cached events - loads from CSV only once"""
+	"""Get cached events - loads from both sources only once"""
 	if state.cached_events is None:
-		state.cached_events = load_events_from_csv()
+		state.cached_events = load_all_events()
 		if not state.cached_events:
 			log_warning("Warning: No events loaded, using minimal fallback")
 			state.cached_events = {}
@@ -3050,8 +3172,14 @@ def initialize_system(rtc):
 	
 	if event_count == 0:
 		event_count = "No"
-		
-	log_info(f"Hardware ready | {len(scheduled_display.schedules)} schedules loaded | {len(events)} events loaded | Events Today: {event_count}")
+	
+	# Format imported count
+	if state.ephemeral_event_count > 0:
+		imported_str = f" ({state.ephemeral_event_count} imported)"
+	else:
+		imported_str = ""
+	
+	log_info(f"Hardware ready | {len(scheduled_display.schedules)} schedules | {state.total_event_count} events{imported_str} | Today: {event_count}")
 	state.memory_monitor.check_memory("events_loaded")
 	
 	return events
