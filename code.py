@@ -85,11 +85,20 @@ class Layout:
 	SCHEDULE_X_OFFSET = -1
 	
 	# Progress bar positioning (below day indicator)
-	
 	PROGRESS_BAR_HORIZONTAL_X = 23 # 23 (aligned with image)
 	PROGRESS_BAR_HORIZONTAL_Y = 29  # Below 28px tall image + 1px gap = y=31
 	PROGRESS_BAR_HORIZONTAL_WIDTH = 40
 	PROGRESS_BAR_HORIZONTAL_HEIGHT = 2
+	
+	# Icon test layout (2 rows x 3 columns)
+	ICON_TEST_COL_WIDTH = 21  # 64 / 3 ≈ 21
+	ICON_TEST_ROW_HEIGHT = 16  # 32 / 2 = 16
+	ICON_TEST_COL1_X = 4
+	ICON_TEST_COL2_X = 25
+	ICON_TEST_COL3_X = 46
+	ICON_TEST_ROW1_Y = 5
+	ICON_TEST_ROW2_Y = 17
+	ICON_TEST_NUMBER_Y_OFFSET = 17  # Below 23px tall icon
 	
 class DayIndicator:
 	SIZE = 4
@@ -107,6 +116,7 @@ class Timing:
 	MIN_EVENT_DURATION = 10
 	CLOCK_DISPLAY_DURATION = 300
 	COLOR_TEST = 300
+	ICON_TEST = 5
 	SCHEDULE_WEATHER_REFRESH_INTERVAL = 300
 	SCHEDULE_GC_INTERVAL = 600
 	
@@ -280,10 +290,12 @@ class TestData:
 		"has_precipitation": False,
 	}
 	
+	TEST_ICONS = [1, 2, 3] # If None, screen will batch through all icons
+	
 ## String Constants
 class Strings:
 	DEFAULT_EVENT_COLOR = "MINT"
-	TIMEZONE_DEFAULT = "America/Chicago"    # TIMEZONE_CONFIG["timezone"]
+	TIMEZONE_DEFAULT = os.getenv("TIMEZONE")    # TIMEZONE_CONFIG["timezone"]
 	
 	# API key names
 	API_KEY_TYPE1 = "ACCUWEATHER_API_KEY_TYPE1"
@@ -294,6 +306,9 @@ class Strings:
 	# Environment variables
 	WIFI_SSID_VAR = "CIRCUITPY_WIFI_SSID"
 	WIFI_PASSWORD_VAR = "CIRCUITPY_WIFI_PASSWORD"
+	
+	# Event sources
+	EPHEMERAL_EVENTS_URL = "https://raw.githubusercontent.com/strategeekal/pantallita-events/refs/heads/main/ephemeral_events.csv"
 	
 	# Font test characters
 	FONT_METRICS_TEST_CHARS = "Aygjpq"
@@ -325,6 +340,11 @@ class DisplayConfig:
 	Changes take effect on next cycle.
 	"""
 	
+	
+	### ================== ### ================== ### ================== ### ================== ### ==================
+	###################### === ################## === ################## === ################## === ##################
+	### ================== ### ================== ### ================== ### ================== ### ==================
+	
 	def __init__(self):
 		# DEVELOPMENT vs PRODUCTION toggle
 		self.delayed_start = False  # False for dev (faster), True for production (safer)
@@ -345,7 +365,13 @@ class DisplayConfig:
 		# Test/debug modes
 		self.use_test_date = False
 		self.show_color_test = False
+		self.show_icon_test = False
+		
+	### ================== ### ================== ### ================== ### ================== ### ==================
+	###################### === ################## === ################## === ################## === ##################
+	### ================== ### ================== ### ================== ### ================== ### ==================
 	
+
 	def validate(self):
 		"""Validate configuration and return list of issues"""
 		issues = []
@@ -387,6 +413,7 @@ class DisplayConfig:
 		if not self.use_live_forecast: features.append("dummy_forecast")
 		# if self.use_test_date: features.append("test_date")
 		if self.show_color_test: features.append("color_test")
+		if self.show_icon_test: features.append("icon_test")
 		
 		return features
 	
@@ -710,6 +737,12 @@ class WeatherDisplayState:
 		
 		self.in_extended_failure_mode = False
 		self.scheduled_display_error_count = 0
+		self.has_permanent_error = False  # Track 401/404 errors
+		
+		# Event tracking
+		self.ephemeral_event_count = 0
+		self.permanent_event_count = 0
+		self.total_event_count = 0
 	
 	def reset_api_counters(self):
 		"""Reset API call tracking"""
@@ -973,6 +1006,13 @@ def check_and_recover_wifi():
 	except Exception as e:
 		log_error(f"WiFi check failed: {e}")
 		return False
+		
+def is_wifi_connected():
+		"""Simple WiFi status check without recovery attempt"""
+		try:
+			return wifi.radio.connected
+		except:
+			return False
 
 def get_timezone_offset(timezone_name, utc_datetime):
 	"""Calculate timezone offset including DST for a given timezone"""
@@ -1020,31 +1060,80 @@ def is_dst_active_for_timezone(timezone_name, utc_datetime):
 		return day < dst_end_day
 	
 	return False
+	
+def get_timezone_from_location_api():
+	"""Get timezone and location info from AccuWeather Location API"""
+	try:
+		api_key = get_api_key()
+		location_key = os.getenv(Strings.API_LOCATION_KEY)
+		url = f"http://dataservice.accuweather.com/locations/v1/{location_key}?apikey={api_key}"
+		
+		session = get_requests_session()
+		response = session.get(url)
+		
+		if response.status_code == 200:
+			data = response.json()
+			timezone_info = data.get("TimeZone", {})
+			
+			# Extract location details
+			city = data.get("LocalizedName", "Unknown")
+			state = data.get("AdministrativeArea", {}).get("ID", "")
+			
+			return {
+				"name": timezone_info.get("Name", Strings.TIMEZONE_DEFAULT),
+				"offset": int(timezone_info.get("GmtOffset", -6)),
+				"is_dst": timezone_info.get("IsDaylightSaving", False),
+				"city": city,  # NEW
+				"state": state,  # NEW
+				"location": f"{city}, {state}" if state else city  # NEW
+			}
+		else:
+			log_warning(f"Location API failed: {response.status_code}")
+			return None
+			
+	except Exception as e:
+		log_warning(f"Location API error: {e}")
+		return None
 
 def sync_time_with_timezone(rtc):
-	"""Enhanced NTP sync with configurable timezone support"""
+	"""Enhanced NTP sync with Location API timezone detection"""
 	
-	timezone_name = Strings.TIMEZONE_DEFAULT
+	# Try to get timezone from Location API
+	tz_info = get_timezone_from_location_api()
+	
+	if tz_info:
+		timezone_name = tz_info["name"]
+		offset = tz_info["offset"]
+		log_debug(f"Timezone from API: {timezone_name} (UTC{offset:+d})")
+	else:
+		# Fallback to hardcoded timezone
+		timezone_name = Strings.TIMEZONE_DEFAULT
+		log_warning(f"Using fallback timezone: {timezone_name}")
+		
+		# Use existing hardcoded logic
+		try:
+			cleanup_sockets()
+			pool = socketpool.SocketPool(wifi.radio)
+			ntp_utc = adafruit_ntp.NTP(pool, tz_offset=0)
+			utc_time = ntp_utc.datetime
+			offset = get_timezone_offset(timezone_name, utc_time)
+		except Exception as e:
+			log_error(f"NTP sync failed: {e}")
+			return None  # IMPORTANT: Return None on failure
 	
 	try:
 		cleanup_sockets()
 		pool = socketpool.SocketPool(wifi.radio)
-		
-		# Get UTC time first
-		ntp_utc = adafruit_ntp.NTP(pool, tz_offset=0)
-		utc_time = ntp_utc.datetime
-		
-		# Calculate timezone offset
-		offset = get_timezone_offset(timezone_name, utc_time)
-		
-		# Apply timezone offset
 		ntp = adafruit_ntp.NTP(pool, tz_offset=offset)
 		rtc.datetime = ntp.datetime
 		
 		log_info(f"Time synced to {timezone_name} (UTC{offset:+d})")
 		
+		return tz_info  # Return location info (or None if using fallback)
+		
 	except Exception as e:
 		log_error(f"NTP sync failed: {e}")
+		return None  # IMPORTANT: Return None on failure
 
 def cleanup_sockets():
 	"""Aggressive socket cleanup to prevent memory issues"""
@@ -1139,11 +1228,13 @@ def fetch_weather_with_retries(url, max_retries=None, context="API"):
 					
 			elif response.status_code == API.HTTP_UNAUTHORIZED:
 				log_error(f"{context}: Unauthorized (401) - check API key")
-				return None  # Don't retry auth failures
+				state.has_permanent_error = True  # Mark as permanent error
+				return None
 				
 			elif response.status_code == API.HTTP_NOT_FOUND:
 				log_error(f"{context}: Not found (404) - check location key")
-				return None  # Don't retry not found
+				state.has_permanent_error = True  # Mark as permanent error
+				return None
 				
 			else:
 				log_error(f"{context}: HTTP {response.status_code}")
@@ -1301,7 +1392,18 @@ def fetch_current_and_forecast_weather():
 			if state.consecutive_failures >= Recovery.SOFT_RESET_THRESHOLD:
 				log_warning("Soft reset: clearing network session")
 				cleanup_global_session()
-				state.consecutive_failures = 0  # Reset consecutive, but keep system_error_count
+				state.consecutive_failures = 0
+				
+				# Enter temporary extended failure mode for cooldown
+				was_in_extended_mode = state.in_extended_failure_mode
+				state.in_extended_failure_mode = True
+				
+				# Show purple clock during 30s cooldown
+				log_info("Cooling down for 30 seconds before retry...")
+				show_clock_display(state.rtc_instance, 30)
+			
+			# Restore previous extended mode state
+			state.in_extended_failure_mode = was_in_extended_mode
 			
 			# Hard reset if soft resets aren't helping
 			if state.system_error_count >= Recovery.HARD_RESET_THRESHOLD:
@@ -1366,6 +1468,42 @@ def get_api_key():
 		log_error(f"Failed to read fallback API key: {e}")
 	
 	return None
+	
+def get_current_error_state():
+	"""Determine current error state based on system status"""
+	
+	# During startup (before first weather attempt), show OK
+	if state.startup_time == 0:
+		return None
+	
+	# Extended failure mode takes priority over permanent errors
+	# (shows system is degraded, even if error is permanent)
+	if state.in_extended_failure_mode:
+		return "extended"  # PURPLE
+	
+	# Check for permanent configuration errors
+	if hasattr(state, 'has_permanent_error') and state.has_permanent_error:
+		return "general"  # WHITE
+	
+	# Check for WiFi issues
+	if not is_wifi_connected():
+		return "wifi"  # RED
+	
+	# Check for schedule display errors (file system issues)
+	if state.scheduled_display_error_count >= 3:
+		return "general"  # WHITE
+	
+	# Check for weather API failures (only after startup)
+	time_since_success = time.monotonic() - state.last_successful_weather
+	if state.last_successful_weather > 0 and time_since_success > 600:
+		return "weather"  # YELLOW
+	
+	# Check for consecutive failures
+	if state.consecutive_failures >= 3:
+		return "weather"  # YELLOW
+	
+	# All OK
+	return None  # MINT
 	
 def should_fetch_forecast():
 	"""Check if forecast data needs to be refreshed"""
@@ -1514,11 +1652,135 @@ def load_events_from_csv():
 		log_warning("Using fallback hardcoded events")
 		# Return fallback events as lists
 		return {}
+
+def fetch_ephemeral_events():
+	"""Fetch ephemeral events from online source, filtering out past events"""
+	try:
+		# Add timestamp to bust cache
+		import time
+		cache_buster = int(time.monotonic())
+		url = f"{Strings.EPHEMERAL_EVENTS_URL}?t={cache_buster}"
 		
+		session = get_requests_session()
+		if not session:
+			log_warning("No session available for ephemeral events")
+			return {}
+		
+		session = get_requests_session()
+		if not session:
+			log_warning("No session available for ephemeral events")
+			return {}
+		
+		log_debug("Fetching ephemeral events from GitHub...")
+		response = session.get(url, timeout=10)
+		
+		if response.status_code == 200:
+			content = response.text
+			events = {}
+			skipped_count = 0
+			
+			log_debug(f"Raw content from GitHub:\n{content}")
+			
+			# Get today's date for comparison
+			if state.rtc_instance:
+				today_year = state.rtc_instance.datetime.tm_year
+				today_month = state.rtc_instance.datetime.tm_mon
+				today_day = state.rtc_instance.datetime.tm_mday
+			else:
+				# Fallback if RTC not available - import all
+				today_year = 1900
+				today_month = 1
+				today_day = 1
+			
+			for line in content.split('\n'):
+				line = line.strip()
+				if line and not line.startswith("#"):
+					parts = [part.strip() for part in line.split(",")]
+					if len(parts) >= 4:
+						date = parts[0]  # YYYY-MM-DD format
+						line1 = parts[1]
+						line2 = parts[2]
+						image = parts[3]
+						color = parts[4] if len(parts) > 4 else Strings.DEFAULT_EVENT_COLOR
+						
+						# Parse date to check if it's in the past
+						try:
+							date_parts = date.split("-")
+							if len(date_parts) == 3:
+								event_year = int(date_parts[0])
+								event_month = int(date_parts[1])
+								event_day = int(date_parts[2])
+								
+								# Skip if event is in the past
+								if (event_year < today_year or 
+									(event_year == today_year and event_month < today_month) or
+									(event_year == today_year and event_month == today_month and event_day < today_day)):
+									skipped_count += 1
+									log_verbose(f"Skipping past event: {date} - {line1} {line2}")
+									continue
+								
+								# Convert YYYY-MM-DD to MMDD for lookup
+								date_key = date_parts[1] + date_parts[2]  # MMDD only
+								
+								if date_key not in events:
+									events[date_key] = []
+								events[date_key].append([line1, line2, image, color])
+						except (ValueError, IndexError):
+							log_warning(f"Invalid date format in ephemeral events: {date}")
+							continue
+			
+			if skipped_count > 0:
+				log_debug(f"Loaded {len(events)} ephemeral event dates from GitHub ({skipped_count} past events skipped)")
+			else:
+				log_debug(f"Loaded {len(events)} ephemeral event dates from GitHub")
+			
+			return events
+		else:
+			log_warning(f"Failed to fetch ephemeral events: HTTP {response.status_code}")
+			return {}
+			
+	except Exception as e:
+		log_warning(f"Failed to fetch ephemeral events: {e}")
+		return {}
+		
+def load_all_events():
+	"""Load events from both local CSV and online source"""
+	# Load permanent events from local CSV
+	permanent_events = load_events_from_csv()
+	permanent_count = len(permanent_events)
+	log_verbose(f"Loaded {permanent_count} permanent event dates")
+	
+	# Load ephemeral events from online
+	ephemeral_events = fetch_ephemeral_events()
+	ephemeral_count = len(ephemeral_events)
+	
+	# Merge (ephemeral events append to permanent if same date)
+	all_events = permanent_events.copy()
+	for date_key, event_list in ephemeral_events.items():
+		if date_key in all_events:
+			# Append ephemeral to existing permanent events
+			all_events[date_key].extend(event_list)
+			log_verbose(f"Date {date_key}: merged ephemeral with permanent")
+		else:
+			all_events[date_key] = event_list
+	
+	# Count total individual events (not just dates)
+	total_event_count = sum(len(event_list) for event_list in all_events.values())
+	total_dates = len(all_events)
+	
+	# Store counts in state for later use
+	state.ephemeral_event_count = ephemeral_count
+	state.permanent_event_count = permanent_count
+	state.total_event_count = total_event_count  # NEW
+	
+	log_debug(f"Events: {permanent_count} permanent + {ephemeral_count} imported = {total_dates} dates, {total_event_count} total events")
+	
+	return all_events
+
 def get_events():
-	"""Get cached events - loads from CSV only once"""
+	"""Get cached events - loads from both sources only once"""
 	if state.cached_events is None:
-		state.cached_events = load_events_from_csv()
+		state.cached_events = load_all_events()
 		if not state.cached_events:
 			log_warning("Warning: No events loaded, using minimal fallback")
 			state.cached_events = {}
@@ -1888,12 +2150,35 @@ def show_clock_display(rtc, duration=Timing.CLOCK_DISPLAY_DURATION):
 	log_warning(f"Displaying clock for {duration_message(duration)}...")
 	clear_display()
 	
-	date_text = bitmap_label.Label(font, color=state.colors["DIMMEST_WHITE"], x=Layout.CLOCK_DATE_X, y=Layout.CLOCK_DATE_Y)
-	time_text = bitmap_label.Label(bg_font, color=state.colors[Strings.DEFAULT_EVENT_COLOR], x=Layout.CLOCK_TIME_X, y=Layout.CLOCK_TIME_Y)
+	# Determine clock color based on error state
+	error_state = get_current_error_state()
+	
+	clock_colors = {
+		None: state.colors[Strings.DEFAULT_EVENT_COLOR],  # MINT = All OK
+		"wifi": state.colors["RED"],                      # WiFi failure
+		"weather": state.colors["YELLOW"],                # Weather API failure
+		"extended": state.colors["PURPLE"],               # Extended failure
+		"general": state.colors["WHITE"]                  # Unknown error
+	}
+	
+	clock_color = clock_colors.get(error_state, state.colors["MINT"])
+	
+	date_text = bitmap_label.Label(
+		font, 
+		color=state.colors["DIMMEST_WHITE"], 
+		x=Layout.CLOCK_DATE_X, 
+		y=Layout.CLOCK_DATE_Y
+	)
+	time_text = bitmap_label.Label(
+		bg_font, 
+		color=clock_color,  # Use error-based color
+		x=Layout.CLOCK_TIME_X, 
+		y=Layout.CLOCK_TIME_Y
+	)
 	
 	state.main_group.append(date_text)
 	state.main_group.append(time_text)
-			
+	
 	# Add day indicator after other elements
 	if display_config.show_weekday_indicator:
 		add_day_indicator(state.main_group, rtc)
@@ -2089,6 +2374,126 @@ def show_color_test_display(duration=Timing.COLOR_TEST):
 	interruptible_sleep(duration)
 	gc.collect()
 	return True
+	
+def show_icon_test_display(icon_numbers=None, duration=Timing.ICON_TEST):
+	"""
+	Test display for weather icon columns
+	
+	Args:
+		icon_numbers: List of up to 3 icon numbers to display, e.g. [1, 5, 33]
+					 If None, cycles through all icons
+		duration: How long to display (only used when cycling all icons)
+	"""
+	
+	if icon_numbers is None:
+		# Original behavior - cycle through all icons
+		log_info("Starting Icon Test Display - All Icons (Ctrl+C to exit)")
+		
+		# AccuWeather icon numbers (skipping 9, 10, 27, 28)
+		all_icons = []
+		for i in range(1, 45):
+			if i not in [9, 10, 27, 28]:
+				all_icons.append(i)
+		
+		total_icons = len(all_icons)
+		icons_per_batch = 3
+		num_batches = (total_icons + icons_per_batch - 1) // icons_per_batch
+		
+		log_info(f"Testing {total_icons} icons in {num_batches} batches")
+		
+		try:
+			for batch_num in range(num_batches):
+				start_idx = batch_num * icons_per_batch
+				end_idx = min(start_idx + icons_per_batch, total_icons)
+				batch_icons = all_icons[start_idx:end_idx]
+				
+				_display_icon_batch(batch_icons, batch_num + 1, num_batches)
+				
+				# Shorter sleep intervals for better interrupt response
+				for _ in range(int(duration * 10)):
+					time.sleep(0.1)
+					
+		except KeyboardInterrupt:
+			log_info("Icon test interrupted by user")
+			clear_display()
+			raise
+	else:
+		# Manual mode - display specific icons indefinitely
+		if len(icon_numbers) > 3:
+			log_warning(f"Too many icons specified ({len(icon_numbers)}), showing first 3")
+			icon_numbers = icon_numbers[:3]
+		
+		log_info(f"Displaying icons: {icon_numbers} (Ctrl+C to exit)")
+		_display_icon_batch(icon_numbers, manual_mode=True)
+		
+		# Loop indefinitely until interrupted
+		try:
+			while True:
+				time.sleep(0.1)  # Keep display active, check for interrupt
+		except KeyboardInterrupt:
+			log_info("Icon test interrupted")
+			clear_display()
+			raise
+	
+	log_info("Icon Test Display complete")
+	gc.collect()
+	return True
+
+
+def _display_icon_batch(icon_numbers, batch_num=None, total_batches=None, manual_mode=False):
+	"""Helper function to display a batch of icons"""
+	
+	if not manual_mode:
+		log_info(f"Batch {batch_num}/{total_batches}: Icons {icon_numbers}")
+	
+	clear_display()
+	gc.collect()
+	
+	try:
+		# Position icons horizontally (up to 3)
+		positions = [
+			(Layout.ICON_TEST_COL1_X, Layout.ICON_TEST_ROW1_Y),  # Left
+			(Layout.ICON_TEST_COL2_X, Layout.ICON_TEST_ROW1_Y),  # Center
+			(Layout.ICON_TEST_COL3_X, Layout.ICON_TEST_ROW1_Y),  # Right
+		]
+		
+		for i, icon_num in enumerate(icon_numbers):
+			if i >= len(positions):
+				break
+			
+			x, y = positions[i]
+			
+			# Load icon image
+			try:
+				bitmap, palette = state.image_cache.get_image(f"{Paths.COLUMN_IMAGES}/{icon_num}.bmp")
+				icon_img = displayio.TileGrid(bitmap, pixel_shader=palette)
+				icon_img.x = x
+				icon_img.y = y
+				state.main_group.append(icon_img)
+			except Exception as e:
+				log_warning(f"Failed to load icon {icon_num}: {e}")
+				# Show error text instead
+				error_label = bitmap_label.Label(
+					font,
+					color=state.colors["RED"],
+					text="ERR",
+					x=x + 1,
+					y=y + 4
+				)
+				state.main_group.append(error_label)
+			
+			# Add icon number below image
+			number_label = bitmap_label.Label(
+				font,
+				color=state.colors["DIMMEST_WHITE"],
+				text=str(icon_num),
+				x=x + (5 if icon_num < 10 else 3),  # Center single vs double digits
+				y=y + Layout.ICON_TEST_NUMBER_Y_OFFSET
+			)
+			state.main_group.append(number_label)
+			
+	except Exception as e:
+		log_error(f"Icon display error: {e}")
 	
 def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 	"""Optimized forecast display with smart precipitation detection"""
@@ -2777,8 +3182,14 @@ def initialize_system(rtc):
 	
 	if event_count == 0:
 		event_count = "No"
-		
-	log_info(f"Hardware ready | {len(scheduled_display.schedules)} schedules loaded | {len(events)} events loaded | Events Today: {event_count}")
+	
+	# Format imported count
+	if state.ephemeral_event_count > 0:
+		imported_str = f" ({state.ephemeral_event_count} imported)"
+	else:
+		imported_str = ""
+	
+	log_info(f"Hardware ready | {len(scheduled_display.schedules)} schedules | {state.total_event_count} events{imported_str} | Today: {event_count}")
 	state.memory_monitor.check_memory("events_loaded")
 	
 	return events
@@ -2786,15 +3197,18 @@ def initialize_system(rtc):
 def setup_network_and_time(rtc):
 	"""Setup WiFi and synchronize time"""
 	wifi_connected = setup_wifi_with_recovery()
+	location_info = None  # Initialize at the start
 	
 	if wifi_connected and not display_config.use_test_date:
-		sync_time_with_timezone(rtc)
+		location_info = sync_time_with_timezone(rtc)
 	elif display_config.use_test_date:
 		log_info(f"Manual Time Set: {rtc.datetime.tm_year:04d}/{rtc.datetime.tm_mon:02d}/{rtc.datetime.tm_mday:02d} {rtc.datetime.tm_hour:02d}:{rtc.datetime.tm_min:02d}")
+		# location_info stays None
 	else:
 		log_warning("Starting without WiFi - using RTC time only")
+		# location_info stays None
 	
-	return wifi_connected
+	return location_info  # Always return (either dict or None)
 
 def handle_extended_failure_mode(rtc, time_since_success):
 	"""Handle extended failure mode with periodic recovery attempts"""
@@ -2856,10 +3270,27 @@ def run_display_cycle(rtc, cycle_count):
 	
 	# Memory monitoring and maintenance
 	if cycle_count % Timing.CYCLES_FOR_MEMORY_REPORT == 0:
-		state.memory_monitor.log_report(level="DEBUG")
+		state.memory_monitor.log_report()
 	check_daily_reset(rtc)
 	
-	# Check for extended failure mode
+	# Check WiFi and attempt recovery if needed
+	wifi_available = is_wifi_connected()
+	
+	if not wifi_available:
+		# Try to recover (respects cooldown)
+		log_debug("WiFi disconnected, attempting recovery...")
+		wifi_available = check_and_recover_wifi()
+	
+	if not wifi_available:
+		log_warning("No WiFi - showing clock")
+		show_clock_display(rtc, Timing.CLOCK_DISPLAY_DURATION)
+		
+		cycle_duration = time.monotonic() - cycle_start_time
+		mem_stats = state.memory_monitor.get_memory_stats()
+		log_info(f"Cycle #{cycle_count} (NO WIFI) complete in {cycle_duration/System.SECONDS_PER_MINUTE:.2f} min\n")
+		return  # Exit early
+	
+	# WiFi is available - check for extended failure mode
 	time_since_success = time.monotonic() - state.last_successful_weather
 	in_failure_mode = time_since_success > Timing.EXTENDED_FAILURE_THRESHOLD
 	
@@ -2920,6 +3351,10 @@ def run_display_cycle(rtc, cycle_count):
 	if display_config.show_color_test:
 		show_color_test_display(Timing.COLOR_TEST)
 	
+	# Icon test (if enabled)
+	if display_config.show_icon_test:
+		show_icon_test_display(icon_numbers=TestData.TEST_ICONS)
+	
 	# Cache stats logging
 	if cycle_count % Timing.CYCLES_FOR_CACHE_STATS == 0:
 		log_debug(state.image_cache.get_stats())
@@ -2953,8 +3388,8 @@ def main():
 			log_info(f"Startup delay: {STARTUP_DELAY}s")
 			show_clock_display(rtc, STARTUP_DELAY)
 		
-		# Network setup
-		setup_network_and_time(rtc)
+		# Network setup - CAPTURE the return value!
+		location_info = setup_network_and_time(rtc)  # ← ADD location_info =
 		
 		# Set startup time
 		state.startup_time = time.monotonic()
@@ -2964,10 +3399,13 @@ def main():
 		# Log active display features
 		active_features = display_config.get_active_features()
 		formatted_features = [feature.replace("_", " ") for feature in active_features]
-		log_info(f"Active displays: {', '.join(formatted_features)}")
 		
+		# Add location if available
+		if location_info and "location" in location_info:
+			log_info(f"Fetching time and weather for: {location_info['location']}")
+		
+		log_info(f"Active displays: {', '.join(formatted_features)}")
 		log_info(f"== STARTING MAIN DISPLAY LOOP == \n")
-		log_verbose(f"Image cache initialized: {state.image_cache.get_stats()}")
 		
 		# Main display loop
 		cycle_count = 0
