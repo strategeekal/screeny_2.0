@@ -1656,7 +1656,15 @@ def load_events_from_csv():
 def fetch_ephemeral_events():
 	"""Fetch ephemeral events from online source, filtering out past events"""
 	try:
-		url = Strings.EPHEMERAL_EVENTS_URL
+		# Add timestamp to bust cache
+		import time
+		cache_buster = int(time.monotonic())
+		url = f"{Strings.EPHEMERAL_EVENTS_URL}?t={cache_buster}"
+		
+		session = get_requests_session()
+		if not session:
+			log_warning("No session available for ephemeral events")
+			return {}
 		
 		session = get_requests_session()
 		if not session:
@@ -1670,6 +1678,8 @@ def fetch_ephemeral_events():
 			content = response.text
 			events = {}
 			skipped_count = 0
+			
+			log_verbose(f"Raw content from GitHub:\n{content}")
 			
 			# Get today's date for comparison
 			if state.rtc_instance:
