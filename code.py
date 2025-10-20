@@ -1679,7 +1679,7 @@ def fetch_ephemeral_events():
 			events = {}
 			skipped_count = 0
 			
-			log_verbose(f"Raw content from GitHub:\n{content}")
+			log_info(f"Raw content from GitHub:\n{content}")
 			
 			# Get today's date for comparison
 			if state.rtc_instance:
