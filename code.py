@@ -3353,7 +3353,7 @@ def run_display_cycle(rtc, cycle_count):
 	
 	# Icon test (if enabled)
 	if display_config.show_icon_test:
-		show_icon_test_display(icon_numbers=[1, 5, 33])
+		show_icon_test_display(icon_numbers=TestData.TEST_ICONS)
 	
 	# Cache stats logging
 	if cycle_count % Timing.CYCLES_FOR_CACHE_STATS == 0:
