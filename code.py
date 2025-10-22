@@ -1,11 +1,16 @@
-
 ##### PANTALLITA #####
 
 # === LIBRARIES ===
+# Standard library
 import board
 import os
 import supervisor
 import gc
+import time
+import ssl
+import microcontroller
+
+# Display
 import displayio
 import framebufferio
 import rgbmatrix
@@ -13,14 +18,15 @@ from adafruit_display_text import bitmap_label
 from adafruit_bitmap_font import bitmap_font
 from adafruit_display_shapes.line import Line
 import adafruit_imageload
+
+# Network
 import wifi
-import ssl
 import socketpool
-import adafruit_requests
+import adafruit_requests as requests
+
+# Hardware
 import adafruit_ds3231
-import time
 import adafruit_ntp
-import microcontroller
 
 gc.collect()
 
@@ -162,6 +168,7 @@ MONTHS = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oc
 class API:
 	TIMEOUT = 30
 	MAX_RETRIES = 2
+	RETRY_BASE_DELAY = 2
 	RETRY_DELAY = 2
 	MAX_CALLS_BEFORE_RESTART = 350
 	
@@ -1139,46 +1146,56 @@ def cleanup_sockets():
 	"""Aggressive socket cleanup to prevent memory issues"""
 	for _ in range(Memory.SOCKET_CLEANUP_CYCLES):
 		gc.collect()
+		
+# Global session management
+_global_session = None
 
 def get_requests_session():
-	"""Get or create a persistent requests session for connection reuse"""
-	if state.global_requests_session is None:
+	"""Get or create the global requests session"""
+	global _global_session
+	
+	if _global_session is None:
 		try:
-			cleanup_sockets()
 			pool = socketpool.SocketPool(wifi.radio)
-			
-			try:
-				pool.socket_timeout = API.TIMEOUT
-			except (AttributeError, NotImplementedError):
-				log_verbose("Socket timeout configuration not available")
-			
-			state.global_requests_session = adafruit_requests.Session(
-				pool,
-				ssl.create_default_context()
-			)
-			log_verbose("Created new persistent requests session")
+			_global_session = requests.Session(pool, ssl.create_default_context())
+			log_debug("Created new global session")
 		except Exception as e:
-			log_error(f"Failed to create requests session: {e}")
+			log_error(f"Failed to create session: {e}")
 			return None
 	
-	return state.global_requests_session
+	return _global_session
+
 
 def cleanup_global_session():
-	"""
-	Clean up the global session
-	Used only for soft resets on repeated failures
-	NOT used during normal operation - session reuse is preferred
-	"""
-	if state.global_requests_session:
+	"""Clean up the global requests session and force socket release"""
+	global _global_session  # ← Make sure this line is here!
+	
+	if _global_session is not None:
 		try:
-			state.global_requests_session.close()
-			del state.global_requests_session
-			state.global_requests_session = None
-			log_verbose("Global session cleaned up")
-		except:
-			pass
-		
-		cleanup_sockets()
+			log_debug("Destroying global session")
+			# Try to close gracefully first
+			try:
+				_global_session.close()
+			except:
+				pass
+			
+			# Force delete the session object
+			del _global_session
+			_global_session = None
+			
+			# Aggressive socket cleanup
+			cleanup_sockets()
+			
+			# Force garbage collection
+			gc.collect()
+			
+			# Brief pause to let sockets fully close
+			time.sleep(0.5)
+			
+			log_debug("Global session destroyed and sockets cleaned")
+		except Exception as e:
+			log_debug(f"Session cleanup error (non-critical): {e}")
+			_global_session = None
 		
 
 ### API FUNCTIONS ###
@@ -1249,14 +1266,57 @@ def fetch_weather_with_retries(url, max_retries=None, context="API"):
 				log_debug(f"Retrying in {delay}s...")
 				interruptible_sleep(delay)
 				
-		except OSError as e:
-			# Network/socket errors
-			log_warning(f"{context} attempt {attempt + 1} network error: {type(e).__name__}")
-			last_error = "Network error"
+		except RuntimeError as e:
+			error_msg = str(e)
+			last_error = f"Runtime error: {error_msg}"
+			
+			if "pystack exhausted" in error_msg.lower():
+				log_error(f"{context}: Stack exhausted - memory issue, forcing cleanup")
+			elif "already connected" in error_msg.lower():
+				log_error(f"{context}: Socket already connected - forcing cleanup")
+			else:
+				log_error(f"{context}: Runtime error on attempt {attempt + 1}: {error_msg}")
+			
+			# Nuclear cleanup for any RuntimeError
+			cleanup_global_session()
+			cleanup_sockets()
+			gc.collect()
+			time.sleep(2)
+			
 			if attempt < max_retries:
-				delay = API.RETRY_DELAY * (2 ** attempt)
-				interruptible_sleep(delay)
+				delay = API.RETRY_BASE_DELAY * (2 ** attempt)
+				log_verbose(f"Retrying in {delay}s...")
+				time.sleep(delay)
+		
+		except OSError as e:
+			error_msg = str(e)
+			last_error = f"Network error: {error_msg}"
+			
+			# Detect socket issues
+			if "already connected" in error_msg.lower() or "pystack exhausted" in error_msg.lower():
+				log_error(f"{context}: Socket stuck - forcing nuclear cleanup")
 				
+				# Nuclear option: destroy everything
+				cleanup_global_session()
+				cleanup_sockets()
+				gc.collect()
+				
+				# Longer delay to ensure sockets fully close
+				time.sleep(2)
+				
+				# This will force session recreation on next attempt
+			elif "ETIMEDOUT" in error_msg or "104" in error_msg or "32" in error_msg:
+				log_warning(f"{context}: Network timeout on attempt {attempt + 1}")
+			else:
+				log_warning(f"{context}: Network error on attempt {attempt + 1}: {error_msg}")
+			
+			# Retry with delay
+			if attempt < max_retries:
+				delay = API.RETRY_BASE_DELAY * (2 ** attempt)
+				log_verbose(f"Retrying in {delay}s...")
+				time.sleep(delay)
+				
+					
 		except Exception as e:
 			log_error(f"{context} attempt {attempt + 1} unexpected error: {type(e).__name__}: {e}")
 			last_error = str(e)
@@ -1401,9 +1461,9 @@ def fetch_current_and_forecast_weather():
 				# Show purple clock during 30s cooldown
 				log_info("Cooling down for 30 seconds before retry...")
 				show_clock_display(state.rtc_instance, 30)
-			
-			# Restore previous extended mode state
-			state.in_extended_failure_mode = was_in_extended_mode
+				
+				# Restore previous extended mode state
+				state.in_extended_failure_mode = was_in_extended_mode
 			
 			# Hard reset if soft resets aren't helping
 			if state.system_error_count >= Recovery.HARD_RESET_THRESHOLD:
@@ -1468,6 +1528,49 @@ def get_api_key():
 		log_error(f"Failed to read fallback API key: {e}")
 	
 	return None
+	
+def fetch_weather_for_schedule():
+	"""Simplified weather fetch for scheduled displays - single attempt, no retries"""
+	try:
+		# Check if fetching is enabled
+		if not display_config.should_fetch_weather():
+			return None
+		
+		# Get API key
+		api_key = get_api_key()
+		if not api_key:
+			return None
+		
+		# Get session (don't create new one, use existing)
+		session = get_requests_session()
+		if not session:
+			return None
+		
+		# Build URL
+		url = f"{API.BASE_URL}/{API.CURRENT_ENDPOINT}/{os.getenv(Strings.API_LOCATION_KEY)}?apikey={api_key}&details=true"
+		
+		# Single attempt - no retries
+		response = session.get(url, timeout=10)
+		
+		if response.status_code == 200:
+			current_json = response.json()
+			current = current_json[0]
+			
+			# Extract only what we need for schedule display
+			temp_data = current.get("Temperature", {}).get("Metric", {})
+			realfeel_data = current.get("RealFeelTemperature", {}).get("Metric", {})
+			
+			return {
+				"temperature": temp_data.get("Value", 0),
+				"feels_like": realfeel_data.get("Value", 0)
+			}
+		else:
+			log_debug(f"Schedule weather refresh: HTTP {response.status_code}")
+			return None
+		
+	except Exception as e:
+		log_debug(f"Schedule weather refresh failed: {e}")
+		return None
 	
 def get_current_error_state():
 	"""Determine current error state based on system status"""
@@ -2882,6 +2985,13 @@ def update_progress_bar_bitmap(progress_bitmap, elapsed_seconds, total_seconds):
 def show_scheduled_display(rtc, schedule_name, schedule_config, duration, current_data=None):
 	"""Display scheduled message with live weather and clock"""
 	log_info(f"Showing scheduled display: {schedule_name}")
+	
+	# CRITICAL: Clean up any stale sockets before starting
+	log_debug("Pre-schedule socket cleanup")
+	cleanup_global_session()
+	cleanup_sockets()
+	gc.collect()
+	
 	clear_display()
 	gc.collect()
 	
@@ -3025,15 +3135,16 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, duration, curren
 				log_verbose("GC during scheduled display")
 				last_gc = current_time
 			
-			# Refresh weather every X minutes
-			if current_time - last_weather_update >= 300:  # 5 minutes
-				fresh_data = fetch_current_weather_only()
-			
+			# Refresh weather every 5 minutes - SIMPLIFIED
+			if current_time - last_weather_update >= 300:
+				# Use simplified fetch (no retries, minimal stack)
+				fresh_data = fetch_weather_for_schedule()
+				
 				if fresh_data:
 					temp_label.text = f"{round(fresh_data['feels_like'])}°"
-					state.last_successful_weather = time.monotonic()
-					state.consecutive_failures = 0
+					log_debug("Schedule weather updated")
 				
+				# ALWAYS update timer - prevents retry loops
 				last_weather_update = current_time
 			
 			# Update time when minute changes
@@ -3055,6 +3166,10 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, duration, curren
 	if state.consecutive_failures == 0:
 		state.last_successful_weather = time.monotonic()
 	
+	# CRITICAL: Clean up sockets after long display
+	log_debug("Cleaning up sockets after scheduled display")
+	cleanup_global_session()
+	cleanup_sockets()
 	gc.collect()
 	
 ### SYSTEM MANAGEMENT ###
