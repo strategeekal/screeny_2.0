@@ -339,7 +339,7 @@ class DebugLevel:
 	VERBOSE = 5   # Everything including routine operations
 
 # Recommended for production
-CURRENT_DEBUG_LEVEL = DebugLevel.DEBUG
+CURRENT_DEBUG_LEVEL = DebugLevel.INFO
 
 class DisplayConfig:
 	"""
@@ -372,7 +372,7 @@ class DisplayConfig:
 		self.use_live_forecast = True     # False = use dummy data
 		
 		# Test/debug modes
-		self.use_test_date = True
+		self.use_test_date = False
 		self.show_color_test = False
 		self.show_icon_test = False
 		
@@ -2086,6 +2086,11 @@ def show_weather_display(rtc, duration, weather_data=None):
 	# Clear display and setup static elements ONCE
 	clear_display()
 	
+	# LOG what we're displaying
+	temp = round(weather_data["feels_like"])
+	condition = weather_data.get("weather_text", "Unknown")
+	log_info(f"Displaying Weather: {condition}, {temp}°C ({duration/60:.0f} min)")
+	
 	# Create all static display elements ONCE
 	temp_text = bitmap_label.Label(
 		bg_font,
@@ -2562,7 +2567,7 @@ def _display_icon_batch(icon_numbers, batch_num=None, total_batches=None, manual
 	except Exception as e:
 		log_error(f"Icon display error: {e}")
 	
-def show_forecast_display(current_data=None, forecast_data=None, duration=30):
+def show_forecast_display(current_data, forecast_data, display_duration, is_fresh=False):
 	"""Optimized forecast display with smart precipitation detection"""
 	
 	# Check if we have real data
@@ -2644,11 +2649,14 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 	
 	log_debug(f"Will show hours: {forecast_indices[0]+1} and {forecast_indices[1]+1}")
 	
-	# Log with real data
-	log_debug(f"Displaying Forecast for {duration_message(duration)}: Current {current_data['temperature']}°C, Next hours: {forecast_data[forecast_indices[0]]['temperature']}°C, {forecast_data[forecast_indices[1]]['temperature']}°C")
-	
 	clear_display()
 	gc.collect()
+	
+	# LOG what we're about to display
+	current_temp = round(current_data["feels_like"])
+	next_temps = [round(h["feels_like"]) for h in forecast_data[:2]]
+	status = "Fresh" if is_fresh else "Cached"
+	log_info(f"Displaying Forecast: Current {current_temp}°C → Next: {next_temps[0]}°C, {next_temps[1]}°C ({display_duration/60:.0f} min) [{status}]")
 	
 	try:
 		# Column 1 - current temperature with feels-like logic
@@ -2813,7 +2821,7 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 		loop_count = 0
 		last_minute = -1
 		
-		while time.monotonic() - start_time < duration:
+		while time.monotonic() - start_time < display_duration:
 			loop_count += 1
 			
 			# Update first column time only when minute changes
@@ -2834,7 +2842,7 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 			
 			# Memory monitoring and cleanup
 			if loop_count % Timing.MEMORY_CHECK_INTERVAL == 0:  # Every 30 seconds
-				if duration > Timing.GC_INTERVAL and loop_count % Timing.GC_INTERVAL == 0:  # Only GC for longer durations
+				if display_duration > Timing.GC_INTERVAL and loop_count % Timing.GC_INTERVAL == 0:  # Only GC for longer durations
 					gc.collect()
 					state.memory_monitor.check_memory(f"forecast_display_gc_{loop_count//System.SECONDS_PER_HOUR}")
 				else:
@@ -3101,6 +3109,11 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 		
 		if display_config.show_weekday_indicator:
 			add_day_indicator(state.main_group, rtc)
+			
+		# LOG what's being displayed this segment
+		segment_num = int(elapsed / 300) + 1  # Which segment (1, 2, 3...)
+		total_segments = int(full_duration / 300) + (1 if full_duration % 300 else 0)
+		log_info(f"Displaying Schedule: {schedule_name} - Segment {segment_num}/{total_segments} ({temperature}, {segment_duration/60:.1f} min, progress: {progress*100:.0f}%)")
 		
 		# Update success tracking
 		if current_data:
@@ -3365,7 +3378,8 @@ def fetch_cycle_data(rtc):
 		
 		forecast_data = state.cached_forecast_data
 	
-	return current_data, forecast_data
+	# Return fresh flag along with data
+	return current_data, forecast_data, needs_fresh_forecast
 
 def run_display_cycle(rtc, cycle_count):
 	cycle_start_time = time.monotonic()
@@ -3451,13 +3465,13 @@ def run_display_cycle(rtc, cycle_count):
 		log_debug("Scheduled displays disabled due to errors")
 	
 	# NORMAL CYCLE - Fetch data once
-	current_data, forecast_data = fetch_cycle_data(rtc)
+	current_data, forecast_data, forecast_is_fresh = fetch_cycle_data(rtc)  # Now returns 3 values
 	current_duration, forecast_duration, event_duration = calculate_display_durations(rtc)
 	
 	# Forecast display
 	forecast_shown = False
 	if display_config.show_forecast and current_data and forecast_data:
-		forecast_shown = show_forecast_display(current_data, forecast_data, forecast_duration)
+		forecast_shown = show_forecast_display(current_data, forecast_data, forecast_duration, forecast_is_fresh)
 	
 	if not forecast_shown:
 		current_duration += forecast_duration
