@@ -124,6 +124,8 @@ class Timing:
 	COLOR_TEST = 300
 	ICON_TEST = 5
 	SCHEDULE_WEATHER_REFRESH_INTERVAL = 300
+	LONG_SCHEDULE_WEATHER_REFRESH_INTERVAL = 600
+	SCHEDULE_REFRESH_THRESHOLD = 900
 	SCHEDULE_GC_INTERVAL = 600
 	
 	FORECAST_UPDATE_INTERVAL = 900  # - 3 cycles
@@ -281,8 +283,8 @@ class TestData:
 	TEST_YEAR = None
 	TEST_MONTH = None
 	TEST_DAY =  None
-	TEST_HOUR = 13
-	TEST_MINUTE = 29
+	TEST_HOUR = 6
+	TEST_MINUTE = 56
 	
 	# Dummy weather values
 	DUMMY_WEATHER_DATA = {
@@ -337,7 +339,7 @@ class DebugLevel:
 	VERBOSE = 5   # Everything including routine operations
 
 # Recommended for production
-CURRENT_DEBUG_LEVEL = DebugLevel.INFO
+CURRENT_DEBUG_LEVEL = DebugLevel.DEBUG
 
 class DisplayConfig:
 	"""
@@ -370,7 +372,7 @@ class DisplayConfig:
 		self.use_live_forecast = True     # False = use dummy data
 		
 		# Test/debug modes
-		self.use_test_date = False
+		self.use_test_date = True
 		self.show_color_test = False
 		self.show_icon_test = False
 		
@@ -750,6 +752,11 @@ class WeatherDisplayState:
 		self.ephemeral_event_count = 0
 		self.permanent_event_count = 0
 		self.total_event_count = 0
+		
+		# Schedule session tracking (for segmented displays)
+		self.active_schedule_name = None
+		self.active_schedule_start_time = None  # monotonic time when schedule started
+		self.active_schedule_end_time = None    # monotonic time when schedule should end
 	
 	def reset_api_counters(self):
 		"""Reset API call tracking"""
@@ -1528,49 +1535,6 @@ def get_api_key():
 		log_error(f"Failed to read fallback API key: {e}")
 	
 	return None
-	
-def fetch_weather_for_schedule():
-	"""Simplified weather fetch for scheduled displays - single attempt, no retries"""
-	try:
-		# Check if fetching is enabled
-		if not display_config.should_fetch_weather():
-			return None
-		
-		# Get API key
-		api_key = get_api_key()
-		if not api_key:
-			return None
-		
-		# Get session (don't create new one, use existing)
-		session = get_requests_session()
-		if not session:
-			return None
-		
-		# Build URL
-		url = f"{API.BASE_URL}/{API.CURRENT_ENDPOINT}/{os.getenv(Strings.API_LOCATION_KEY)}?apikey={api_key}&details=true"
-		
-		# Single attempt - no retries
-		response = session.get(url, timeout=10)
-		
-		if response.status_code == 200:
-			current_json = response.json()
-			current = current_json[0]
-			
-			# Extract only what we need for schedule display
-			temp_data = current.get("Temperature", {}).get("Metric", {})
-			realfeel_data = current.get("RealFeelTemperature", {}).get("Metric", {})
-			
-			return {
-				"temperature": temp_data.get("Value", 0),
-				"feels_like": realfeel_data.get("Value", 0)
-			}
-		else:
-			log_debug(f"Schedule weather refresh: HTTP {response.status_code}")
-			return None
-		
-	except Exception as e:
-		log_debug(f"Schedule weather refresh failed: {e}")
-		return None
 	
 def get_current_error_state():
 	"""Determine current error state based on system status"""
@@ -2981,32 +2945,89 @@ def update_progress_bar_bitmap(progress_bitmap, elapsed_seconds, total_seconds):
 				progress_bitmap[x, y] = 1  # Elapsed (LILAC)
 			else:
 				progress_bitmap[x, y] = 2  # Remaining (MINT)
+		
+def get_schedule_progress():
+	"""
+	Calculate progress for active schedule session
+	Returns: (elapsed_seconds, total_duration, progress_ratio) or (None, None, None)
+	"""
+	if not state.active_schedule_name or not state.active_schedule_start_time:
+		return None, None, None
 	
-def show_scheduled_display(rtc, schedule_name, schedule_config, duration, current_data=None):
-	"""Display scheduled message with live weather and clock"""
-	log_info(f"Showing scheduled display: {schedule_name}")
+	current_time = time.monotonic()
 	
-	# CRITICAL: Clean up any stale sockets before starting
-	log_debug("Pre-schedule socket cleanup")
-	cleanup_global_session()
-	cleanup_sockets()
+	# Check if schedule has expired
+	if state.active_schedule_end_time and current_time >= state.active_schedule_end_time:
+		# Schedule is over - clear session
+		log_debug(f"Schedule session ended: {state.active_schedule_name}")
+		state.active_schedule_name = None
+		state.active_schedule_start_time = None
+		state.active_schedule_end_time = None
+		return None, None, None
+	
+	elapsed = current_time - state.active_schedule_start_time
+	total_duration = state.active_schedule_end_time - state.active_schedule_start_time
+	progress_ratio = elapsed / total_duration if total_duration > 0 else 0
+	
+	return elapsed, total_duration, progress_ratio
+
+def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, current_data=None):
+	"""
+	Display scheduled message for one segment (max 5 minutes)
+	Supports multi-segment schedules by tracking overall progress
+	"""
+	
+	# Calculate how long this segment should display
+	elapsed, full_duration, progress = get_schedule_progress()
+	
+	if elapsed is None:
+		# First segment of schedule - initialize session
+		state.active_schedule_name = schedule_name
+		state.active_schedule_start_time = time.monotonic()
+		state.active_schedule_end_time = state.active_schedule_start_time + total_duration
+		elapsed = 0
+		full_duration = total_duration
+		progress = 0
+		
+		log_info(f"Starting schedule session: {schedule_name} ({total_duration}s total)")
+	
+	else:
+		log_debug(f"Continuing schedule: {schedule_name} (elapsed: {elapsed:.0f}s / {full_duration:.0f}s)")
+	
+	# This segment duration: min(5 minutes, remaining time)
+	remaining = full_duration - elapsed
+	segment_duration = min(300, remaining)
+	
+	log_debug(f"Segment duration: {segment_duration}s (remaining: {remaining:.0f}s)")
+	
+	# Light cleanup before segment (keep session alive for connection reuse)
 	gc.collect()
-	
 	clear_display()
-	gc.collect()
 	
 	try:
-		# Fetch weather data if not provided
+		# Fetch weather if not provided
 		if not current_data:
-			# Fetch current weather data only
 			current_data = fetch_current_weather_only()
 		
 		if not current_data:
-			log_warning("No weather data for scheduled display")
-			show_clock_display(rtc, duration)
-			return
+			log_warning("No weather data for scheduled display segment")
+			# For continuation segments, we could continue without weather
+			# But for first segment, we need weather data
+			if elapsed == 0:
+				# First segment needs weather - show clock instead
+				log_warning("Cannot start schedule without weather - showing clock")
+				show_clock_display(rtc, segment_duration)
+				return
+			else:
+				# Continuation segment - use placeholder weather
+				log_debug("Continuing schedule with placeholder weather")
+				current_data = {
+					'feels_like': 0,
+					'weather_icon': 45,  # Default icon
+					'uv_index': 0
+				}
 		
-		# Extract initial weather data
+		# Extract weather data
 		temperature = f"{round(current_data['feels_like'])}°"
 		weather_icon = f"{current_data['weather_icon']}.bmp"
 		uv_index = current_data['uv_index']
@@ -3025,46 +3046,38 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, duration, curren
 					)
 					state.main_group.append(uv_pixel)
 		
-		# Vertical offset for elements when UV bar present
 		y_offset = Layout.SCHEDULE_X_OFFSET if uv_index > 0 else 0
 		
-		# Weather icon (left column)
+		# Load images
 		try:
 			bitmap, palette = state.image_cache.get_image(f"{Paths.COLUMN_IMAGES}/{weather_icon}")
 			weather_img = displayio.TileGrid(bitmap, pixel_shader=palette)
 			weather_img.x = Layout.SCHEDULE_LEFT_MARGIN_X
 			weather_img.y = Layout.SCHEDULE_W_IMAGE_Y + y_offset
 		except Exception as e:
-			log_error(f"Failed to load weather icon {weather_icon}: {e}")
+			log_error(f"Failed to load weather icon: {e}")
 			state.scheduled_display_error_count += 1
-			
 			if state.scheduled_display_error_count >= 3:
-				log_error("Disabling scheduled displays due to repeated errors")
 				display_config.show_scheduled_displays = False
-			
-			show_clock_display(rtc, duration)
+			show_clock_display(rtc, segment_duration)
 			return
-			
+		
 		try:
 			bitmap, palette = load_bmp_image(f"{Paths.SCHEDULE_IMAGES}/{schedule_config['image']}")
 			schedule_img = displayio.TileGrid(bitmap, pixel_shader=palette)
 			schedule_img.x = Layout.SCHEDULE_IMAGE_X
 			schedule_img.y = Layout.SCHEDULE_IMAGE_Y
 		except Exception as e:
-			log_error(f"Failed to load schedule image {schedule_config['image']}: {e}")
+			log_error(f"Failed to load schedule image: {e}")
 			state.scheduled_display_error_count += 1
-			
 			if state.scheduled_display_error_count >= 3:
-				log_error("Disabling scheduled displays due to repeated errors")
 				display_config.show_scheduled_displays = False
-			
-			show_clock_display(rtc, duration)
+			show_clock_display(rtc, segment_duration)
 			return
 		
-		# Success - reset error counter
 		state.scheduled_display_error_count = 0
 		
-		# Time label (updates in loop)
+		# Labels
 		time_label = bitmap_label.Label(
 			font,
 			color=state.colors["DIMMEST_WHITE"],
@@ -3072,7 +3085,6 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, duration, curren
 			y=Layout.FORECAST_TIME_Y
 		)
 		
-		# Temperature label (static)
 		temp_label = bitmap_label.Label(
 			font,
 			color=state.colors["DIMMEST_WHITE"],
@@ -3081,7 +3093,7 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, duration, curren
 			y=Layout.SCHEDULE_TEMP_Y + y_offset
 		)
 		
-		# Add all elements
+		# Add elements
 		state.main_group.append(weather_img)
 		state.main_group.append(schedule_img)
 		state.main_group.append(time_label)
@@ -3090,17 +3102,20 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, duration, curren
 		if display_config.show_weekday_indicator:
 			add_day_indicator(state.main_group, rtc)
 		
-		# Reset failure tracking on successful initial weather fetch
+		# Update success tracking
 		if current_data:
 			state.last_successful_weather = time.monotonic()
 			state.consecutive_failures = 0
 		
-		# Track number of static elements (everything before progress bar)
-		static_elements_count = len(state.main_group)
-		
-		# Create progress bar TileGrid ONLY if enabled for this schedule
-		if schedule_config.get("progressbar", True):  # Default to True if key doesn't exist
+		## Progress bar - based on FULL schedule progress, not segment
+		if schedule_config.get("progressbar", True):
 			progress_grid, progress_bitmap = create_progress_bar_tilegrid()
+			
+			# Pre-fill progress bar based on elapsed time using existing function
+			if progress > 0:
+				update_progress_bar_bitmap(progress_bitmap, elapsed, full_duration)
+				log_debug(f"Pre-filled progress bar to {progress*100:.0f}%")
+			
 			state.main_group.append(progress_grid)
 			show_progress_bar = True
 		else:
@@ -3108,70 +3123,52 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, duration, curren
 			progress_bitmap = None
 			show_progress_bar = False
 		
-		# Display loop with live clock, weather refresh, and progress bar
-		start_time = time.monotonic()
+		# Display loop - simplified, no weather refresh within segment
+		segment_start = time.monotonic()
 		last_minute = -1
-		last_weather_update = start_time
-		last_gc = start_time
-		last_displayed_column = -1  # Track which column was last updated
+		last_displayed_column = -1
 		
-		while time.monotonic() - start_time < duration:
+		# Adaptive sleep for smooth updates
+		sleep_interval = max(1, min(segment_duration / 60, 5))  # 1-5 seconds
+		
+		while time.monotonic() - segment_start < segment_duration:
 			current_minute = rtc.datetime.tm_min
 			current_time = time.monotonic()
-			elapsed = current_time - start_time
 			
-			# Calculate current column for progress bar
-			elapsed_ratio = elapsed / duration
-			current_column = int(Layout.PROGRESS_BAR_HORIZONTAL_WIDTH * (elapsed_ratio))
+			# Calculate OVERALL progress (from schedule start, not segment start)
+			overall_elapsed = elapsed + (current_time - segment_start)
+			overall_progress = overall_elapsed / full_duration
+			current_column = int(Layout.PROGRESS_BAR_HORIZONTAL_WIDTH * overall_progress)
 			
-			# Update progress bar only when column changes
-			if show_progress_bar and current_column != last_displayed_column:
-				update_progress_bar_bitmap(progress_bitmap, elapsed, duration)
+			# Update progress bar
+			if show_progress_bar and current_column != last_displayed_column and current_column < Layout.PROGRESS_BAR_HORIZONTAL_WIDTH:
+				update_progress_bar_bitmap(progress_bitmap, overall_elapsed, full_duration)
 				last_displayed_column = current_column
 			
-			# Garbage collect every 10 minutes
-			if current_time - last_gc >= Timing.SCHEDULE_GC_INTERVAL:
-				gc.collect()
-				log_verbose("GC during scheduled display")
-				last_gc = current_time
-			
-			# Refresh weather every 5 minutes - SIMPLIFIED
-			if current_time - last_weather_update >= 300:
-				# Use simplified fetch (no retries, minimal stack)
-				fresh_data = fetch_weather_for_schedule()
-				
-				if fresh_data:
-					temp_label.text = f"{round(fresh_data['feels_like'])}°"
-					log_debug("Schedule weather updated")
-				
-				# ALWAYS update timer - prevents retry loops
-				last_weather_update = current_time
-			
-			# Update time when minute changes
+			# Update clock
 			if current_minute != last_minute:
 				hour = rtc.datetime.tm_hour
 				display_hour = hour % System.HOURS_IN_HALF_DAY or System.HOURS_IN_HALF_DAY
-				
 				time_label.text = f"{display_hour}:{current_minute:02d}"
 				last_minute = current_minute
 			
-			interruptible_sleep(1)
-			
+			time.sleep(sleep_interval)
+		
+		log_debug(f"Segment complete")
+		
 	except Exception as e:
-		log_error(f"Scheduled display error: {e}")
-		show_clock_display(rtc, duration)
+		log_error(f"Scheduled display segment error: {e}")
+		
+		# CRITICAL: Add delay to prevent runaway loops on errors
+		# If segment_duration is very small or 0, use minimum 30 seconds
+		safe_duration = max(30, segment_duration)
+		log_warning(f"Showing clock for {safe_duration}s due to error")
+		show_clock_display(rtc, safe_duration)
 	
-	# Reset failure timer when exiting schedule IF we had at least one success
-	# This prevents triggering extended failure mode between consecutive schedules
-	if state.consecutive_failures == 0:
-		state.last_successful_weather = time.monotonic()
-	
-	# CRITICAL: Clean up sockets after long display
-	log_debug("Cleaning up sockets after scheduled display")
-	cleanup_global_session()
-	cleanup_sockets()
-	gc.collect()
-	
+	finally:
+		# Cleanup after segment
+		gc.collect()
+
 ### SYSTEM MANAGEMENT ###
 
 def check_daily_reset(rtc):
@@ -3420,23 +3417,36 @@ def run_display_cycle(rtc, cycle_count):
 	# CHECK FOR SCHEDULED DISPLAY FIRST
 	if display_config.show_scheduled_displays:
 		schedule_name, schedule_config = scheduled_display.get_active_schedule(rtc)
+		
 		if schedule_name:
-			# Fetch only current weather (not forecast) for scheduled display
+			# Fetch weather for this segment
 			current_data = fetch_current_weather_only()
 			
-			# Reset failure timer if we got weather data
 			if current_data:
 				state.last_successful_weather = time.monotonic()
 				state.consecutive_failures = 0
 			
+			# Get remaining time for schedule
 			display_duration = get_remaining_schedule_time(rtc, schedule_config)
+			
+			# PROTECTION: Ensure minimum cycle time
+			cycle_start = time.monotonic()
+			
+			# Show ONE segment (max 5 minutes)
 			show_scheduled_display(rtc, schedule_name, schedule_config, display_duration, current_data)
 			
-			# Log cycle summary WITH API stats
+			# CRITICAL: If cycle completed too fast, something is wrong
+			cycle_elapsed = time.monotonic() - cycle_start
+			if cycle_elapsed < 10:
+				log_error(f"Schedule cycle completed suspiciously fast ({cycle_elapsed:.1f}s) - adding safety delay")
+				time.sleep(30)  # Force 30-second delay
+			
+			# Log cycle summary
 			cycle_duration = time.monotonic() - cycle_start_time
 			mem_stats = state.memory_monitor.get_memory_stats()
 			log_info(f"Cycle #{cycle_count} (SCHEDULED) complete in {cycle_duration/System.SECONDS_PER_MINUTE:.2f} min | UT: {state.memory_monitor.get_runtime()} | Mem: {mem_stats['usage_percent']:.1f}% | API: Total={state.api_call_count}/{API.MAX_CALLS_BEFORE_RESTART}, Current={state.current_api_calls}, Forecast={state.forecast_api_calls}\n")
 			return
+			
 	else:
 		log_debug("Scheduled displays disabled due to errors")
 	
