@@ -726,6 +726,7 @@ class WeatherDisplayState:
 		# Timing and cache
 		self.startup_time = 0
 		self.last_forecast_fetch = -Timing.FORECAST_UPDATE_INTERVAL
+		self.cached_current_weather = None
 		self.cached_forecast_data = None
 		self.cached_events = None
 		
@@ -1407,8 +1408,10 @@ def fetch_current_and_forecast_weather():
 					"is_day_time": current.get("IsDayTime", True),
 					"has_precipitation": current.get("HasPrecipitation", False),
 				}
-				log_verbose(f"CURRENT DATA: {current_data}")
 				
+				state.cached_current_weather = current_data  # Cache for fallback
+				
+				log_verbose(f"CURRENT DATA: {current_data}")
 				log_info(f"Weather: {current_data['weather_text']}, {current_data['feels_like']}°C")
 				
 			else:
@@ -2095,9 +2098,17 @@ def show_weather_display(rtc, duration, weather_data=None):
 	
 	# Require weather_data to be provided
 	if not weather_data:
-		log_warning("Weather unavailable, showing clock")
-		show_clock_display(rtc, duration)
-		return
+		# Try cached weather as fallback
+		if state.cached_current_weather:
+			weather_data = state.cached_current_weather
+			log_debug("Using cached current weather for weather display")
+			is_cached = True
+		else:
+			log_warning("Weather unavailable, showing clock")
+			show_clock_display(rtc, duration)
+			return
+	else:
+		is_cached = False
 	
 	log_debug(f"Displaying weather for {duration_message(duration)}")
 	
@@ -2107,7 +2118,11 @@ def show_weather_display(rtc, duration, weather_data=None):
 	# LOG what we're displaying
 	temp = round(weather_data["feels_like"])
 	condition = weather_data.get("weather_text", "Unknown")
-	log_info(f"Displaying Weather: {condition}, {temp}°C ({duration/60:.0f} min)")
+	cache_indicator = " [CACHED]" if is_cached else ""
+	log_info(f"Displaying Weather: {condition}, {temp}°C ({duration/60:.0f} min){cache_indicator}")
+	
+	# Set temperature color based on cache status
+	temp_color = state.colors["LILAC"] if is_cached else state.colors["DIMMEST_WHITE"]
 	
 	# Create all static display elements ONCE
 	temp_text = bitmap_label.Label(
@@ -2145,7 +2160,7 @@ def show_weather_display(rtc, duration, weather_data=None):
 	if feels_like_rounded != temp_rounded:
 		feels_like_text = bitmap_label.Label(
 			font,
-			color=state.colors["DIMMEST_WHITE"],
+			color=temp_color,
 			text=f"{feels_like_rounded}°",
 			y=Layout.FEELSLIKE_Y,
 			background_color=state.colors["BLACK"],
@@ -2158,7 +2173,7 @@ def show_weather_display(rtc, duration, weather_data=None):
 	if feels_shade_rounded != feels_like_rounded:
 		feels_shade_text = bitmap_label.Label(
 			font,
-			color=state.colors["DIMMEST_WHITE"],
+			color=temp_color,
 			text=f"{feels_shade_rounded}°",
 			y=Layout.FEELSLIKE_SHADE_Y,
 			background_color=state.colors["BLACK"],
@@ -3037,9 +3052,13 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 		
 		if not current_data:
 			log_warning("No weather data for scheduled display segment")
-			# For continuation segments, we could continue without weather
-			# But for first segment, we need weather data
-			if elapsed == 0:
+			
+			# Try cached current weather before giving up
+			if state.cached_current_weather:
+				log_debug("Using cached current weather as fallback")
+				current_data = state.cached_current_weather
+				is_cached = True
+			elif elapsed == 0:
 				# First segment needs weather - show clock instead
 				log_warning("Cannot start schedule without weather - showing clock")
 				show_clock_display(rtc, segment_duration)
@@ -3049,9 +3068,12 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 				log_debug("Continuing schedule with placeholder weather")
 				current_data = {
 					'feels_like': 0,
-					'weather_icon': 45,  # Default icon
+					'weather_icon': 45,
 					'uv_index': 0
 				}
+				is_cached = False
+		else:
+			is_cached = False
 		
 		# Extract weather data
 		temperature = f"{round(current_data['feels_like'])}°"
@@ -3103,6 +3125,9 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 		
 		state.scheduled_display_error_count = 0
 		
+		# Set temperature color based on cache status
+		temp_color = state.colors["LILAC"] if is_cached else state.colors["DIMMEST_WHITE"]
+		
 		# Labels
 		time_label = bitmap_label.Label(
 			font,
@@ -3113,7 +3138,7 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 		
 		temp_label = bitmap_label.Label(
 			font,
-			color=state.colors["DIMMEST_WHITE"],
+			color=temp_color,
 			text=temperature,
 			x=Layout.SCHEDULE_LEFT_MARGIN_X,
 			y=Layout.SCHEDULE_TEMP_Y + y_offset
@@ -3130,9 +3155,10 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 			log_verbose("Showing Weekday Color Indicator on Schedule Display")
 			
 		# LOG what's being displayed this segment
-		segment_num = int(elapsed / Timing.SCHEDULE_SEGMENT_DURATION) + 1  # Which segment (1, 2, 3...)
+		segment_num = int(elapsed / Timing.SCHEDULE_SEGMENT_DURATION) + 1
 		total_segments = int(full_duration / Timing.SCHEDULE_SEGMENT_DURATION) + (1 if full_duration % Timing.SCHEDULE_SEGMENT_DURATION else 0)
-		log_info(f"Displaying Schedule: {schedule_name} - Segment {segment_num}/{total_segments} ({temperature}, {segment_duration/60:.1f} min, progress: {progress*100:.0f}%)")
+		cache_indicator = " [CACHED]" if is_cached else ""
+		log_info(f"Displaying Schedule: {schedule_name} - Segment {segment_num}/{total_segments} ({temperature}, {segment_duration/60:.1f} min, progress: {progress*100:.0f}%){cache_indicator}")
 		
 		# Update success tracking
 		if current_data:
