@@ -123,10 +123,12 @@ class Timing:
 	CLOCK_DISPLAY_DURATION = 300
 	COLOR_TEST = 300
 	ICON_TEST = 5
-	SCHEDULE_WEATHER_REFRESH_INTERVAL = 300
-	LONG_SCHEDULE_WEATHER_REFRESH_INTERVAL = 600
-	SCHEDULE_REFRESH_THRESHOLD = 900
-	SCHEDULE_GC_INTERVAL = 600
+	
+	# Schedule segment constants
+	SCHEDULE_SEGMENT_DURATION = 300
+	MIN_SLEEP_INTERVAL = 1 # Minimum sleep between display updates
+	MAX_SLEEP_INTERVAL = 5 # Maximum sleep between display updates
+	
 	
 	FORECAST_UPDATE_INTERVAL = 900  # - 3 cycles
 	DAILY_RESET_HOUR = 3
@@ -140,6 +142,8 @@ class Timing:
 	WIFI_RETRY_DELAY = 2
 	
 	SLEEP_BETWEEN_ERRORS = 5
+	ERROR_SAFETY_DELAY = 30  # Delay on errors to prevent runaway loops
+	FAST_CYCLE_THRESHOLD = 10  # Cycles faster than this are suspicious
 	RESTART_DELAY = 10
 	
 	WEATHER_UPDATE_INTERVAL = 60
@@ -210,7 +214,6 @@ class Recovery:
 	SOFT_RESET_THRESHOLD = 5         # Consecutive failures before soft reset
 	HARD_RESET_THRESHOLD = 15
 	WIFI_RECONNECT_COOLDOWN = 300  # 5 minutes between WiFi reconnection attempts
-	EXTENDED_FAILURE_THRESHOLD = 3600
 	
 ## Memory Management
 class Memory:
@@ -1257,8 +1260,23 @@ def fetch_weather_with_retries(url, max_retries=None, context="API"):
 				
 			elif response.status_code == API.HTTP_NOT_FOUND:
 				log_error(f"{context}: Not found (404) - check location key")
-				state.has_permanent_error = True  # Mark as permanent error
+				state.has_permanent_error = True
 				return None
+			
+			elif response.status_code == API.HTTP_BAD_REQUEST:
+				log_error(f"{context}: Bad request (400) - check URL/parameters")
+				state.has_permanent_error = True
+				return None
+			
+			elif response.status_code == API.HTTP_FORBIDDEN:
+				log_error(f"{context}: Forbidden (403) - API key lacks permissions")
+				state.has_permanent_error = True
+				return None
+			
+			elif response.status_code == API.HTTP_INTERNAL_SERVER_ERROR:
+				log_warning(f"{context}: Server error (500) - AccuWeather issue")
+				last_error = "Server error (500)"
+				# Will retry below
 				
 			else:
 				log_error(f"{context}: HTTP {response.status_code}")
@@ -3004,7 +3022,7 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 	
 	# This segment duration: min(5 minutes, remaining time)
 	remaining = full_duration - elapsed
-	segment_duration = min(300, remaining)
+	segment_duration = min(Timing.SCHEDULE_SEGMENT_DURATION, remaining)
 	
 	log_debug(f"Segment duration: {segment_duration}s (remaining: {remaining:.0f}s)")
 	
@@ -3109,10 +3127,11 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 		
 		if display_config.show_weekday_indicator:
 			add_day_indicator(state.main_group, rtc)
+			log_verbose("Showing Weekday Color Indicator on Schedule Display")
 			
 		# LOG what's being displayed this segment
-		segment_num = int(elapsed / 300) + 1  # Which segment (1, 2, 3...)
-		total_segments = int(full_duration / 300) + (1 if full_duration % 300 else 0)
+		segment_num = int(elapsed / Timing.SCHEDULE_SEGMENT_DURATION) + 1  # Which segment (1, 2, 3...)
+		total_segments = int(full_duration / Timing.SCHEDULE_SEGMENT_DURATION) + (1 if full_duration % Timing.SCHEDULE_SEGMENT_DURATION else 0)
 		log_info(f"Displaying Schedule: {schedule_name} - Segment {segment_num}/{total_segments} ({temperature}, {segment_duration/60:.1f} min, progress: {progress*100:.0f}%)")
 		
 		# Update success tracking
@@ -3142,7 +3161,7 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 		last_displayed_column = -1
 		
 		# Adaptive sleep for smooth updates
-		sleep_interval = max(1, min(segment_duration / 60, 5))  # 1-5 seconds
+		sleep_interval = max(Timing.MIN_SLEEP_INTERVAL, min(segment_duration / 60, Timing.MAX_SLEEP_INTERVAL))  # 1-5 seconds
 		
 		while time.monotonic() - segment_start < segment_duration:
 			current_minute = rtc.datetime.tm_min
@@ -3174,7 +3193,7 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 		
 		# CRITICAL: Add delay to prevent runaway loops on errors
 		# If segment_duration is very small or 0, use minimum 30 seconds
-		safe_duration = max(30, segment_duration)
+		safe_duration = max(Timing.ERROR_SAFETY_DELAY, segment_duration)
 		log_warning(f"Showing clock for {safe_duration}s due to error")
 		show_clock_display(rtc, safe_duration)
 	
@@ -3389,7 +3408,7 @@ def run_display_cycle(rtc, cycle_count):
 		time_since_startup = time.monotonic() - state.startup_time
 		avg_cycle_time = time_since_startup / cycle_count
 		
-		if avg_cycle_time < 10 and cycle_count > 10:
+		if avg_cycle_time < Timing.FAST_CYCLE_THRESHOLD and cycle_count > 10:
 			log_error(f"Rapid cycling detected ({avg_cycle_time:.1f}s/cycle) - restarting")
 			interruptible_sleep(Timing.RESTART_DELAY)
 			supervisor.reload()
@@ -3451,9 +3470,9 @@ def run_display_cycle(rtc, cycle_count):
 			
 			# CRITICAL: If cycle completed too fast, something is wrong
 			cycle_elapsed = time.monotonic() - cycle_start
-			if cycle_elapsed < 10:
+			if cycle_elapsed < Timing.FAST_CYCLE_THRESHOLD:
 				log_error(f"Schedule cycle completed suspiciously fast ({cycle_elapsed:.1f}s) - adding safety delay")
-				time.sleep(30)  # Force 30-second delay
+				time.sleep(Timing.ERROR_SAFETY_DELAY)  # Force 30-second delay
 			
 			# Log cycle summary
 			cycle_duration = time.monotonic() - cycle_start_time
