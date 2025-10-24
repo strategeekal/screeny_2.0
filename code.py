@@ -123,6 +123,7 @@ class Timing:
 	CLOCK_DISPLAY_DURATION = 300
 	COLOR_TEST = 300
 	ICON_TEST = 5
+	MAX_CACHE_AGE = 1800
 	
 	# Schedule segment constants
 	SCHEDULE_SEGMENT_DURATION = 300
@@ -727,6 +728,7 @@ class WeatherDisplayState:
 		self.startup_time = 0
 		self.last_forecast_fetch = -Timing.FORECAST_UPDATE_INTERVAL
 		self.cached_current_weather = None
+		self.cached_current_weather_time = 0
 		self.cached_forecast_data = None
 		self.cached_events = None
 		
@@ -1410,6 +1412,7 @@ def fetch_current_and_forecast_weather():
 				}
 				
 				state.cached_current_weather = current_data  # Cache for fallback
+				state.cached_current_weather_time = time.monotonic()
 				
 				log_verbose(f"CURRENT DATA: {current_data}")
 				log_info(f"Weather: {current_data['weather_text']}, {current_data['feels_like']}°C")
@@ -1514,6 +1517,28 @@ def fetch_current_and_forecast_weather():
 		state.memory_monitor.check_memory("weather_fetch_error")
 		state.consecutive_failures += 1
 		return None, None
+		
+def get_cached_weather_if_fresh(max_age_seconds=Timing.MAX_CACHE_AGE):
+	"""
+	Get cached current weather if it's not too old
+	
+	Args:
+		max_age_seconds: Maximum age in seconds (default 30 minutes)
+	
+	Returns:
+		Cached weather data if fresh enough, None otherwise
+	"""
+	if not state.cached_current_weather:
+		return None
+	
+	age = time.monotonic() - state.cached_current_weather_time
+	
+	if age <= max_age_seconds:
+		log_debug(f"Cache is {int(age/60)} minutes old (acceptable)")
+		return state.cached_current_weather
+	else:
+		log_debug(f"Cache is {int(age/60)} minutes old (too stale, discarding)")
+		return None
 		
 def fetch_current_weather_only():
 	"""Fetch only current weather (not forecast)"""
@@ -2098,9 +2123,10 @@ def show_weather_display(rtc, duration, weather_data=None):
 	
 	# Require weather_data to be provided
 	if not weather_data:
-		# Try cached weather as fallback
-		if state.cached_current_weather:
-			weather_data = state.cached_current_weather
+		# Try cached weather as fallback (max 30 min old)
+		weather_data = get_cached_weather_if_fresh(max_age_seconds=Timing.MAX_CACHE_AGE)
+		
+		if weather_data:
 			log_debug("Using cached current weather for weather display")
 			is_cached = True
 		else:
@@ -2127,7 +2153,7 @@ def show_weather_display(rtc, duration, weather_data=None):
 	# Create all static display elements ONCE
 	temp_text = bitmap_label.Label(
 		bg_font,
-		color=state.colors["DIMMEST_WHITE"],
+		color=temp_color,  # ← FIXED: Use dynamic color
 		text=f"{round(weather_data['temperature'])}°",
 		x=Layout.WEATHER_TEMP_X,
 		y=Layout.WEATHER_TEMP_Y,
@@ -2160,7 +2186,7 @@ def show_weather_display(rtc, duration, weather_data=None):
 	if feels_like_rounded != temp_rounded:
 		feels_like_text = bitmap_label.Label(
 			font,
-			color=temp_color,
+			color=temp_color,  # ← Already correct
 			text=f"{feels_like_rounded}°",
 			y=Layout.FEELSLIKE_Y,
 			background_color=state.colors["BLACK"],
@@ -2173,7 +2199,7 @@ def show_weather_display(rtc, duration, weather_data=None):
 	if feels_shade_rounded != feels_like_rounded:
 		feels_shade_text = bitmap_label.Label(
 			font,
-			color=temp_color,
+			color=temp_color,  # ← Already correct
 			text=f"{feels_shade_rounded}°",
 			y=Layout.FEELSLIKE_SHADE_Y,
 			background_color=state.colors["BLACK"],
@@ -2210,20 +2236,19 @@ def show_weather_display(rtc, duration, weather_data=None):
 	else:
 		log_verbose("Weekday Color Indicator Disabled")
 	
-	
 	# Optimized display update loop - ONLY update time text
 	start_time = time.monotonic()
 	loop_count = 0
-	last_minute = -1  # Track minute changes to reduce updates
+	last_minute = -1
 	
 	while time.monotonic() - start_time < duration:
 		loop_count += 1
 		
 		# Memory monitoring and cleanup
-		if loop_count % Timing.GC_INTERVAL == 0:  # Every 60 seconds
+		if loop_count % Timing.GC_INTERVAL == 0:
 			gc.collect()
 			state.memory_monitor.check_memory(f"weather_display_gc_{loop_count//System.SECONDS_PER_MINUTE}")
-		elif loop_count % Timing.MEMORY_CHECK_INTERVAL == 0:  # Every 30 seconds, just check
+		elif loop_count % Timing.MEMORY_CHECK_INTERVAL == 0:
 			state.memory_monitor.check_memory(f"weather_display_loop_{loop_count}")
 		
 		# Get current time
@@ -2249,7 +2274,7 @@ def show_weather_display(rtc, duration, weather_data=None):
 		interruptible_sleep(1)
 	
 	state.memory_monitor.check_memory("weather_display_complete")
-
+				
 def show_clock_display(rtc, duration=Timing.CLOCK_DISPLAY_DURATION):
 	"""Display clock as fallback when weather unavailable"""
 	log_warning(f"Displaying clock for {duration_message(duration)}...")
@@ -3053,10 +3078,11 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 		if not current_data:
 			log_warning("No weather data for scheduled display segment")
 			
-			# Try cached current weather before giving up
-			if state.cached_current_weather:
+			# Try cached current weather before giving up (max 30 min old)
+			current_data = get_cached_weather_if_fresh(max_age_seconds=Timing.MAX_CACHE_AGE)
+			
+			if current_data:
 				log_debug("Using cached current weather as fallback")
-				current_data = state.cached_current_weather
 				is_cached = True
 			elif elapsed == 0:
 				# First segment needs weather - show clock instead
