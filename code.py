@@ -1642,6 +1642,17 @@ def get_today_events_info(rtc):
 	active_events = [event for event in events[month_day] if is_event_active(event, current_hour)]
 	
 	return len(active_events), active_events
+	
+def get_today_all_events_info(rtc):
+	"""Get ALL events for today (not filtered by time)"""
+	month_day = f"{rtc.datetime.tm_mon:02d}{rtc.datetime.tm_mday:02d}"
+	events = get_events()
+	
+	if month_day not in events:
+		return 0, []
+	
+	# Return all events without time filtering
+	return len(events[month_day]), events[month_day]
 
 ### DISPLAY UTILITIES ###
 
@@ -1760,8 +1771,9 @@ def load_events_from_csv():
 						color = parts[4] if len(parts) > 4 else Strings.DEFAULT_EVENT_COLOR
 						
 						# Optional time window (24-hour format)
-						start_hour = int(parts[5]) if len(parts) > 5 else Timing.EVENT_ALL_DAY_START
-						end_hour = int(parts[6]) if len(parts) > 6 else Timing.EVENT_ALL_DAY_END
+						# Check if fields exist AND are not empty
+						start_hour = int(parts[5]) if len(parts) > 5 and parts[5].strip() else Timing.EVENT_ALL_DAY_START
+						end_hour = int(parts[6]) if len(parts) > 6 and parts[6].strip() else Timing.EVENT_ALL_DAY_END
 						
 						date_key = date.replace("-", "")
 						
@@ -1829,8 +1841,9 @@ def fetch_ephemeral_events():
 						color = parts[4] if len(parts) > 4 else Strings.DEFAULT_EVENT_COLOR
 						
 						# Optional time window
-						start_hour = int(parts[5]) if len(parts) > 5 else Timing.EVENT_ALL_DAY_START
-						end_hour = int(parts[6]) if len(parts) > 6 else Timing.EVENT_ALL_DAY_END
+						# Check if fields exist AND are not empty
+						start_hour = int(parts[5]) if len(parts) > 5 and parts[5].strip() else Timing.EVENT_ALL_DAY_START
+						end_hour = int(parts[6]) if len(parts) > 6 and parts[6].strip() else Timing.EVENT_ALL_DAY_END
 						
 						# Parse date to check if it's in the past
 						try:
@@ -2391,10 +2404,41 @@ def show_event_display(rtc, duration):
 	"""Display special calendar events - cycles through multiple events if present"""
 	state.memory_monitor.check_memory("event_display_start")
 	
+	# Get currently active events
 	num_events, event_list = get_today_events_info(rtc)
+	
+	# Check if there are ANY events today (even if not active now)
+	total_events_today, all_today_events = get_today_all_events_info(rtc)
+	
+	if total_events_today > 0 and num_events == 0:
+		# Events exist but none are currently active
+		current_hour = rtc.datetime.tm_hour
+		
+		# Find when next event becomes active
+		next_event_time = None
+		for event in all_today_events:
+			if len(event) >= 6:  # Has time window
+				start_hour = int(event[4])
+				if start_hour > current_hour:
+					if next_event_time is None or start_hour < next_event_time:
+						next_event_time = start_hour
+		
+		if next_event_time:
+			log_verbose(f"Event inactive: {total_events_today} event(s) today, next active at {next_event_time}:00")
+		else:
+			log_verbose(f"Event inactive: {total_events_today} event(s) today, time window passed")
+		
+		return False
 	
 	if num_events == 0:
 		return False
+	
+	# Log activation for time-windowed events
+	for event in event_list:
+		if len(event) >= 6:  # Has time window
+			start_hour = event[4]
+			end_hour = event[5]
+			log_debug(f"Event active: {event[1]} {event[0]} (time window: {start_hour}:00-{end_hour}:00)")
 	
 	if num_events == 1:
 		# Single event - use full duration
@@ -3418,10 +3462,22 @@ def initialize_system(rtc):
 	
 	# Load events
 	events = get_events()
-	event_count, _ = get_today_events_info(rtc)
 	
-	if event_count == 0:
-		event_count = "No"
+	# Get total events for today (not filtered by time)
+	total_today, all_today_events = get_today_all_events_info(rtc)
+	
+	# Get currently active events (filtered by time)
+	active_now, _ = get_today_events_info(rtc)
+	
+	# Format event count message
+	if total_today == 0:
+		today_msg = "No events"
+	elif total_today == active_now:
+		# All events are currently active
+		today_msg = f"{total_today} event{'s' if total_today > 1 else ''}"
+	else:
+		# Some events inactive due to time windows
+		today_msg = f"{total_today} event{'s' if total_today > 1 else ''} ({active_now} active now)"
 	
 	# Format imported count
 	if state.ephemeral_event_count > 0:
@@ -3429,7 +3485,7 @@ def initialize_system(rtc):
 	else:
 		imported_str = ""
 	
-	log_info(f"Hardware ready | {len(scheduled_display.schedules)} schedules | {state.total_event_count} events{imported_str} | Today: {event_count}")
+	log_info(f"Hardware ready | {len(scheduled_display.schedules)} schedules | {state.total_event_count} events{imported_str} | Today: {today_msg}")
 	state.memory_monitor.check_memory("events_loaded")
 	
 	return events
