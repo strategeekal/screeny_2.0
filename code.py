@@ -159,6 +159,10 @@ class Timing:
 	EVENT_CHUNK_SIZE = 60
 	EVENT_MEMORY_MONITORING = 600 # For long events (e.g. all day)
 	
+	# Event time filtering
+	EVENT_ALL_DAY_START = 0   # All-day events start at midnight
+	EVENT_ALL_DAY_END = 24    # All-day events end at midnight next day
+	
 	API_RECOVERY_RETRY_INTERVAL = 1800
 	
 # Timezone offset table
@@ -1625,16 +1629,19 @@ def should_fetch_forecast():
 	return (current_time - state.last_forecast_fetch) >= Timing.FORECAST_UPDATE_INTERVAL
 	
 def get_today_events_info(rtc):
-	"""Get information about today's events without displaying them"""
+	"""Get information about today's ACTIVE events (filtered by time)"""
 	month_day = f"{rtc.datetime.tm_mon:02d}{rtc.datetime.tm_mday:02d}"
 	events = get_events()
 	
 	if month_day not in events:
 		return 0, []
 	
-	event_list = events[month_day]
-	return len(event_list), event_list
-
+	current_hour = rtc.datetime.tm_hour
+	
+	# Filter events by current time
+	active_events = [event for event in events[month_day] if is_event_active(event, current_hour)]
+	
+	return len(active_events), active_events
 
 ### DISPLAY UTILITIES ###
 
@@ -1736,34 +1743,39 @@ def get_font_metrics(font, text="Aygjpq"):
 		return 8, 2
 
 def load_events_from_csv():
-	"""Load events from CSV file - supports multiple events per day"""
+	"""Load events from CSV file - supports multiple events per day with optional time windows"""
 	events = {}
 	try:
 		log_verbose(f"Loading events from {Paths.EVENTS_CSV}...")
 		with open(Paths.EVENTS_CSV, "r") as f:
-			for line in f:  # Just remove line_count completely
+			for line in f:
 				line = line.strip()
 				if line and not line.startswith("#"):
 					parts = [part.strip() for part in line.split(",")]
 					if len(parts) >= 4:
 						date = parts[0]
-						line1 = parts[1]
-						line2 = parts[2]
+						top_line = parts[1]      # Shows on TOP
+						bottom_line = parts[2]   # Shows on BOTTOM
 						image = parts[3]
 						color = parts[4] if len(parts) > 4 else Strings.DEFAULT_EVENT_COLOR
+						
+						# Optional time window (24-hour format)
+						start_hour = int(parts[5]) if len(parts) > 5 else Timing.EVENT_ALL_DAY_START
+						end_hour = int(parts[6]) if len(parts) > 6 else Timing.EVENT_ALL_DAY_END
 						
 						date_key = date.replace("-", "")
 						
 						if date_key not in events:
 							events[date_key] = []
-						events[date_key].append([line1, line2, image, color])
+						
+						# Store as: [top_line, bottom_line, image, color, start_hour, end_hour]
+						events[date_key].append([top_line, bottom_line, image, color, start_hour, end_hour])
 			
 			return events
 			
 	except Exception as e:
 		log_warning(f"Failed to load events.csv: {e}")
 		log_warning("Using fallback hardcoded events")
-		# Return fallback events as lists
 		return {}
 
 def fetch_ephemeral_events():
@@ -1811,10 +1823,14 @@ def fetch_ephemeral_events():
 					parts = [part.strip() for part in line.split(",")]
 					if len(parts) >= 4:
 						date = parts[0]  # YYYY-MM-DD format
-						line1 = parts[1]
-						line2 = parts[2]
+						top_line = parts[1]      # Shows on TOP
+						bottom_line = parts[2]   # Shows on BOTTOM
 						image = parts[3]
 						color = parts[4] if len(parts) > 4 else Strings.DEFAULT_EVENT_COLOR
+						
+						# Optional time window
+						start_hour = int(parts[5]) if len(parts) > 5 else Timing.EVENT_ALL_DAY_START
+						end_hour = int(parts[6]) if len(parts) > 6 else Timing.EVENT_ALL_DAY_END
 						
 						# Parse date to check if it's in the past
 						try:
@@ -1829,7 +1845,7 @@ def fetch_ephemeral_events():
 									(event_year == today_year and event_month < today_month) or
 									(event_year == today_year and event_month == today_month and event_day < today_day)):
 									skipped_count += 1
-									log_verbose(f"Skipping past event: {date} - {line1} {line2}")
+									log_verbose(f"Skipping past event: {date} - {top_line} {bottom_line}")
 									continue
 								
 								# Convert YYYY-MM-DD to MMDD for lookup
@@ -1837,7 +1853,9 @@ def fetch_ephemeral_events():
 								
 								if date_key not in events:
 									events[date_key] = []
-								events[date_key].append([line1, line2, image, color])
+								
+								# Store with time window
+								events[date_key].append([top_line, bottom_line, image, color, start_hour, end_hour])
 						except (ValueError, IndexError):
 							log_warning(f"Invalid date format in ephemeral events: {date}")
 							continue
@@ -1889,6 +1907,32 @@ def load_all_events():
 	log_debug(f"Events: {permanent_count} permanent + {ephemeral_count} imported = {total_dates} dates, {total_event_count} total events")
 	
 	return all_events
+	
+def is_event_active(event_data, current_hour):
+	"""
+	Check if event should be displayed at current hour
+	
+	Args:
+		event_data: [top_line, bottom_line, image, color, start_hour, end_hour]
+		current_hour: Current hour (0-23)
+	
+	Returns:
+		True if event is active, False otherwise
+	"""
+	# Check if event has time data (6 elements)
+	if len(event_data) < 6:
+		# Old format or missing times - treat as all-day
+		return True
+	
+	start_hour = event_data[4]
+	end_hour = event_data[5]
+	
+	# All-day event
+	if start_hour == Timing.EVENT_ALL_DAY_START and end_hour == Timing.EVENT_ALL_DAY_END:
+		return True
+	
+	# Check if current hour is within window
+	return start_hour <= current_hour < end_hour
 
 def get_events():
 	"""Get cached events - loads from both sources only once"""
@@ -2372,7 +2416,7 @@ def show_event_display(rtc, duration):
 	return True
 
 def _display_single_event_optimized(event_data, rtc, duration):
-	"""Optimized helper function to display a single event - optimized for typical 30-second events"""
+	"""Optimized helper function to display a single event"""
 	clear_display()
 	
 	# Force garbage collection before loading images
@@ -2380,7 +2424,7 @@ def _display_single_event_optimized(event_data, rtc, duration):
 	state.memory_monitor.check_memory("single_event_start")
 	
 	try:
-		if event_data[1] == "Birthday":
+		if event_data[0] == "Birthday":  # Check bottom_line (was line1)
 			# For birthday events, use the original cake image layout
 			bitmap, palette = state.image_cache.get_image(Paths.BIRTHDAY_IMAGE)
 			image_grid = displayio.TileGrid(bitmap, pixel_shader=palette)
@@ -2400,8 +2444,9 @@ def _display_single_event_optimized(event_data, rtc, duration):
 			image_grid.y = Layout.EVENT_IMAGE_Y
 			
 			# Calculate optimal text positions dynamically
-			line1_text = event_data[1]  # e.g., "Cumple"
-			line2_text = event_data[0]  # e.g., "Puchis"
+			# NEW: Swapped indices - [0] is top, [1] is bottom
+			top_text = event_data[0]     # e.g., "Puchis" - shows on TOP
+			bottom_text = event_data[1]  # e.g., "Cumple" - shows on BOTTOM
 			text_color = event_data[3] if len(event_data) > 3 else Strings.DEFAULT_EVENT_COLOR
 			
 			# Color map through dictionary access:
@@ -2410,25 +2455,25 @@ def _display_single_event_optimized(event_data, rtc, duration):
 			# Get dynamic positions
 			line1_y, line2_y = calculate_bottom_aligned_positions(
 				font,
-				line1_text,
-				line2_text,
+				top_text,
+				bottom_text,
 				display_height=Display.HEIGHT,
 				bottom_margin=Layout.BOTTOM_MARGIN,
 				line_spacing=Layout.LINE_SPACING
 			)
 			
-			# Create text labels
+			# Create text labels (line1 = top, line2 = bottom)
 			text1 = bitmap_label.Label(
 				font,
 				color=state.colors["DIMMEST_WHITE"],
-				text=line1_text,
+				text=top_text,
 				x=Layout.TEXT_MARGIN, y=line1_y
 			)
 			
 			text2 = bitmap_label.Label(
 				font,
 				color=line2_color,
-				text=line2_text,
+				text=bottom_text,
 				x=Layout.TEXT_MARGIN,
 				y=line2_y
 			)
@@ -2441,10 +2486,9 @@ def _display_single_event_optimized(event_data, rtc, duration):
 			# Add day indicator
 			if display_config.show_weekday_indicator:
 				add_day_indicator(state.main_group, rtc)
-				log_debug("Showing Weekday Color Indicator on Event Display")
+				log_debug("Showing Weekday Color Indicator on Event Display")		
 		
-		
-		# Simple strategy optimized for your usage patterns
+		# Simple strategy optimized for usage patterns
 		if duration <= Timing.EVENT_CHUNK_SIZE:
 			# Most common case: 10-60 second events, just sleep
 			interruptible_sleep(duration)
