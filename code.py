@@ -2443,7 +2443,7 @@ def show_event_display(rtc, duration):
 	if num_events == 1:
 		# Single event - use full duration
 		event_data = event_list[0]
-		log_info(f"Showing event: {event_data[1]} {event_data[0]}")
+		log_info(f"Showing event: {event_data[0]} {event_data[1]}")
 		log_debug(f"Showing event display for {duration_message(duration)}")
 		_display_single_event_optimized(event_data, rtc, duration)
 	else:
