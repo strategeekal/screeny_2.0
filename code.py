@@ -288,10 +288,10 @@ class System:
 
 class TestData:
 	# Move TEST_DATE_DATA values here
-	TEST_YEAR = None
-	TEST_MONTH = None
-	TEST_DAY =  None
-	TEST_HOUR = 6
+	TEST_YEAR = 2026
+	TEST_MONTH = 01
+	TEST_DAY =  18
+	TEST_HOUR = 21
 	TEST_MINUTE = 56
 	
 	# Dummy weather values
@@ -2458,7 +2458,7 @@ def show_event_display(rtc, duration):
 		
 		for i, event_data in enumerate(event_list):
 			state.memory_monitor.check_memory(f"event_{i+1}_start")
-			log_info(f"Event {i+1}/{num_events}: {event_data[1]} {event_data[0]}")
+			log_info(f"Event {i+1}/{num_events}: {event_data[0]} {event_data[1]}")
 			_display_single_event_optimized(event_data, rtc, event_duration)
 	
 	state.memory_monitor.check_memory("event_display_complete")
