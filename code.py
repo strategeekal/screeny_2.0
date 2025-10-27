@@ -1698,6 +1698,9 @@ def convert_bmp_palette(palette):
 	converted_palette = displayio.Palette(palette_len)
 	matrix_type = detect_matrix_type()
 	
+	# Calculate bit shift based on display bit depth
+	bit_shift = 8 - Display.BIT_DEPTH  # 6-bit: shift 2, 4-bit: shift 4, 3-bit: shift 5
+	
 	for i in range(palette_len):
 		original_color = palette[i]
 		
@@ -1712,12 +1715,14 @@ def convert_bmp_palette(palette):
 			green_8bit = (original_color >> 8) & 0xFF
 			blue_8bit = original_color & 0xFF
 		
-		# Convert to 6-bit values
-		red_6bit = red_8bit >> 2
-		green_6bit = green_8bit >> 2
-		blue_6bit = blue_8bit >> 2
+		# Convert to display bit depth
+		red_bits = red_8bit >> bit_shift
+		green_bits = green_8bit >> bit_shift
+		blue_bits = blue_8bit >> bit_shift
 		
-		converted_palette[i] = (red_6bit << 16) | (green_6bit << 8) | blue_6bit
+		# Pack into color value
+		bit_depth_shift = Display.BIT_DEPTH
+		converted_palette[i] = (red_bits << (bit_depth_shift * 2)) | (green_bits << bit_depth_shift) | blue_bits
 	
 	return converted_palette
 
