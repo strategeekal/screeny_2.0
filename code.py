@@ -37,7 +37,7 @@ gc.collect()
 class Display:
 	WIDTH = 64
 	HEIGHT = 32
-	BIT_DEPTH = 6
+	BIT_DEPTH = 4
 
 ## Layout & Positioning
 
@@ -454,42 +454,82 @@ def get_remaining_schedule_time(rtc, schedule_config):
 	
 	return remaining_seconds
 
-# Base colors use standard RGB (works correctly on type2)
-_BASE_COLORS = {
-	"BLACK": 0x000000,
-	"DIMMEST_WHITE": 0x101010,
-	"MINT": 0x081608,
-	"BUGAMBILIA": 0x100010,
-	"LILAC": 0x160814,
-	"RED": 0x3F0000,
-	"GREEN": 0x003F00,
-	"BLUE": 0x00003F,
-	"ORANGE": 0x7F1F00,
-	"YELLOW": 0x3F2F00,
-	"CYAN": 0x003F3F,
-	"PURPLE": 0x080025,
-	"PINK": 0x7F1F5F,
-	"AQUA": 0x002020,
-	"WHITE": 0x3F3F3F,
-	"GRAY": 0x1F1F1F,
-}
-
-# Only correct for the non-standard type1 matrix (green↔blue swap)
-_COLOR_CORRECTIONS = {
-	"type1": {
-		# Green↔Blue swap for type1 matrix
-		"MINT": 0x080816,      # 0x081608 with green/blue swapped
-		"BUGAMBILIA": 0x101000, # 0x100010 with green/blue swapped
-		"LILAC": 0x161408,     # 0x160814 with green/blue swapped
-		"GREEN": 0x00003F,     # 0x003F00 with green/blue swapped
-		"BLUE": 0x003F00,      # 0x00003F with green/blue swapped
-		"ORANGE": 0x7F001F,    # 0x5F1F00 with green/blue swapped
-		"YELLOW": 0x3F002F,    # 0x3F3F00 with green/blue swapped
-		"PURPLE": 0x082500,    # 0x3F003F with green/blue swapped
-		"PINK": 0x7F5F1F,      # 0x3F1F5F with green/blue swapped
+class ColorManager:
+	"""Centralized color management with dynamic bit depth support"""
+	
+	# Define base colors as 8-bit RGB (0-255 range)
+	BASE_COLORS_8BIT = {
+		"BLACK": (0, 0, 0),
+		"DIMMEST_WHITE": (96, 96, 96),      # - - reduced flicker
+		"MINT": (32, 96, 48),                # 0x206030
+		"BUGAMBILIA": (64, 0, 64),           # 0x400040
+		"LILAC": (64, 32, 64),               # 0x402040
+		"RED": (204, 0, 0),                  # 0xCC0000
+		"GREEN": (0, 204, 0),                # 0x00CC00
+		"BLUE": (0, 0, 204),                 # 0x0000CC
+		"ORANGE": (204, 102, 0),             # 0xCC6600
+		"YELLOW": (204, 204, 0),             # 0xCCCC00
+		"CYAN": (0, 204, 204),               # 0x00CCCC
+		"PURPLE": (102, 0, 204),             # 0x6600CC
+		"PINK": (204, 102, 170),             # 0xCC66AA
+		"AQUA": (0, 102, 102),               # 0x006666
+		"WHITE": (204, 204, 204),            # 0xCCCCCC - bright, less flicker
+		"GRAY": (102, 102, 102),             # 0x666666
 	}
-	# type2 uses base colors as-is (no corrections needed)
-}
+	
+	@staticmethod
+	def swap_green_blue(r, g, b):
+		"""Swap green and blue channels for type1 matrix"""
+		return (r, b, g)  # Green and blue swapped
+	
+	@staticmethod
+	def quantize_channel(value_8bit, bit_depth):
+		"""Quantize an 8-bit color channel to specified bit depth"""
+		if bit_depth == 8:
+			return value_8bit
+		
+		# Calculate how many levels we have
+		max_value = (1 << bit_depth) - 1  # 2^bit_depth - 1
+		
+		# Scale from 8-bit to bit_depth
+		quantized = (value_8bit * max_value) // 255
+		
+		# Scale back to 8-bit range for display
+		return (quantized * 255) // max_value
+	
+	@staticmethod
+	def rgb_to_hex(r, g, b):
+		"""Convert RGB tuple to hex color"""
+		return (r << 16) | (g << 8) | b
+	
+	@classmethod
+	def generate_colors(cls, matrix_type, bit_depth):
+		"""
+		Generate color dictionary for specified matrix type and bit depth
+		
+		Args:
+			matrix_type: "type1" or "type2"
+			bit_depth: 3, 4, 5, or 6
+		
+		Returns:
+			Dictionary of color names to hex values
+		"""
+		colors = {}
+		
+		for name, (r, g, b) in cls.BASE_COLORS_8BIT.items():
+			# Swap channels if type1 matrix
+			if matrix_type == "type1":
+				r, g, b = cls.swap_green_blue(r, g, b)
+			
+			# Quantize to bit depth
+			r_quantized = cls.quantize_channel(r, bit_depth)
+			g_quantized = cls.quantize_channel(g, bit_depth)
+			b_quantized = cls.quantize_channel(b, bit_depth)
+			
+			# Convert to hex
+			colors[name] = cls.rgb_to_hex(r_quantized, g_quantized, b_quantized)
+		
+		return colors
 
 # System Configuration
 DAILY_RESET_ENABLED = True
@@ -1677,13 +1717,9 @@ def detect_matrix_type():
 def get_matrix_colors():
 	"""Get color constants with corrections applied"""
 	matrix_type = detect_matrix_type()
-	colors = _BASE_COLORS.copy()  # Start with base colors
+	bit_depth = Display.BIT_DEPTH
 	
-	# Apply corrections if they exist for this matrix type
-	if matrix_type in _COLOR_CORRECTIONS:
-		colors.update(_COLOR_CORRECTIONS[matrix_type])
-	
-	return colors
+	return ColorManager.generate_colors(matrix_type, bit_depth)
 
 def convert_bmp_palette(palette):
 	"""Convert BMP palette for RGB matrix display"""
@@ -1697,32 +1733,27 @@ def convert_bmp_palette(palette):
 	
 	converted_palette = displayio.Palette(palette_len)
 	matrix_type = detect_matrix_type()
-	
-	# Calculate bit shift based on display bit depth
-	bit_shift = 8 - Display.BIT_DEPTH  # 6-bit: shift 2, 4-bit: shift 4, 3-bit: shift 5
+	bit_depth = Display.BIT_DEPTH
 	
 	for i in range(palette_len):
 		original_color = palette[i]
 		
+		# Extract 8-bit RGB
+		r = (original_color >> 16) & 0xFF
+		g = (original_color >> 8) & 0xFF
+		b = original_color & 0xFF
+		
+		# Swap for type1
 		if matrix_type == "type1":
-			# BGR to RGB conversion for type1
-			red_8bit = (original_color >> 16) & 0xFF
-			blue_8bit = (original_color >> 8) & 0xFF
-			green_8bit = original_color & 0xFF
-		else:
-			# Standard RGB for type2
-			red_8bit = (original_color >> 16) & 0xFF
-			green_8bit = (original_color >> 8) & 0xFF
-			blue_8bit = original_color & 0xFF
+			r, g, b = ColorManager.swap_green_blue(r, g, b)
 		
-		# Convert to display bit depth
-		red_bits = red_8bit >> bit_shift
-		green_bits = green_8bit >> bit_shift
-		blue_bits = blue_8bit >> bit_shift
+		# Quantize to bit depth
+		r_quantized = ColorManager.quantize_channel(r, bit_depth)
+		g_quantized = ColorManager.quantize_channel(g, bit_depth)
+		b_quantized = ColorManager.quantize_channel(b, bit_depth)
 		
-		# Pack into color value
-		bit_depth_shift = Display.BIT_DEPTH
-		converted_palette[i] = (red_bits << (bit_depth_shift * 2)) | (green_bits << bit_depth_shift) | blue_bits
+		# Pack as RGB888
+		converted_palette[i] = (r_quantized << 16) | (g_quantized << 8) | b_quantized
 	
 	return converted_palette
 
