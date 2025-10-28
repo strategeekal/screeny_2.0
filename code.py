@@ -468,7 +468,7 @@ class ColorManager:
 		"GREEN": (0, 68, 0),                # 0x00CC00
 		"LIME": (0, 204, 0),                # 0x00CC00
 		"BLUE": (0, 51, 102),  # 0x003366 - 4-bit: 0, 3, 6
-		"ORANGE": (204, 102, 0),             # 0xCC6600
+		"ORANGE": (204, 80, 0),             # 0xCC6600
 		"YELLOW": (204, 204, 0),             # 0xCCCC00
 		"CYAN": (0, 204, 204),               # 0x00CCCC
 		"PURPLE": (102, 0, 204),             # 0x6600CC
@@ -2756,82 +2756,57 @@ def _display_icon_batch(icon_numbers, batch_num=None, total_batches=None, manual
 def show_forecast_display(current_data, forecast_data, display_duration, is_fresh=False):
 	"""Optimized forecast display with smart precipitation detection"""
 	
+	# CRITICAL: Aggressive cleanup
+	clear_display()
+	gc.collect()
+	state.memory_monitor.check_memory("forecast_display_start")
+	
 	# Check if we have real data
 	if not current_data or not forecast_data or len(forecast_data) < 2:
 		log_warning(f"Skipping forecast display - insufficient data")
 		return False
 	
-	# Analyze forecast for precipitation changes
+	# FLATTENED precipitation analysis (same logic, less stack depth)
 	current_has_precip = current_data.get('has_precipitation', False)
-	forecast_indices = None
+	forecast_indices = [0, 1]  # Default
 	
-	# DEBUG: Log what we're checking
-	log_verbose(f"Analyzing precipitation - Current: {current_has_precip}")
-	for i, hour in enumerate(forecast_data):
-		log_verbose(f"  Hour {i}: has_precip={hour.get('has_precipitation')}, temp={hour.get('temperature')}")
+	# Pre-extract precipitation flags (avoid nested access)
+	precip_flags = [h.get('has_precipitation', False) for h in forecast_data[:6]]
 	
-	if not current_has_precip:
-		# No current precipitation - look for when it starts
-		rain_start_idx = None
-		rain_stop_idx = None
-		
-		for i, hour in enumerate(forecast_data):
-			if hour.get('has_precipitation', False):
-				if rain_start_idx is None:
-					rain_start_idx = i  # First hour with rain
-			else:  # No precipitation in this hour
-				if rain_start_idx is not None and rain_stop_idx is None:
-					rain_stop_idx = i  # First hour after rain stops
-					break
-		
-		if rain_start_idx is not None:
-			if rain_stop_idx is not None:
-				# Show: current, rain start, rain stop
-				forecast_indices = [rain_start_idx, rain_stop_idx]
-				log_debug(f"Precipitation forecast: starts at hour {rain_start_idx+1}, stops at hour {rain_stop_idx+1}")
-			else:
-				# Rain starts but doesn't stop in 12 hours
-				if rain_start_idx >= len(forecast_data) - 1:
-					# Rain is in last hour - show previous hour and rain hour
-					forecast_indices = [max(0, rain_start_idx - 1), rain_start_idx]
-					log_debug(f"Precipitation in last hour {rain_start_idx+1}, showing hour before")
-				else:
-					# Show rain start and next hour
-					forecast_indices = [rain_start_idx, rain_start_idx + 1]
-					log_debug(f"Precipitation starts at hour {rain_start_idx+1}, continues beyond forecast")
+	if current_has_precip:
+		# Currently raining - find when it stops
+		for i in range(len(precip_flags)):
+			if not precip_flags[i]:
+				forecast_indices = [i, min(i + 1, len(forecast_data) - 1)]
+				log_debug(f"Rain stops at hour {i+1}")
+				break
 	else:
-		# Currently raining - look for when it stops
-		rain_stop_idx = None
+		# Not raining - find when it starts
+		rain_start = -1
+		rain_stop = -1
 		
-		for i, hour in enumerate(forecast_data):
-			if not hour.get('has_precipitation', False):
-				rain_stop_idx = i
+		for i in range(len(precip_flags)):
+			if precip_flags[i] and rain_start == -1:
+				rain_start = i
+			elif not precip_flags[i] and rain_start != -1 and rain_stop == -1:
+				rain_stop = i
 				break
 		
-		if rain_stop_idx is not None:
-			# Show: current, rain stop, next hour after stop
-			forecast_indices = [rain_stop_idx, min(rain_stop_idx + 1, len(forecast_data) - 1)]
-			log_debug(f"Currently raining, stops at hour {rain_stop_idx+1}")
-		else:
-			# Rain continues - show next 2 hours
-			forecast_indices = [0, 1]
-			log_debug("Rain continues throughout forecast period")
+		if rain_start != -1:
+			if rain_stop != -1:
+				forecast_indices = [rain_start, rain_stop]
+				log_debug(f"Rain: hour {rain_start+1} to {rain_stop+1}")
+			else:
+				forecast_indices = [rain_start, min(rain_start + 1, len(forecast_data) - 1)]
+				log_debug(f"Rain starts at hour {rain_start+1}")
 	
-	# Fallback to normal behavior if no precipitation found
-	if forecast_indices is None:
-		forecast_indices = [0, 1]
-		log_debug("No precipitation, normal forecast display")
-	
-	# NOW check for duplicate hour right before displaying
+	# Simple duplicate hour check
 	current_hour = state.rtc_instance.datetime.tm_hour
-	forecast_hour_0 = int(forecast_data[forecast_indices[0]]['datetime'][11:13]) % System.HOURS_IN_DAY
+	first_forecast_hour = int(forecast_data[forecast_indices[0]]['datetime'][11:13]) % 24
 	
-	# If the selected forecast hour matches current hour, shift indices forward
-	if forecast_hour_0 == current_hour and forecast_indices[0] == 0:
-		# Only shift if we're showing the sequential hours [0,1]
-		if len(forecast_data) >= 3:
-			forecast_indices = [1, 2]
-			log_debug(f"Adjusted indices to skip duplicate hour {current_hour}")
+	if first_forecast_hour == current_hour and forecast_indices[0] == 0 and len(forecast_data) >= 3:
+		forecast_indices = [1, 2]
+		log_debug(f"Adjusted to skip duplicate hour {current_hour}")
 	
 	log_debug(f"Will show hours: {forecast_indices[0]+1} and {forecast_indices[1]+1}")
 	
