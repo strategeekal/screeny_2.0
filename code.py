@@ -288,11 +288,11 @@ class System:
 
 class TestData:
 	# Move TEST_DATE_DATA values here
-	TEST_YEAR = 2026
-	TEST_MONTH = 01
-	TEST_DAY =  18
-	TEST_HOUR = 21
-	TEST_MINUTE = 56
+	TEST_YEAR = 2025
+	TEST_MONTH = 10
+	TEST_DAY =  31
+	TEST_HOUR = 18
+	TEST_MINUTE = 34
 	
 	# Dummy weather values
 	DUMMY_WEATHER_DATA = {
@@ -461,12 +461,13 @@ class ColorManager:
 	BASE_COLORS_8BIT = {
 		"BLACK": (0, 0, 0),
 		"DIMMEST_WHITE": (96, 96, 96),      # - - reduced flicker
-		"MINT": (32, 96, 48),                # 0x206030
+		"MINT": (40, 140, 60),              
 		"BUGAMBILIA": (64, 0, 64),           # 0x400040
 		"LILAC": (64, 32, 64),               # 0x402040
 		"RED": (204, 0, 0),                  # 0xCC0000
-		"GREEN": (0, 204, 0),                # 0x00CC00
-		"BLUE": (0, 0, 204),                 # 0x0000CC
+		"GREEN": (0, 68, 0),                # 0x00CC00
+		"LIME": (0, 204, 0),                # 0x00CC00
+		"BLUE": (0, 51, 102),  # 0x003366 - 4-bit: 0, 3, 6
 		"ORANGE": (204, 102, 0),             # 0xCC6600
 		"YELLOW": (204, 204, 0),             # 0xCCCC00
 		"CYAN": (0, 204, 204),               # 0x00CCCC
@@ -475,6 +476,9 @@ class ColorManager:
 		"AQUA": (0, 102, 102),               # 0x006666
 		"WHITE": (204, 204, 204),            # 0xCCCCCC - bright, less flicker
 		"GRAY": (102, 102, 102),             # 0x666666
+		"DARK_GRAY": (32, 32, 32),        #Flickers
+		"BEIGE": (136, 85, 34),  # 0x885522 - 4-bit: 8, 5, 2
+		"BROWN": (51, 17, 0),  # 0x331100 - 4-bit: 3, 1, 0
 	}
 	
 	@staticmethod
@@ -2604,7 +2608,7 @@ def show_color_test_display(duration=Timing.COLOR_TEST):
 	try:
 		# Get test colors dynamically from COLORS dictionary
 		test_color_names = ["MINT", "BUGAMBILIA", "LILAC", "RED", "GREEN", "BLUE",
-						   "ORANGE", "YELLOW", "CYAN", "PURPLE", "PINK", "AQUA"]
+						   "ORANGE", "YELLOW", "CYAN", "PURPLE", "PINK", "BROWN"]
 		texts = ["Aa", "Bb", "Cc", "Dd", "Ee", "Ff", "Gg", "Hh", "Ii", "Jj", "Kk", "Ll"]
 		
 		key_text = "Color Key: "
