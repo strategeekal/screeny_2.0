@@ -2110,7 +2110,7 @@ def parse_schedule_csv_content(csv_content, rtc):
 				progressbar = parts[8] == "1"
 				
 				# Convert days string to list of day numbers (0=Mon, 6=Sun)
-				days = [int(d) - 1 for d in days_str if d.isdigit()]
+				days = [int(d) for d in days_str if d.isdigit()]
 				
 				schedules[name] = {
 					"enabled": enabled,
