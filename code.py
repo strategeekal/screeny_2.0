@@ -293,11 +293,11 @@ class System:
 
 class TestData:
 	# Move TEST_DATE_DATA values here
-	TEST_YEAR = 2025
-	TEST_MONTH = 10
-	TEST_DAY =  31
-	TEST_HOUR = 18
-	TEST_MINUTE = 34
+	TEST_YEAR = None
+	TEST_MONTH = None
+	TEST_DAY =  None
+	TEST_HOUR = None
+	TEST_MINUTE = None
 	
 	# Dummy weather values
 	DUMMY_WEATHER_DATA = {
@@ -330,7 +330,7 @@ class Strings:
 	WIFI_PASSWORD_VAR = "CIRCUITPY_WIFI_PASSWORD"
 	
 	# Event sources
-	EPHEMERAL_EVENTS_URL = "https://raw.githubusercontent.com/strategeekal/pantallita-events/refs/heads/main/ephemeral_events.csv"
+	GITHUB_REPO_URL = "https://raw.githubusercontent.com/strategeekal/pantallita-events/refs/heads/main/ephemeral_events.csv"
 	
 	# Font test characters
 	FONT_METRICS_TEST_CHARS = "Aygjpq"
@@ -1836,135 +1836,142 @@ def load_events_from_csv():
 		return {}
 
 def fetch_ephemeral_events():
-	"""Fetch ephemeral events from online source, filtering out past events"""
+	"""
+	Fetch ephemeral events from online source
+	NOTE: Events are fetched during initialization, this is just a wrapper
+	"""
 	try:
-		# Add timestamp to bust cache
-		import time
-		cache_buster = int(time.monotonic())
-		url = f"{Strings.EPHEMERAL_EVENTS_URL}?t={cache_buster}"
+		# Check if events already cached from initialization
+		if state.cached_events:
+			log_debug("Using cached events from initialization")
+			return state.cached_events
 		
-		session = get_requests_session()
-		if not session:
-			log_warning("No session available for ephemeral events")
-			return {}
+		# If not cached (shouldn't happen), fetch now
+		log_info("Events not cached, fetching now...")
+		events, _, _ = fetch_github_data(state.rtc_instance)  # ← Updated
 		
-		session = get_requests_session()
-		if not session:
-			log_warning("No session available for ephemeral events")
-			return {}
-		
-		log_debug("Fetching ephemeral events from GitHub...")
-		response = session.get(url, timeout=10)
-		
-		if response.status_code == 200:
-			content = response.text
-			events = {}
-			skipped_count = 0
-			
-			log_debug(f"Raw content from GitHub:\n{content}")
-			
-			# Get today's date for comparison
-			if state.rtc_instance:
-				today_year = state.rtc_instance.datetime.tm_year
-				today_month = state.rtc_instance.datetime.tm_mon
-				today_day = state.rtc_instance.datetime.tm_mday
-			else:
-				# Fallback if RTC not available - import all
-				today_year = 1900
-				today_month = 1
-				today_day = 1
-			
-			for line in content.split('\n'):
-				line = line.strip()
-				if line and not line.startswith("#"):
-					parts = [part.strip() for part in line.split(",")]
-					if len(parts) >= 4:
-						date = parts[0]  # YYYY-MM-DD format
-						top_line = parts[1]      # Shows on TOP
-						bottom_line = parts[2]   # Shows on BOTTOM
-						image = parts[3]
-						color = parts[4] if len(parts) > 4 else Strings.DEFAULT_EVENT_COLOR
-						
-						# Optional time window
-						# Check if fields exist AND are not empty
-						start_hour = int(parts[5]) if len(parts) > 5 and parts[5].strip() else Timing.EVENT_ALL_DAY_START
-						end_hour = int(parts[6]) if len(parts) > 6 and parts[6].strip() else Timing.EVENT_ALL_DAY_END
-						
-						# Parse date to check if it's in the past
-						try:
-							date_parts = date.split("-")
-							if len(date_parts) == 3:
-								event_year = int(date_parts[0])
-								event_month = int(date_parts[1])
-								event_day = int(date_parts[2])
-								
-								# Skip if event is in the past
-								if (event_year < today_year or 
-									(event_year == today_year and event_month < today_month) or
-									(event_year == today_year and event_month == today_month and event_day < today_day)):
-									skipped_count += 1
-									log_verbose(f"Skipping past event: {date} - {top_line} {bottom_line}")
-									continue
-								
-								# Convert YYYY-MM-DD to MMDD for lookup
-								date_key = date_parts[1] + date_parts[2]  # MMDD only
-								
-								if date_key not in events:
-									events[date_key] = []
-								
-								# Store with time window
-								events[date_key].append([top_line, bottom_line, image, color, start_hour, end_hour])
-						except (ValueError, IndexError):
-							log_warning(f"Invalid date format in ephemeral events: {date}")
-							continue
-			
-			if skipped_count > 0:
-				log_debug(f"Loaded {len(events)} ephemeral event dates from GitHub ({skipped_count} past events skipped)")
-			else:
-				log_debug(f"Loaded {len(events)} ephemeral event dates from GitHub")
-			
+		if events:
+			state.cached_events = events
 			return events
-		else:
-			log_warning(f"Failed to fetch ephemeral events: HTTP {response.status_code}")
-			return {}
-			
+		
+		return {}
+		
 	except Exception as e:
 		log_warning(f"Failed to fetch ephemeral events: {e}")
 		return {}
 		
 def load_all_events():
-	"""Load events from both local CSV and online source"""
+	"""Load and merge all event sources"""
+	
 	# Load permanent events from local CSV
-	permanent_events = load_events_from_csv()
-	permanent_count = len(permanent_events)
-	log_verbose(f"Loaded {permanent_count} permanent event dates")
+	permanent_events = {}
+	permanent_count = 0
 	
-	# Load ephemeral events from online
-	ephemeral_events = fetch_ephemeral_events()
-	ephemeral_count = len(ephemeral_events)
+	try:
+		with open(Paths.EVENTS_CSV, 'r') as f:
+			for line_num, line in enumerate(f, 1):
+				line = line.strip()
+				if not line or line.startswith("#"):
+					continue
+				
+				try:
+					parts = [part.strip() for part in line.split(",")]
+					
+					if len(parts) < 4:
+						log_warning(f"Line {line_num}: Not enough fields (need at least 4)")
+						continue
+					
+					# Format: MM-DD,TopLine,BottomLine,ImageFile,Color[,StartHour,EndHour]
+					date_str = str(parts[0])
+					top_line = str(parts[1])
+					bottom_line = str(parts[2])
+					image = str(parts[3])
+					color = str(parts[4]) if len(parts) > 4 else Strings.DEFAULT_EVENT_COLOR
+					
+					# Optional time window
+					try:
+						start_hour = int(parts[5]) if len(parts) > 5 and parts[5].strip() else Timing.EVENT_ALL_DAY_START
+						end_hour = int(parts[6]) if len(parts) > 6 and parts[6].strip() else Timing.EVENT_ALL_DAY_END
+					except (ValueError, IndexError):
+						start_hour = Timing.EVENT_ALL_DAY_START
+						end_hour = Timing.EVENT_ALL_DAY_END
+					
+					# Parse MM-DD to MMDD (without zfill)
+					if '-' in date_str:
+						date_parts = date_str.split('-')
+						month = date_parts[0]
+						day = date_parts[1]
+						
+						# Manual padding instead of zfill
+						if len(month) == 1:
+							month = '0' + month
+						if len(day) == 1:
+							day = '0' + day
+						
+						date_key = month + day
+					else:
+						# Fallback for MMDD format
+						date_key = date_str
+						# Manual padding to 4 digits
+						while len(date_key) < 4:
+							date_key = '0' + date_key
+					
+					if date_key not in permanent_events:
+						permanent_events[date_key] = []
+					
+					permanent_events[date_key].append([top_line, bottom_line, image, color, start_hour, end_hour])
+					permanent_count += 1
+					log_verbose(f"Loaded: {date_key} - {top_line} {bottom_line}")
+					
+				except Exception as e:
+					log_warning(f"Line {line_num} parse error: {e} | Line: {line}")
+					continue
+		
+		state.permanent_event_count = permanent_count
+		log_debug(f"Loaded {permanent_count} permanent events")
+		
+	except Exception as e:
+		log_warning(f"Failed to load permanent events file: {e}")
+		state.permanent_event_count = 0
+		permanent_events = {}
 	
-	# Merge (ephemeral events append to permanent if same date)
-	all_events = permanent_events.copy()
-	for date_key, event_list in ephemeral_events.items():
-		if date_key in all_events:
-			# Append ephemeral to existing permanent events
-			all_events[date_key].extend(event_list)
-			log_verbose(f"Date {date_key}: merged ephemeral with permanent")
-		else:
-			all_events[date_key] = event_list
+	# Get ephemeral events - check temp storage first, then try fetching
+	ephemeral_events = {}
 	
-	# Count total individual events (not just dates)
-	total_event_count = sum(len(event_list) for event_list in all_events.values())
-	total_dates = len(all_events)
+	if hasattr(state, '_github_events_temp') and state._github_events_temp:
+		# Use events fetched during initialization
+		ephemeral_events = state._github_events_temp
+		log_debug("Using GitHub events from initialization")
+	else:
+		# Fetch from GitHub (normal case for daily refresh)
+		ephemeral_events = fetch_ephemeral_events()
 	
-	# Store counts in state for later use
+	# Count ephemeral events
+	ephemeral_count = sum(len(event_list) for event_list in ephemeral_events.values())
 	state.ephemeral_event_count = ephemeral_count
-	state.permanent_event_count = permanent_count
-	state.total_event_count = total_event_count  # NEW
+	log_debug(f"Loaded {ephemeral_count} ephemeral events")
 	
-	log_debug(f"Events: {permanent_count} permanent + {ephemeral_count} imported = {total_dates} dates, {total_event_count} total events")
+	# Merge events
+	merged = {}
 	
-	return all_events
+	# Add permanent events
+	for date_key, event_list in permanent_events.items():
+		merged[date_key] = list(event_list)
+	
+	# Add ephemeral events
+	for date_key, event_list in ephemeral_events.items():
+		if date_key in merged:
+			merged[date_key].extend(event_list)
+		else:
+			merged[date_key] = list(event_list)
+	
+	# Update total count
+	total_count = sum(len(event_list) for event_list in merged.values())
+	state.total_event_count = total_count
+	
+	log_debug(f"Events merged: {permanent_count} permanent + {ephemeral_count} ephemeral = {total_count} total")
+	
+	return merged
 	
 def is_event_active(event_data, current_hour):
 	"""
@@ -2115,7 +2122,7 @@ def parse_schedule_csv_content(csv_content, rtc):
 					"progressbar": progressbar
 				}
 				
-				log_debug(f"Parsed schedule: {name} ({len(days)} days)")
+				log_verbose(f"Parsed schedule: {name} ({'enabled' if enabled else 'disabled'}, {len(days)} days)")
 		
 		return schedules
 		
@@ -2126,29 +2133,30 @@ def parse_schedule_csv_content(csv_content, rtc):
 def fetch_github_data(rtc):
 	"""
 	Fetch both events and schedules from GitHub in one operation
-	Returns: (events_dict, schedules_dict)
+	Returns: (events_dict, schedules_dict, schedule_source)
+		schedule_source: "date-specific", "default", or None
 	"""
 	
 	session = get_requests_session()
 	if not session:
 		log_warning("No session available for GitHub fetch")
-		return None, None
+		return None, None, None
 	
 	import time
 	cache_buster = int(time.monotonic())
-	github_base = Strings.EPHEMERAL_EVENTS_URL.rsplit('/', 1)[0]
+	github_base = Strings.GITHUB_REPO_URL.rsplit('/', 1)[0]
 	
 	# ===== FETCH EVENTS =====
-	events_url = f"{Strings.EPHEMERAL_EVENTS_URL}?t={cache_buster}"
+	events_url = f"{Strings.GITHUB_REPO_URL}?t={cache_buster}"
 	events = {}
 	
 	try:
-		log_debug("Fetching events from GitHub...")
+		log_verbose(f"Fetching: {events_url}")
 		response = session.get(events_url, timeout=10)
 		
 		if response.status_code == 200:
 			events = parse_events_csv_content(response.text, rtc)
-			log_info(f"Loaded {len(events)} event dates from GitHub")
+			log_verbose(f"Events fetched: {len(events)} event dates")
 		else:
 			log_warning(f"Failed to fetch events: HTTP {response.status_code}")
 	except Exception as e:
@@ -2159,28 +2167,31 @@ def fetch_github_data(rtc):
 	date_str = f"{now.tm_year:04d}-{now.tm_mon:02d}-{now.tm_mday:02d}"
 	
 	schedules = {}
+	schedule_source = None
 	
 	try:
 		# Try date-specific schedule first
 		schedule_url = f"{github_base}/{Paths.GITHUB_SCHEDULE_FOLDER}/{date_str}.csv?t={cache_buster}"
-		log_debug(f"Fetching schedule for {date_str}...")
+		log_verbose(f"Fetching: {schedule_url}")
 		
 		response = session.get(schedule_url, timeout=10)
 		
 		if response.status_code == 200:
 			schedules = parse_schedule_csv_content(response.text, rtc)
-			log_info(f"Loaded date-specific schedule: {date_str}.csv ({len(schedules)} schedule(s))")
+			schedule_source = "date-specific"
+			log_verbose(f"Schedule fetched: {date_str}.csv ({len(schedules)} schedule(s))")
 			
 		elif response.status_code == 404:
 			# No date-specific file, try default
-			log_debug(f"No schedule for {date_str}, trying default.csv")
+			log_verbose(f"No schedule for {date_str}, trying default.csv")
 			default_url = f"{github_base}/{Paths.GITHUB_SCHEDULE_FOLDER}/default.csv?t={cache_buster}"
 			
 			response = session.get(default_url, timeout=10)
 			
 			if response.status_code == 200:
 				schedules = parse_schedule_csv_content(response.text, rtc)
-				log_info(f"Loaded default schedule ({len(schedules)} schedule(s))")
+				schedule_source = "default"
+				log_verbose(f"Schedule fetched: default.csv ({len(schedules)} schedule(s))")
 			else:
 				log_warning(f"No default schedule found: HTTP {response.status_code}")
 		else:
@@ -2189,7 +2200,7 @@ def fetch_github_data(rtc):
 	except Exception as e:
 		log_warning(f"Failed to fetch schedule: {e}")
 	
-	return events, schedules
+	return events, schedules, schedule_source
 	
 def load_schedules_from_csv():
 	"""Load schedules from CSV file"""
@@ -2234,22 +2245,54 @@ class ScheduledDisplay:
 	def __init__(self):
 		self.schedules = {}
 		self.schedules_loaded = False
+		self.last_fetch_date = None
 	
 	def ensure_loaded(self, rtc):
-		"""Ensure schedules are loaded, fetch from GitHub if needed"""
-		if not self.schedules_loaded:
-			# Try to fetch from GitHub first
-			fetch_schedule_from_github(rtc)
+		"""Ensure schedules are loaded, refresh if new day"""
+		
+		current_date = f"{rtc.datetime.tm_year:04d}-{rtc.datetime.tm_mon:02d}-{rtc.datetime.tm_mday:02d}"
+		
+		# Check if we need daily refresh
+		if self.last_fetch_date and self.last_fetch_date != current_date:
+			log_info("New day - refreshing GitHub data")
+			events, schedules, schedule_source = fetch_github_data(rtc)  # ← Updated
 			
-			# Then load from local file
-			self.schedules = load_schedules_from_csv()
-			
-			if not self.schedules:
-				log_warning("No schedules loaded")
-				self.schedules_loaded = False
-			else:
+			if schedules:
+				self.schedules = schedules
 				self.schedules_loaded = True
-				log_info(f"Schedules loaded: {len(self.schedules)} schedule(s)")
+				self.last_fetch_date = current_date
+				
+				# Update cached events too
+				if events:
+					state.cached_events = events
+				
+				# Summary with counts
+				event_count = len(events) if events else 0
+				source_msg = f" ({schedule_source})" if schedule_source else ""
+				log_debug(f"Refreshed: {event_count} event dates, {len(schedules)} schedules{source_msg}")
+		
+		# Fallback if still not loaded (safety net)
+		if not self.schedules_loaded:
+			log_debug("Schedules not loaded, trying local fallback")
+			local_schedules = load_schedules_from_csv()
+			if local_schedules:
+				self.schedules = local_schedules
+				self.schedules_loaded = True
+				self.last_fetch_date = current_date
+				log_debug(f"Local fallback: {len(local_schedules)} schedules")
+		
+		# Fallback if still not loaded (safety net)
+		if not self.schedules_loaded:
+			log_debug("Schedules not loaded, trying local fallback")
+			local_schedules = load_schedules_from_csv()
+			if local_schedules:
+				self.schedules = local_schedules
+				self.schedules_loaded = True
+				self.last_fetch_date = current_date
+				log_debug(f"Local fallback: {len(local_schedules)} schedules")
+			else:
+				log_warning("No schedules available")
+				self.schedules_loaded = False
 	
 	def is_active(self, rtc, schedule_name):
 		"""Check if a schedule is currently active"""
@@ -2289,28 +2332,7 @@ class ScheduledDisplay:
 				return schedule_name, schedule_config
 		
 		return None, None
-	
-	def get_active_schedule(self, rtc):
-		"""
-		Check if a scheduled display should be active now
-		Fetches updated schedule from GitHub if needed
-		"""
-		
-		# NEW: Update schedule from GitHub if needed (once per day)
-		if not self.schedules_loaded:
-			# First time - try to fetch from GitHub
-			fetch_schedule_from_github(rtc)
-			# Then load (will use local file, whether newly fetched or existing)
-			self.load_schedules()
-		
-		current_time = rtc.datetime
-		current_day = current_time.tm_wday  # 0=Monday, 6=Sunday
-		current_minutes = current_time.tm_hour * 60 + current_time.tm_min
-		
-		for name, schedule in self.schedules.items():
-			if self.is_active(rtc, name):
-				return name, schedule
-		return None, None
+
 
 # Create instance
 scheduled_display = ScheduledDisplay()
@@ -3713,33 +3735,74 @@ def initialize_system(rtc):
 	if display_config.use_test_date:
 		update_rtc_datetime(rtc, TestData.TEST_YEAR, TestData.TEST_MONTH, TestData.TEST_DAY, TestData.TEST_HOUR, TestData.TEST_MINUTE)
 	
-	# Load events
-	events = get_events()
+	# Fetch events and schedules from GitHub
+	log_debug("Fetching data from GitHub...")
+	github_events, github_schedules, schedule_source = fetch_github_data(rtc)
 	
-	# Get total events for today (not filtered by time)
+	# Initialize events - DON'T set state.cached_events yet, let load_all_events() handle it
+	# But store github_events temporarily so load_all_events() can access it
+	if github_events:
+		# Store in a temporary location for load_all_events() to use
+		state._github_events_temp = github_events
+		log_debug(f"GitHub events: {len(github_events)} event dates")
+	else:
+		log_warning("Failed to fetch events from GitHub")
+		state._github_events_temp = None
+	
+	# Load all events (this will merge GitHub + permanent and set counters)
+	events = load_all_events()
+	
+	# Clear temporary storage
+	state._github_events_temp = None
+	
+	# Cache the merged events
+	state.cached_events = events
+	
+	# Initialize schedules and track source
+	schedule_source_flag = ""
+	if github_schedules:
+		scheduled_display.schedules = github_schedules
+		scheduled_display.schedules_loaded = True
+		scheduled_display.last_fetch_date = f"{rtc.datetime.tm_year:04d}-{rtc.datetime.tm_mon:02d}-{rtc.datetime.tm_mday:02d}"
+		
+		# Set flag based on source
+		if schedule_source == "date-specific":
+			schedule_source_flag = " (imported)"
+		elif schedule_source == "default":
+			schedule_source_flag = " (default)"
+		
+		log_debug(f"GitHub schedules: {len(github_schedules)} schedule(s) ({schedule_source})")
+	else:
+		log_warning("Failed to fetch schedules from GitHub, trying local file")
+		local_schedules = load_schedules_from_csv()
+		if local_schedules:
+			scheduled_display.schedules = local_schedules
+			scheduled_display.schedules_loaded = True
+			scheduled_display.last_fetch_date = f"{rtc.datetime.tm_year:04d}-{rtc.datetime.tm_mon:02d}-{rtc.datetime.tm_mday:02d}"
+			schedule_source_flag = " (local)"
+			log_debug(f"Local schedules: {len(local_schedules)} schedule(s)")
+		else:
+			log_warning("No schedules available")
+	
+	# Get event counts for today
 	total_today, all_today_events = get_today_all_events_info(rtc)
-	
-	# Get currently active events (filtered by time)
 	active_now, _ = get_today_events_info(rtc)
 	
 	# Format event count message
 	if total_today == 0:
 		today_msg = "No events"
 	elif total_today == active_now:
-		# All events are currently active
 		today_msg = f"{total_today} event{'s' if total_today > 1 else ''}"
 	else:
-		# Some events inactive due to time windows
 		today_msg = f"{total_today} event{'s' if total_today > 1 else ''} ({active_now} active now)"
 	
-	# Format imported count
-	if state.ephemeral_event_count > 0:
-		imported_str = f" ({state.ephemeral_event_count} imported)"
-	else:
-		imported_str = ""
+	# Format imported events count
+	imported_str = f" ({state.ephemeral_event_count} imported)" if state.ephemeral_event_count > 0 else ""
 	
-	log_info(f"Hardware ready | {len(scheduled_display.schedules)} schedules | {state.total_event_count} events{imported_str} | Today: {today_msg}")
-	state.memory_monitor.check_memory("events_loaded")
+	# Summary log
+	schedule_count = len(scheduled_display.schedules) if scheduled_display.schedules_loaded else 0
+	log_info(f"Hardware ready | {schedule_count} schedules{schedule_source_flag} | {state.total_event_count} events{imported_str} | Today: {today_msg}")
+	state.memory_monitor.check_memory("initialization_complete")
 	
 	return events
 
