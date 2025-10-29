@@ -236,7 +236,7 @@ class Paths:
 	COLUMN_IMAGES = "img/weather/columns"
 	FALLBACK_EVENT_IMAGE = "img/events/blank_sq.bmp"
 	BIRTHDAY_IMAGE = "img/events/cake.bmp"
-	SCHEDULE_IMAGES = "img/schedule"
+	SCHEDULE_IMAGES = "img/schedules"
 	
 	# GitHub schedule paths
 	GITHUB_SCHEDULE_FOLDER = "schedules"  # Folder in your repo
