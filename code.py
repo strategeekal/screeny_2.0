@@ -474,10 +474,11 @@ class ColorManager:
 		"LIME": (0, 204, 0),                # 0x00CC00
 		"BLUE": (0, 51, 102),  # 0x003366 - 4-bit: 0, 3, 6
 		"ORANGE": (204, 80, 0),             # 0xCC6600
-		"YELLOW": (204, 204, 0),             # 0xCCCC00
+		"YELLOW": (204, 140, 0),             # 0xCCCC00
 		"CYAN": (0, 204, 204),               # 0x00CCCC
 		"PURPLE": (102, 0, 204),             # 0x6600CC
-		"PINK": (204, 102, 170),             # 0xCC66AA
+		"PINK": (204, 64, 120),             # 0xCC66AA
+		"LIGHT_PINK": (204, 102, 170),             # 0xCC66AA
 		"AQUA": (0, 102, 102),               # 0x006666
 		"WHITE": (204, 204, 204),            # 0xCCCCCC - bright, less flicker
 		"GRAY": (102, 102, 102),             # 0x666666
