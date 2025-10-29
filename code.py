@@ -1,11 +1,16 @@
-
 ##### PANTALLITA #####
 
 # === LIBRARIES ===
+# Standard library
 import board
 import os
 import supervisor
 import gc
+import time
+import ssl
+import microcontroller
+
+# Display
 import displayio
 import framebufferio
 import rgbmatrix
@@ -13,14 +18,15 @@ from adafruit_display_text import bitmap_label
 from adafruit_bitmap_font import bitmap_font
 from adafruit_display_shapes.line import Line
 import adafruit_imageload
+
+# Network
 import wifi
-import ssl
 import socketpool
-import adafruit_requests
+import adafruit_requests as requests
+
+# Hardware
 import adafruit_ds3231
-import time
 import adafruit_ntp
-import microcontroller
 
 gc.collect()
 
@@ -31,7 +37,7 @@ gc.collect()
 class Display:
 	WIDTH = 64
 	HEIGHT = 32
-	BIT_DEPTH = 6
+	BIT_DEPTH = 4
 
 ## Layout & Positioning
 
@@ -117,8 +123,13 @@ class Timing:
 	CLOCK_DISPLAY_DURATION = 300
 	COLOR_TEST = 300
 	ICON_TEST = 5
-	SCHEDULE_WEATHER_REFRESH_INTERVAL = 300
-	SCHEDULE_GC_INTERVAL = 600
+	MAX_CACHE_AGE = 900
+	
+	# Schedule segment constants
+	SCHEDULE_SEGMENT_DURATION = 300
+	MIN_SLEEP_INTERVAL = 1 # Minimum sleep between display updates
+	MAX_SLEEP_INTERVAL = 5 # Maximum sleep between display updates
+	
 	
 	FORECAST_UPDATE_INTERVAL = 900  # - 3 cycles
 	DAILY_RESET_HOUR = 3
@@ -132,6 +143,8 @@ class Timing:
 	WIFI_RETRY_DELAY = 2
 	
 	SLEEP_BETWEEN_ERRORS = 5
+	ERROR_SAFETY_DELAY = 30  # Delay on errors to prevent runaway loops
+	FAST_CYCLE_THRESHOLD = 10  # Cycles faster than this are suspicious
 	RESTART_DELAY = 10
 	
 	WEATHER_UPDATE_INTERVAL = 60
@@ -145,6 +158,10 @@ class Timing:
 	
 	EVENT_CHUNK_SIZE = 60
 	EVENT_MEMORY_MONITORING = 600 # For long events (e.g. all day)
+	
+	# Event time filtering
+	EVENT_ALL_DAY_START = 0   # All-day events start at midnight
+	EVENT_ALL_DAY_END = 24    # All-day events end at midnight next day
 	
 	API_RECOVERY_RETRY_INTERVAL = 1800
 	
@@ -162,6 +179,7 @@ MONTHS = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oc
 class API:
 	TIMEOUT = 30
 	MAX_RETRIES = 2
+	RETRY_BASE_DELAY = 2
 	RETRY_DELAY = 2
 	MAX_CALLS_BEFORE_RESTART = 350
 	
@@ -201,7 +219,6 @@ class Recovery:
 	SOFT_RESET_THRESHOLD = 5         # Consecutive failures before soft reset
 	HARD_RESET_THRESHOLD = 15
 	WIFI_RECONNECT_COOLDOWN = 300  # 5 minutes between WiFi reconnection attempts
-	EXTENDED_FAILURE_THRESHOLD = 3600
 	
 ## Memory Management
 class Memory:
@@ -219,7 +236,12 @@ class Paths:
 	COLUMN_IMAGES = "img/weather/columns"
 	FALLBACK_EVENT_IMAGE = "img/events/blank_sq.bmp"
 	BIRTHDAY_IMAGE = "img/events/cake.bmp"
-	SCHEDULE_IMAGES = "img/schedule"
+	SCHEDULE_IMAGES = "img/schedules"
+	
+	# GitHub schedule paths
+	GITHUB_SCHEDULE_FOLDER = "schedules"  # Folder in your repo
+	LOCAL_SCHEDULE_FILE = "/schedules/schedules.csv"
+	SCHEDULE_CACHE_MARKER = "/schedules/.last_update"  # Track last update
 	
 ## Colors & Visual
 class Visual:
@@ -274,8 +296,8 @@ class TestData:
 	TEST_YEAR = None
 	TEST_MONTH = None
 	TEST_DAY =  None
-	TEST_HOUR = 13
-	TEST_MINUTE = 29
+	TEST_HOUR = None
+	TEST_MINUTE = None
 	
 	# Dummy weather values
 	DUMMY_WEATHER_DATA = {
@@ -308,7 +330,7 @@ class Strings:
 	WIFI_PASSWORD_VAR = "CIRCUITPY_WIFI_PASSWORD"
 	
 	# Event sources
-	EPHEMERAL_EVENTS_URL = "https://raw.githubusercontent.com/strategeekal/pantallita-events/refs/heads/main/ephemeral_events.csv"
+	GITHUB_REPO_URL = "https://raw.githubusercontent.com/strategeekal/pantallita-events/refs/heads/main/ephemeral_events.csv"
 	
 	# Font test characters
 	FONT_METRICS_TEST_CHARS = "Aygjpq"
@@ -437,42 +459,87 @@ def get_remaining_schedule_time(rtc, schedule_config):
 	
 	return remaining_seconds
 
-# Base colors use standard RGB (works correctly on type2)
-_BASE_COLORS = {
-	"BLACK": 0x000000,
-	"DIMMEST_WHITE": 0x101010,
-	"MINT": 0x081608,
-	"BUGAMBILIA": 0x100010,
-	"LILAC": 0x160814,
-	"RED": 0x3F0000,
-	"GREEN": 0x003F00,
-	"BLUE": 0x00003F,
-	"ORANGE": 0x7F1F00,
-	"YELLOW": 0x3F2F00,
-	"CYAN": 0x003F3F,
-	"PURPLE": 0x080025,
-	"PINK": 0x7F1F5F,
-	"AQUA": 0x002020,
-	"WHITE": 0x3F3F3F,
-	"GRAY": 0x1F1F1F,
-}
-
-# Only correct for the non-standard type1 matrix (green↔blue swap)
-_COLOR_CORRECTIONS = {
-	"type1": {
-		# Green↔Blue swap for type1 matrix
-		"MINT": 0x080816,      # 0x081608 with green/blue swapped
-		"BUGAMBILIA": 0x101000, # 0x100010 with green/blue swapped
-		"LILAC": 0x161408,     # 0x160814 with green/blue swapped
-		"GREEN": 0x00003F,     # 0x003F00 with green/blue swapped
-		"BLUE": 0x003F00,      # 0x00003F with green/blue swapped
-		"ORANGE": 0x7F001F,    # 0x5F1F00 with green/blue swapped
-		"YELLOW": 0x3F002F,    # 0x3F3F00 with green/blue swapped
-		"PURPLE": 0x082500,    # 0x3F003F with green/blue swapped
-		"PINK": 0x7F5F1F,      # 0x3F1F5F with green/blue swapped
+class ColorManager:
+	"""Centralized color management with dynamic bit depth support"""
+	
+	# Define base colors as 8-bit RGB (0-255 range)
+	BASE_COLORS_8BIT = {
+		"BLACK": (0, 0, 0),
+		"DIMMEST_WHITE": (96, 96, 96),      # - - reduced flicker
+		"MINT": (40, 140, 60),              
+		"BUGAMBILIA": (64, 0, 64),           # 0x400040
+		"LILAC": (64, 32, 64),               # 0x402040
+		"RED": (204, 0, 0),                  # 0xCC0000
+		"GREEN": (0, 68, 0),                # 0x00CC00
+		"LIME": (0, 204, 0),                # 0x00CC00
+		"BLUE": (0, 51, 102),  # 0x003366 - 4-bit: 0, 3, 6
+		"ORANGE": (204, 80, 0),             # 0xCC6600
+		"YELLOW": (204, 140, 0),             # 0xCCCC00
+		"CYAN": (0, 204, 204),               # 0x00CCCC
+		"PURPLE": (102, 0, 204),             # 0x6600CC
+		"PINK": (204, 64, 120),             # 0xCC66AA
+		"LIGHT_PINK": (204, 102, 170),             # 0xCC66AA
+		"AQUA": (0, 102, 102),               # 0x006666
+		"WHITE": (204, 204, 204),            # 0xCCCCCC - bright, less flicker
+		"GRAY": (102, 102, 102),             # 0x666666
+		"DARK_GRAY": (32, 32, 32),        #Flickers
+		"BEIGE": (136, 85, 34),  # 0x885522 - 4-bit: 8, 5, 2
+		"BROWN": (51, 17, 0),  # 0x331100 - 4-bit: 3, 1, 0
 	}
-	# type2 uses base colors as-is (no corrections needed)
-}
+	
+	@staticmethod
+	def swap_green_blue(r, g, b):
+		"""Swap green and blue channels for type1 matrix"""
+		return (r, b, g)  # Green and blue swapped
+	
+	@staticmethod
+	def quantize_channel(value_8bit, bit_depth):
+		"""Quantize an 8-bit color channel to specified bit depth"""
+		if bit_depth == 8:
+			return value_8bit
+		
+		# Calculate how many levels we have
+		max_value = (1 << bit_depth) - 1  # 2^bit_depth - 1
+		
+		# Scale from 8-bit to bit_depth
+		quantized = (value_8bit * max_value) // 255
+		
+		# Scale back to 8-bit range for display
+		return (quantized * 255) // max_value
+	
+	@staticmethod
+	def rgb_to_hex(r, g, b):
+		"""Convert RGB tuple to hex color"""
+		return (r << 16) | (g << 8) | b
+	
+	@classmethod
+	def generate_colors(cls, matrix_type, bit_depth):
+		"""
+		Generate color dictionary for specified matrix type and bit depth
+		
+		Args:
+			matrix_type: "type1" or "type2"
+			bit_depth: 3, 4, 5, or 6
+		
+		Returns:
+			Dictionary of color names to hex values
+		"""
+		colors = {}
+		
+		for name, (r, g, b) in cls.BASE_COLORS_8BIT.items():
+			# Swap channels if type1 matrix
+			if matrix_type == "type1":
+				r, g, b = cls.swap_green_blue(r, g, b)
+			
+			# Quantize to bit depth
+			r_quantized = cls.quantize_channel(r, bit_depth)
+			g_quantized = cls.quantize_channel(g, bit_depth)
+			b_quantized = cls.quantize_channel(b, bit_depth)
+			
+			# Convert to hex
+			colors[name] = cls.rgb_to_hex(r_quantized, g_quantized, b_quantized)
+		
+		return colors
 
 # System Configuration
 DAILY_RESET_ENABLED = True
@@ -714,6 +781,8 @@ class WeatherDisplayState:
 		# Timing and cache
 		self.startup_time = 0
 		self.last_forecast_fetch = -Timing.FORECAST_UPDATE_INTERVAL
+		self.cached_current_weather = None
+		self.cached_current_weather_time = 0
 		self.cached_forecast_data = None
 		self.cached_events = None
 		
@@ -743,6 +812,11 @@ class WeatherDisplayState:
 		self.ephemeral_event_count = 0
 		self.permanent_event_count = 0
 		self.total_event_count = 0
+		
+		# Schedule session tracking (for segmented displays)
+		self.active_schedule_name = None
+		self.active_schedule_start_time = None  # monotonic time when schedule started
+		self.active_schedule_end_time = None    # monotonic time when schedule should end
 	
 	def reset_api_counters(self):
 		"""Reset API call tracking"""
@@ -1139,46 +1213,56 @@ def cleanup_sockets():
 	"""Aggressive socket cleanup to prevent memory issues"""
 	for _ in range(Memory.SOCKET_CLEANUP_CYCLES):
 		gc.collect()
+		
+# Global session management
+_global_session = None
 
 def get_requests_session():
-	"""Get or create a persistent requests session for connection reuse"""
-	if state.global_requests_session is None:
+	"""Get or create the global requests session"""
+	global _global_session
+	
+	if _global_session is None:
 		try:
-			cleanup_sockets()
 			pool = socketpool.SocketPool(wifi.radio)
-			
-			try:
-				pool.socket_timeout = API.TIMEOUT
-			except (AttributeError, NotImplementedError):
-				log_verbose("Socket timeout configuration not available")
-			
-			state.global_requests_session = adafruit_requests.Session(
-				pool,
-				ssl.create_default_context()
-			)
-			log_verbose("Created new persistent requests session")
+			_global_session = requests.Session(pool, ssl.create_default_context())
+			log_debug("Created new global session")
 		except Exception as e:
-			log_error(f"Failed to create requests session: {e}")
+			log_error(f"Failed to create session: {e}")
 			return None
 	
-	return state.global_requests_session
+	return _global_session
+
 
 def cleanup_global_session():
-	"""
-	Clean up the global session
-	Used only for soft resets on repeated failures
-	NOT used during normal operation - session reuse is preferred
-	"""
-	if state.global_requests_session:
+	"""Clean up the global requests session and force socket release"""
+	global _global_session  # ← Make sure this line is here!
+	
+	if _global_session is not None:
 		try:
-			state.global_requests_session.close()
-			del state.global_requests_session
-			state.global_requests_session = None
-			log_verbose("Global session cleaned up")
-		except:
-			pass
-		
-		cleanup_sockets()
+			log_debug("Destroying global session")
+			# Try to close gracefully first
+			try:
+				_global_session.close()
+			except:
+				pass
+			
+			# Force delete the session object
+			del _global_session
+			_global_session = None
+			
+			# Aggressive socket cleanup
+			cleanup_sockets()
+			
+			# Force garbage collection
+			gc.collect()
+			
+			# Brief pause to let sockets fully close
+			time.sleep(0.5)
+			
+			log_debug("Global session destroyed and sockets cleaned")
+		except Exception as e:
+			log_debug(f"Session cleanup error (non-critical): {e}")
+			_global_session = None
 		
 
 ### API FUNCTIONS ###
@@ -1233,8 +1317,23 @@ def fetch_weather_with_retries(url, max_retries=None, context="API"):
 				
 			elif response.status_code == API.HTTP_NOT_FOUND:
 				log_error(f"{context}: Not found (404) - check location key")
-				state.has_permanent_error = True  # Mark as permanent error
+				state.has_permanent_error = True
 				return None
+			
+			elif response.status_code == API.HTTP_BAD_REQUEST:
+				log_error(f"{context}: Bad request (400) - check URL/parameters")
+				state.has_permanent_error = True
+				return None
+			
+			elif response.status_code == API.HTTP_FORBIDDEN:
+				log_error(f"{context}: Forbidden (403) - API key lacks permissions")
+				state.has_permanent_error = True
+				return None
+			
+			elif response.status_code == API.HTTP_INTERNAL_SERVER_ERROR:
+				log_warning(f"{context}: Server error (500) - AccuWeather issue")
+				last_error = "Server error (500)"
+				# Will retry below
 				
 			else:
 				log_error(f"{context}: HTTP {response.status_code}")
@@ -1249,14 +1348,57 @@ def fetch_weather_with_retries(url, max_retries=None, context="API"):
 				log_debug(f"Retrying in {delay}s...")
 				interruptible_sleep(delay)
 				
-		except OSError as e:
-			# Network/socket errors
-			log_warning(f"{context} attempt {attempt + 1} network error: {type(e).__name__}")
-			last_error = "Network error"
+		except RuntimeError as e:
+			error_msg = str(e)
+			last_error = f"Runtime error: {error_msg}"
+			
+			if "pystack exhausted" in error_msg.lower():
+				log_error(f"{context}: Stack exhausted - memory issue, forcing cleanup")
+			elif "already connected" in error_msg.lower():
+				log_error(f"{context}: Socket already connected - forcing cleanup")
+			else:
+				log_error(f"{context}: Runtime error on attempt {attempt + 1}: {error_msg}")
+			
+			# Nuclear cleanup for any RuntimeError
+			cleanup_global_session()
+			cleanup_sockets()
+			gc.collect()
+			time.sleep(2)
+			
 			if attempt < max_retries:
-				delay = API.RETRY_DELAY * (2 ** attempt)
-				interruptible_sleep(delay)
+				delay = API.RETRY_BASE_DELAY * (2 ** attempt)
+				log_verbose(f"Retrying in {delay}s...")
+				time.sleep(delay)
+		
+		except OSError as e:
+			error_msg = str(e)
+			last_error = f"Network error: {error_msg}"
+			
+			# Detect socket issues
+			if "already connected" in error_msg.lower() or "pystack exhausted" in error_msg.lower():
+				log_error(f"{context}: Socket stuck - forcing nuclear cleanup")
 				
+				# Nuclear option: destroy everything
+				cleanup_global_session()
+				cleanup_sockets()
+				gc.collect()
+				
+				# Longer delay to ensure sockets fully close
+				time.sleep(2)
+				
+				# This will force session recreation on next attempt
+			elif "ETIMEDOUT" in error_msg or "104" in error_msg or "32" in error_msg:
+				log_warning(f"{context}: Network timeout on attempt {attempt + 1}")
+			else:
+				log_warning(f"{context}: Network error on attempt {attempt + 1}: {error_msg}")
+			
+			# Retry with delay
+			if attempt < max_retries:
+				delay = API.RETRY_BASE_DELAY * (2 ** attempt)
+				log_verbose(f"Retrying in {delay}s...")
+				time.sleep(delay)
+				
+					
 		except Exception as e:
 			log_error(f"{context} attempt {attempt + 1} unexpected error: {type(e).__name__}: {e}")
 			last_error = str(e)
@@ -1322,8 +1464,11 @@ def fetch_current_and_forecast_weather():
 					"is_day_time": current.get("IsDayTime", True),
 					"has_precipitation": current.get("HasPrecipitation", False),
 				}
-				log_verbose(f"CURRENT DATA: {current_data}")
 				
+				state.cached_current_weather = current_data  # Cache for fallback
+				state.cached_current_weather_time = time.monotonic()
+				
+				log_verbose(f"CURRENT DATA: {current_data}")
 				log_info(f"Weather: {current_data['weather_text']}, {current_data['feels_like']}°C")
 				
 			else:
@@ -1401,9 +1546,9 @@ def fetch_current_and_forecast_weather():
 				# Show purple clock during 30s cooldown
 				log_info("Cooling down for 30 seconds before retry...")
 				show_clock_display(state.rtc_instance, 30)
-			
-			# Restore previous extended mode state
-			state.in_extended_failure_mode = was_in_extended_mode
+				
+				# Restore previous extended mode state
+				state.in_extended_failure_mode = was_in_extended_mode
 			
 			# Hard reset if soft resets aren't helping
 			if state.system_error_count >= Recovery.HARD_RESET_THRESHOLD:
@@ -1426,6 +1571,28 @@ def fetch_current_and_forecast_weather():
 		state.memory_monitor.check_memory("weather_fetch_error")
 		state.consecutive_failures += 1
 		return None, None
+		
+def get_cached_weather_if_fresh(max_age_seconds=Timing.MAX_CACHE_AGE):
+	"""
+	Get cached current weather if it's not too old
+	
+	Args:
+		max_age_seconds: Maximum age in seconds (default 30 minutes)
+	
+	Returns:
+		Cached weather data if fresh enough, None otherwise
+	"""
+	if not state.cached_current_weather:
+		return None
+	
+	age = time.monotonic() - state.cached_current_weather_time
+	
+	if age <= max_age_seconds:
+		log_debug(f"Cache is {int(age/60)} minutes old (acceptable)")
+		return state.cached_current_weather
+	else:
+		log_debug(f"Cache is {int(age/60)} minutes old (too stale, discarding)")
+		return None
 		
 def fetch_current_weather_only():
 	"""Fetch only current weather (not forecast)"""
@@ -1512,16 +1679,30 @@ def should_fetch_forecast():
 	return (current_time - state.last_forecast_fetch) >= Timing.FORECAST_UPDATE_INTERVAL
 	
 def get_today_events_info(rtc):
-	"""Get information about today's events without displaying them"""
+	"""Get information about today's ACTIVE events (filtered by time)"""
 	month_day = f"{rtc.datetime.tm_mon:02d}{rtc.datetime.tm_mday:02d}"
 	events = get_events()
 	
 	if month_day not in events:
 		return 0, []
 	
-	event_list = events[month_day]
-	return len(event_list), event_list
-
+	current_hour = rtc.datetime.tm_hour
+	
+	# Filter events by current time
+	active_events = [event for event in events[month_day] if is_event_active(event, current_hour)]
+	
+	return len(active_events), active_events
+	
+def get_today_all_events_info(rtc):
+	"""Get ALL events for today (not filtered by time)"""
+	month_day = f"{rtc.datetime.tm_mon:02d}{rtc.datetime.tm_mday:02d}"
+	events = get_events()
+	
+	if month_day not in events:
+		return 0, []
+	
+	# Return all events without time filtering
+	return len(events[month_day]), events[month_day]
 
 ### DISPLAY UTILITIES ###
 
@@ -1546,13 +1727,9 @@ def detect_matrix_type():
 def get_matrix_colors():
 	"""Get color constants with corrections applied"""
 	matrix_type = detect_matrix_type()
-	colors = _BASE_COLORS.copy()  # Start with base colors
+	bit_depth = Display.BIT_DEPTH
 	
-	# Apply corrections if they exist for this matrix type
-	if matrix_type in _COLOR_CORRECTIONS:
-		colors.update(_COLOR_CORRECTIONS[matrix_type])
-	
-	return colors
+	return ColorManager.generate_colors(matrix_type, bit_depth)
 
 def convert_bmp_palette(palette):
 	"""Convert BMP palette for RGB matrix display"""
@@ -1566,27 +1743,27 @@ def convert_bmp_palette(palette):
 	
 	converted_palette = displayio.Palette(palette_len)
 	matrix_type = detect_matrix_type()
+	bit_depth = Display.BIT_DEPTH
 	
 	for i in range(palette_len):
 		original_color = palette[i]
 		
+		# Extract 8-bit RGB
+		r = (original_color >> 16) & 0xFF
+		g = (original_color >> 8) & 0xFF
+		b = original_color & 0xFF
+		
+		# Swap for type1
 		if matrix_type == "type1":
-			# BGR to RGB conversion for type1
-			red_8bit = (original_color >> 16) & 0xFF
-			blue_8bit = (original_color >> 8) & 0xFF
-			green_8bit = original_color & 0xFF
-		else:
-			# Standard RGB for type2
-			red_8bit = (original_color >> 16) & 0xFF
-			green_8bit = (original_color >> 8) & 0xFF
-			blue_8bit = original_color & 0xFF
+			r, g, b = ColorManager.swap_green_blue(r, g, b)
 		
-		# Convert to 6-bit values
-		red_6bit = red_8bit >> 2
-		green_6bit = green_8bit >> 2
-		blue_6bit = blue_8bit >> 2
+		# Quantize to bit depth
+		r_quantized = ColorManager.quantize_channel(r, bit_depth)
+		g_quantized = ColorManager.quantize_channel(g, bit_depth)
+		b_quantized = ColorManager.quantize_channel(b, bit_depth)
 		
-		converted_palette[i] = (red_6bit << 16) | (green_6bit << 8) | blue_6bit
+		# Pack as RGB888
+		converted_palette[i] = (r_quantized << 16) | (g_quantized << 8) | b_quantized
 	
 	return converted_palette
 
@@ -1623,159 +1800,205 @@ def get_font_metrics(font, text="Aygjpq"):
 		return 8, 2
 
 def load_events_from_csv():
-	"""Load events from CSV file - supports multiple events per day"""
+	"""Load events from CSV file - supports multiple events per day with optional time windows"""
 	events = {}
 	try:
 		log_verbose(f"Loading events from {Paths.EVENTS_CSV}...")
 		with open(Paths.EVENTS_CSV, "r") as f:
-			for line in f:  # Just remove line_count completely
+			for line in f:
 				line = line.strip()
 				if line and not line.startswith("#"):
 					parts = [part.strip() for part in line.split(",")]
 					if len(parts) >= 4:
 						date = parts[0]
-						line1 = parts[1]
-						line2 = parts[2]
+						top_line = parts[1]      # Shows on TOP
+						bottom_line = parts[2]   # Shows on BOTTOM
 						image = parts[3]
 						color = parts[4] if len(parts) > 4 else Strings.DEFAULT_EVENT_COLOR
+						
+						# Optional time window (24-hour format)
+						# Check if fields exist AND are not empty
+						start_hour = int(parts[5]) if len(parts) > 5 and parts[5].strip() else Timing.EVENT_ALL_DAY_START
+						end_hour = int(parts[6]) if len(parts) > 6 and parts[6].strip() else Timing.EVENT_ALL_DAY_END
 						
 						date_key = date.replace("-", "")
 						
 						if date_key not in events:
 							events[date_key] = []
-						events[date_key].append([line1, line2, image, color])
+						
+						# Store as: [top_line, bottom_line, image, color, start_hour, end_hour]
+						events[date_key].append([top_line, bottom_line, image, color, start_hour, end_hour])
 			
 			return events
 			
 	except Exception as e:
 		log_warning(f"Failed to load events.csv: {e}")
 		log_warning("Using fallback hardcoded events")
-		# Return fallback events as lists
 		return {}
 
 def fetch_ephemeral_events():
-	"""Fetch ephemeral events from online source, filtering out past events"""
+	"""
+	Fetch ephemeral events from online source
+	NOTE: Events are fetched during initialization, this is just a wrapper
+	"""
 	try:
-		# Add timestamp to bust cache
-		import time
-		cache_buster = int(time.monotonic())
-		url = f"{Strings.EPHEMERAL_EVENTS_URL}?t={cache_buster}"
+		# Check if events already cached from initialization
+		if state.cached_events:
+			log_debug("Using cached events from initialization")
+			return state.cached_events
 		
-		session = get_requests_session()
-		if not session:
-			log_warning("No session available for ephemeral events")
-			return {}
+		# If not cached (shouldn't happen), fetch now
+		log_info("Events not cached, fetching now...")
+		events, _, _ = fetch_github_data(state.rtc_instance)  # ← Updated
 		
-		session = get_requests_session()
-		if not session:
-			log_warning("No session available for ephemeral events")
-			return {}
-		
-		log_debug("Fetching ephemeral events from GitHub...")
-		response = session.get(url, timeout=10)
-		
-		if response.status_code == 200:
-			content = response.text
-			events = {}
-			skipped_count = 0
-			
-			log_debug(f"Raw content from GitHub:\n{content}")
-			
-			# Get today's date for comparison
-			if state.rtc_instance:
-				today_year = state.rtc_instance.datetime.tm_year
-				today_month = state.rtc_instance.datetime.tm_mon
-				today_day = state.rtc_instance.datetime.tm_mday
-			else:
-				# Fallback if RTC not available - import all
-				today_year = 1900
-				today_month = 1
-				today_day = 1
-			
-			for line in content.split('\n'):
-				line = line.strip()
-				if line and not line.startswith("#"):
-					parts = [part.strip() for part in line.split(",")]
-					if len(parts) >= 4:
-						date = parts[0]  # YYYY-MM-DD format
-						line1 = parts[1]
-						line2 = parts[2]
-						image = parts[3]
-						color = parts[4] if len(parts) > 4 else Strings.DEFAULT_EVENT_COLOR
-						
-						# Parse date to check if it's in the past
-						try:
-							date_parts = date.split("-")
-							if len(date_parts) == 3:
-								event_year = int(date_parts[0])
-								event_month = int(date_parts[1])
-								event_day = int(date_parts[2])
-								
-								# Skip if event is in the past
-								if (event_year < today_year or 
-									(event_year == today_year and event_month < today_month) or
-									(event_year == today_year and event_month == today_month and event_day < today_day)):
-									skipped_count += 1
-									log_verbose(f"Skipping past event: {date} - {line1} {line2}")
-									continue
-								
-								# Convert YYYY-MM-DD to MMDD for lookup
-								date_key = date_parts[1] + date_parts[2]  # MMDD only
-								
-								if date_key not in events:
-									events[date_key] = []
-								events[date_key].append([line1, line2, image, color])
-						except (ValueError, IndexError):
-							log_warning(f"Invalid date format in ephemeral events: {date}")
-							continue
-			
-			if skipped_count > 0:
-				log_debug(f"Loaded {len(events)} ephemeral event dates from GitHub ({skipped_count} past events skipped)")
-			else:
-				log_debug(f"Loaded {len(events)} ephemeral event dates from GitHub")
-			
+		if events:
+			state.cached_events = events
 			return events
-		else:
-			log_warning(f"Failed to fetch ephemeral events: HTTP {response.status_code}")
-			return {}
-			
+		
+		return {}
+		
 	except Exception as e:
 		log_warning(f"Failed to fetch ephemeral events: {e}")
 		return {}
 		
 def load_all_events():
-	"""Load events from both local CSV and online source"""
+	"""Load and merge all event sources"""
+	
 	# Load permanent events from local CSV
-	permanent_events = load_events_from_csv()
-	permanent_count = len(permanent_events)
-	log_verbose(f"Loaded {permanent_count} permanent event dates")
+	permanent_events = {}
+	permanent_count = 0
 	
-	# Load ephemeral events from online
-	ephemeral_events = fetch_ephemeral_events()
-	ephemeral_count = len(ephemeral_events)
+	try:
+		with open(Paths.EVENTS_CSV, 'r') as f:
+			for line_num, line in enumerate(f, 1):
+				line = line.strip()
+				if not line or line.startswith("#"):
+					continue
+				
+				try:
+					parts = [part.strip() for part in line.split(",")]
+					
+					if len(parts) < 4:
+						log_warning(f"Line {line_num}: Not enough fields (need at least 4)")
+						continue
+					
+					# Format: MM-DD,TopLine,BottomLine,ImageFile,Color[,StartHour,EndHour]
+					date_str = str(parts[0])
+					top_line = str(parts[1])
+					bottom_line = str(parts[2])
+					image = str(parts[3])
+					color = str(parts[4]) if len(parts) > 4 else Strings.DEFAULT_EVENT_COLOR
+					
+					# Optional time window
+					try:
+						start_hour = int(parts[5]) if len(parts) > 5 and parts[5].strip() else Timing.EVENT_ALL_DAY_START
+						end_hour = int(parts[6]) if len(parts) > 6 and parts[6].strip() else Timing.EVENT_ALL_DAY_END
+					except (ValueError, IndexError):
+						start_hour = Timing.EVENT_ALL_DAY_START
+						end_hour = Timing.EVENT_ALL_DAY_END
+					
+					# Parse MM-DD to MMDD (without zfill)
+					if '-' in date_str:
+						date_parts = date_str.split('-')
+						month = date_parts[0]
+						day = date_parts[1]
+						
+						# Manual padding instead of zfill
+						if len(month) == 1:
+							month = '0' + month
+						if len(day) == 1:
+							day = '0' + day
+						
+						date_key = month + day
+					else:
+						# Fallback for MMDD format
+						date_key = date_str
+						# Manual padding to 4 digits
+						while len(date_key) < 4:
+							date_key = '0' + date_key
+					
+					if date_key not in permanent_events:
+						permanent_events[date_key] = []
+					
+					permanent_events[date_key].append([top_line, bottom_line, image, color, start_hour, end_hour])
+					permanent_count += 1
+					log_verbose(f"Loaded: {date_key} - {top_line} {bottom_line}")
+					
+				except Exception as e:
+					log_warning(f"Line {line_num} parse error: {e} | Line: {line}")
+					continue
+		
+		state.permanent_event_count = permanent_count
+		log_debug(f"Loaded {permanent_count} permanent events")
+		
+	except Exception as e:
+		log_warning(f"Failed to load permanent events file: {e}")
+		state.permanent_event_count = 0
+		permanent_events = {}
 	
-	# Merge (ephemeral events append to permanent if same date)
-	all_events = permanent_events.copy()
-	for date_key, event_list in ephemeral_events.items():
-		if date_key in all_events:
-			# Append ephemeral to existing permanent events
-			all_events[date_key].extend(event_list)
-			log_verbose(f"Date {date_key}: merged ephemeral with permanent")
-		else:
-			all_events[date_key] = event_list
+	# Get ephemeral events - check temp storage first, then try fetching
+	ephemeral_events = {}
 	
-	# Count total individual events (not just dates)
-	total_event_count = sum(len(event_list) for event_list in all_events.values())
-	total_dates = len(all_events)
+	if hasattr(state, '_github_events_temp') and state._github_events_temp:
+		# Use events fetched during initialization
+		ephemeral_events = state._github_events_temp
+		log_debug("Using GitHub events from initialization")
+	else:
+		# Fetch from GitHub (normal case for daily refresh)
+		ephemeral_events = fetch_ephemeral_events()
 	
-	# Store counts in state for later use
+	# Count ephemeral events
+	ephemeral_count = sum(len(event_list) for event_list in ephemeral_events.values())
 	state.ephemeral_event_count = ephemeral_count
-	state.permanent_event_count = permanent_count
-	state.total_event_count = total_event_count  # NEW
+	log_debug(f"Loaded {ephemeral_count} ephemeral events")
 	
-	log_debug(f"Events: {permanent_count} permanent + {ephemeral_count} imported = {total_dates} dates, {total_event_count} total events")
+	# Merge events
+	merged = {}
 	
-	return all_events
+	# Add permanent events
+	for date_key, event_list in permanent_events.items():
+		merged[date_key] = list(event_list)
+	
+	# Add ephemeral events
+	for date_key, event_list in ephemeral_events.items():
+		if date_key in merged:
+			merged[date_key].extend(event_list)
+		else:
+			merged[date_key] = list(event_list)
+	
+	# Update total count
+	total_count = sum(len(event_list) for event_list in merged.values())
+	state.total_event_count = total_count
+	
+	log_debug(f"Events merged: {permanent_count} permanent + {ephemeral_count} ephemeral = {total_count} total")
+	
+	return merged
+	
+def is_event_active(event_data, current_hour):
+	"""
+	Check if event should be displayed at current hour
+	
+	Args:
+		event_data: [top_line, bottom_line, image, color, start_hour, end_hour]
+		current_hour: Current hour (0-23)
+	
+	Returns:
+		True if event is active, False otherwise
+	"""
+	# Check if event has time data (6 elements)
+	if len(event_data) < 6:
+		# Old format or missing times - treat as all-day
+		return True
+	
+	start_hour = event_data[4]
+	end_hour = event_data[5]
+	
+	# All-day event
+	if start_hour == Timing.EVENT_ALL_DAY_START and end_hour == Timing.EVENT_ALL_DAY_END:
+		return True
+	
+	# Check if current hour is within window
+	return start_hour <= current_hour < end_hour
 
 def get_events():
 	"""Get cached events - loads from both sources only once"""
@@ -1786,6 +2009,199 @@ def get_events():
 			state.cached_events = {}
 	
 	return state.cached_events
+
+def parse_events_csv_content(csv_content, rtc):
+	"""Parse events CSV content directly from string"""
+	events = {}
+	skipped_count = 0
+	
+	try:
+		# Get today's date for comparison
+		if rtc:
+			today_year = rtc.datetime.tm_year
+			today_month = rtc.datetime.tm_mon
+			today_day = rtc.datetime.tm_mday
+		else:
+			# Fallback if RTC not available - import all
+			today_year = 1900
+			today_month = 1
+			today_day = 1
+		
+		for line in csv_content.split('\n'):
+			line = line.strip()
+			if line and not line.startswith("#"):
+				parts = [part.strip() for part in line.split(",")]
+				if len(parts) >= 4:
+					date = parts[0]  # YYYY-MM-DD format
+					top_line = parts[1]
+					bottom_line = parts[2]
+					image = parts[3]
+					color = parts[4] if len(parts) > 4 else Strings.DEFAULT_EVENT_COLOR
+					
+					# Optional time window
+					start_hour = int(parts[5]) if len(parts) > 5 and parts[5].strip() else Timing.EVENT_ALL_DAY_START
+					end_hour = int(parts[6]) if len(parts) > 6 and parts[6].strip() else Timing.EVENT_ALL_DAY_END
+					
+					# Parse date to check if it's in the past
+					try:
+						date_parts = date.split("-")
+						if len(date_parts) == 3:
+							event_year = int(date_parts[0])
+							event_month = int(date_parts[1])
+							event_day = int(date_parts[2])
+							
+							# Skip if event is in the past
+							if (event_year < today_year or 
+								(event_year == today_year and event_month < today_month) or
+								(event_year == today_year and event_month == today_month and event_day < today_day)):
+								skipped_count += 1
+								log_verbose(f"Skipping past event: {date} - {top_line} {bottom_line}")
+								continue
+							
+							# Convert YYYY-MM-DD to MMDD for lookup
+							date_key = date_parts[1] + date_parts[2]  # MMDD only
+							
+							if date_key not in events:
+								events[date_key] = []
+							
+							events[date_key].append([top_line, bottom_line, image, color, start_hour, end_hour])
+					except (ValueError, IndexError):
+						log_warning(f"Invalid date format in events: {date}")
+						continue
+		
+		if skipped_count > 0:
+			log_debug(f"Parsed {len(events)} event dates ({skipped_count} past events skipped)")
+		else:
+			log_debug(f"Parsed {len(events)} event dates")
+		
+		return events
+		
+	except Exception as e:
+		log_error(f"Error parsing events CSV: {e}")
+		return {}
+	
+def parse_schedule_csv_content(csv_content, rtc):
+	"""Parse schedule CSV content directly from string (no file I/O)"""
+	schedules = {}
+	
+	try:
+		lines = csv_content.strip().split('\n')
+		
+		if not lines:
+			return schedules
+		
+		# Skip header row
+		for line in lines[1:]:
+			line = line.strip()
+			if not line or line.startswith('#'):
+				continue
+			
+			parts = [p.strip() for p in line.split(',')]
+			
+			if len(parts) >= 9:
+				name = parts[0]
+				enabled = parts[1] == "1"
+				days_str = parts[2]
+				start_hour = int(parts[3])
+				start_min = int(parts[4])
+				end_hour = int(parts[5])
+				end_min = int(parts[6])
+				image = parts[7]
+				progressbar = parts[8] == "1"
+				
+				# Convert days string to list of day numbers (0=Mon, 6=Sun)
+				days = [int(d) - 1 for d in days_str if d.isdigit()]
+				
+				schedules[name] = {
+					"enabled": enabled,
+					"days": days,
+					"start_hour": start_hour,
+					"start_min": start_min,
+					"end_hour": end_hour,
+					"end_min": end_min,
+					"image": image,
+					"progressbar": progressbar
+				}
+				
+				log_verbose(f"Parsed schedule: {name} ({'enabled' if enabled else 'disabled'}, {len(days)} days)")
+		
+		return schedules
+		
+	except Exception as e:
+		log_error(f"Error parsing schedule CSV: {e}")
+		return {}
+	
+def fetch_github_data(rtc):
+	"""
+	Fetch both events and schedules from GitHub in one operation
+	Returns: (events_dict, schedules_dict, schedule_source)
+		schedule_source: "date-specific", "default", or None
+	"""
+	
+	session = get_requests_session()
+	if not session:
+		log_warning("No session available for GitHub fetch")
+		return None, None, None
+	
+	import time
+	cache_buster = int(time.monotonic())
+	github_base = Strings.GITHUB_REPO_URL.rsplit('/', 1)[0]
+	
+	# ===== FETCH EVENTS =====
+	events_url = f"{Strings.GITHUB_REPO_URL}?t={cache_buster}"
+	events = {}
+	
+	try:
+		log_verbose(f"Fetching: {events_url}")
+		response = session.get(events_url, timeout=10)
+		
+		if response.status_code == 200:
+			events = parse_events_csv_content(response.text, rtc)
+			log_verbose(f"Events fetched: {len(events)} event dates")
+		else:
+			log_warning(f"Failed to fetch events: HTTP {response.status_code}")
+	except Exception as e:
+		log_warning(f"Failed to fetch events: {e}")
+	
+	# ===== FETCH SCHEDULE =====
+	now = rtc.datetime
+	date_str = f"{now.tm_year:04d}-{now.tm_mon:02d}-{now.tm_mday:02d}"
+	
+	schedules = {}
+	schedule_source = None
+	
+	try:
+		# Try date-specific schedule first
+		schedule_url = f"{github_base}/{Paths.GITHUB_SCHEDULE_FOLDER}/{date_str}.csv?t={cache_buster}"
+		log_verbose(f"Fetching: {schedule_url}")
+		
+		response = session.get(schedule_url, timeout=10)
+		
+		if response.status_code == 200:
+			schedules = parse_schedule_csv_content(response.text, rtc)
+			schedule_source = "date-specific"
+			log_verbose(f"Schedule fetched: {date_str}.csv ({len(schedules)} schedule(s))")
+			
+		elif response.status_code == 404:
+			# No date-specific file, try default
+			log_verbose(f"No schedule for {date_str}, trying default.csv")
+			default_url = f"{github_base}/{Paths.GITHUB_SCHEDULE_FOLDER}/default.csv?t={cache_buster}"
+			
+			response = session.get(default_url, timeout=10)
+			
+			if response.status_code == 200:
+				schedules = parse_schedule_csv_content(response.text, rtc)
+				schedule_source = "default"
+				log_verbose(f"Schedule fetched: default.csv ({len(schedules)} schedule(s))")
+			else:
+				log_warning(f"No default schedule found: HTTP {response.status_code}")
+		else:
+			log_warning(f"Failed to fetch schedule: HTTP {response.status_code}")
+			
+	except Exception as e:
+		log_warning(f"Failed to fetch schedule: {e}")
+	
+	return events, schedules, schedule_source
 	
 def load_schedules_from_csv():
 	"""Load schedules from CSV file"""
@@ -1826,16 +2242,65 @@ def load_schedules_from_csv():
 		
 class ScheduledDisplay:
 	"""Configuration for time-based scheduled displays"""
-	# Schedule images should be placed in img/schedule/
-	# Weather column images (13x23px) should be in img/weather/columns/
 	
 	def __init__(self):
-		self.schedules = load_schedules_from_csv()
-		if not self.schedules:
-			log_warning("No schedules loaded")
+		self.schedules = {}
+		self.schedules_loaded = False
+		self.last_fetch_date = None
+	
+	def ensure_loaded(self, rtc):
+		"""Ensure schedules are loaded, refresh if new day"""
+		
+		current_date = f"{rtc.datetime.tm_year:04d}-{rtc.datetime.tm_mon:02d}-{rtc.datetime.tm_mday:02d}"
+		
+		# Check if we need daily refresh
+		if self.last_fetch_date and self.last_fetch_date != current_date:
+			log_info("New day - refreshing GitHub data")
+			events, schedules, schedule_source = fetch_github_data(rtc)  # ← Updated
+			
+			if schedules:
+				self.schedules = schedules
+				self.schedules_loaded = True
+				self.last_fetch_date = current_date
+				
+				# Update cached events too
+				if events:
+					state.cached_events = events
+				
+				# Summary with counts
+				event_count = len(events) if events else 0
+				source_msg = f" ({schedule_source})" if schedule_source else ""
+				log_debug(f"Refreshed: {event_count} event dates, {len(schedules)} schedules{source_msg}")
+		
+		# Fallback if still not loaded (safety net)
+		if not self.schedules_loaded:
+			log_debug("Schedules not loaded, trying local fallback")
+			local_schedules = load_schedules_from_csv()
+			if local_schedules:
+				self.schedules = local_schedules
+				self.schedules_loaded = True
+				self.last_fetch_date = current_date
+				log_debug(f"Local fallback: {len(local_schedules)} schedules")
+		
+		# Fallback if still not loaded (safety net)
+		if not self.schedules_loaded:
+			log_debug("Schedules not loaded, trying local fallback")
+			local_schedules = load_schedules_from_csv()
+			if local_schedules:
+				self.schedules = local_schedules
+				self.schedules_loaded = True
+				self.last_fetch_date = current_date
+				log_debug(f"Local fallback: {len(local_schedules)} schedules")
+			else:
+				log_warning("No schedules available")
+				self.schedules_loaded = False
 	
 	def is_active(self, rtc, schedule_name):
 		"""Check if a schedule is currently active"""
+		
+		# Ensure schedules are loaded
+		self.ensure_loaded(rtc)
+		
 		if schedule_name not in self.schedules:
 			return False
 		
@@ -1858,11 +2323,17 @@ class ScheduledDisplay:
 		return start_mins <= current_mins < end_mins
 	
 	def get_active_schedule(self, rtc):
-		"""Get the currently active schedule, if any"""
-		for name, schedule in self.schedules.items():
-			if self.is_active(rtc, name):
-				return name, schedule
+		"""Check if any schedule is currently active"""
+		
+		# Ensure schedules are loaded
+		self.ensure_loaded(rtc)
+		
+		for schedule_name, schedule_config in self.schedules.items():
+			if self.is_active(rtc, schedule_name):
+				return schedule_name, schedule_config
+		
 		return None, None
+
 
 # Create instance
 scheduled_display = ScheduledDisplay()
@@ -2010,19 +2481,37 @@ def show_weather_display(rtc, duration, weather_data=None):
 	
 	# Require weather_data to be provided
 	if not weather_data:
-		log_warning("Weather unavailable, showing clock")
-		show_clock_display(rtc, duration)
-		return
+		# Try cached weather as fallback (max 30 min old)
+		weather_data = get_cached_weather_if_fresh(max_age_seconds=Timing.MAX_CACHE_AGE)
+		
+		if weather_data:
+			log_debug("Using cached current weather for weather display")
+			is_cached = True
+		else:
+			log_warning("Weather unavailable, showing clock")
+			show_clock_display(rtc, duration)
+			return
+	else:
+		is_cached = False
 	
 	log_debug(f"Displaying weather for {duration_message(duration)}")
 	
 	# Clear display and setup static elements ONCE
 	clear_display()
 	
+	# LOG what we're displaying
+	temp = round(weather_data["feels_like"])
+	condition = weather_data.get("weather_text", "Unknown")
+	cache_indicator = " [CACHED]" if is_cached else ""
+	log_info(f"Displaying Weather: {condition}, {temp}°C ({duration/60:.0f} min){cache_indicator}")
+	
+	# Set temperature color based on cache status
+	temp_color = state.colors["LILAC"] if is_cached else state.colors["DIMMEST_WHITE"]
+	
 	# Create all static display elements ONCE
 	temp_text = bitmap_label.Label(
 		bg_font,
-		color=state.colors["DIMMEST_WHITE"],
+		color=temp_color,  # ← FIXED: Use dynamic color
 		text=f"{round(weather_data['temperature'])}°",
 		x=Layout.WEATHER_TEMP_X,
 		y=Layout.WEATHER_TEMP_Y,
@@ -2055,7 +2544,7 @@ def show_weather_display(rtc, duration, weather_data=None):
 	if feels_like_rounded != temp_rounded:
 		feels_like_text = bitmap_label.Label(
 			font,
-			color=state.colors["DIMMEST_WHITE"],
+			color=temp_color,  # ← Already correct
 			text=f"{feels_like_rounded}°",
 			y=Layout.FEELSLIKE_Y,
 			background_color=state.colors["BLACK"],
@@ -2068,7 +2557,7 @@ def show_weather_display(rtc, duration, weather_data=None):
 	if feels_shade_rounded != feels_like_rounded:
 		feels_shade_text = bitmap_label.Label(
 			font,
-			color=state.colors["DIMMEST_WHITE"],
+			color=temp_color,  # ← Already correct
 			text=f"{feels_shade_rounded}°",
 			y=Layout.FEELSLIKE_SHADE_Y,
 			background_color=state.colors["BLACK"],
@@ -2105,20 +2594,19 @@ def show_weather_display(rtc, duration, weather_data=None):
 	else:
 		log_verbose("Weekday Color Indicator Disabled")
 	
-	
 	# Optimized display update loop - ONLY update time text
 	start_time = time.monotonic()
 	loop_count = 0
-	last_minute = -1  # Track minute changes to reduce updates
+	last_minute = -1
 	
 	while time.monotonic() - start_time < duration:
 		loop_count += 1
 		
 		# Memory monitoring and cleanup
-		if loop_count % Timing.GC_INTERVAL == 0:  # Every 60 seconds
+		if loop_count % Timing.GC_INTERVAL == 0:
 			gc.collect()
 			state.memory_monitor.check_memory(f"weather_display_gc_{loop_count//System.SECONDS_PER_MINUTE}")
-		elif loop_count % Timing.MEMORY_CHECK_INTERVAL == 0:  # Every 30 seconds, just check
+		elif loop_count % Timing.MEMORY_CHECK_INTERVAL == 0:
 			state.memory_monitor.check_memory(f"weather_display_loop_{loop_count}")
 		
 		# Get current time
@@ -2144,7 +2632,7 @@ def show_weather_display(rtc, duration, weather_data=None):
 		interruptible_sleep(1)
 	
 	state.memory_monitor.check_memory("weather_display_complete")
-
+				
 def show_clock_display(rtc, duration=Timing.CLOCK_DISPLAY_DURATION):
 	"""Display clock as fallback when weather unavailable"""
 	log_warning(f"Displaying clock for {duration_message(duration)}...")
@@ -2217,15 +2705,46 @@ def show_event_display(rtc, duration):
 	"""Display special calendar events - cycles through multiple events if present"""
 	state.memory_monitor.check_memory("event_display_start")
 	
+	# Get currently active events
 	num_events, event_list = get_today_events_info(rtc)
+	
+	# Check if there are ANY events today (even if not active now)
+	total_events_today, all_today_events = get_today_all_events_info(rtc)
+	
+	if total_events_today > 0 and num_events == 0:
+		# Events exist but none are currently active
+		current_hour = rtc.datetime.tm_hour
+		
+		# Find when next event becomes active
+		next_event_time = None
+		for event in all_today_events:
+			if len(event) >= 6:  # Has time window
+				start_hour = int(event[4])
+				if start_hour > current_hour:
+					if next_event_time is None or start_hour < next_event_time:
+						next_event_time = start_hour
+		
+		if next_event_time:
+			log_verbose(f"Event inactive: {total_events_today} event(s) today, next active at {next_event_time}:00")
+		else:
+			log_verbose(f"Event inactive: {total_events_today} event(s) today, time window passed")
+		
+		return False
 	
 	if num_events == 0:
 		return False
 	
+	# Log activation for time-windowed events
+	for event in event_list:
+		if len(event) >= 6:  # Has time window
+			start_hour = event[4]
+			end_hour = event[5]
+			log_debug(f"Event active: {event[1]} {event[0]} (time window: {start_hour}:00-{end_hour}:00)")
+	
 	if num_events == 1:
 		# Single event - use full duration
 		event_data = event_list[0]
-		log_info(f"Showing event: {event_data[1]} {event_data[0]}")
+		log_info(f"Showing event: {event_data[0]} {event_data[1]}")
 		log_debug(f"Showing event display for {duration_message(duration)}")
 		_display_single_event_optimized(event_data, rtc, duration)
 	else:
@@ -2235,14 +2754,14 @@ def show_event_display(rtc, duration):
 		
 		for i, event_data in enumerate(event_list):
 			state.memory_monitor.check_memory(f"event_{i+1}_start")
-			log_info(f"Event {i+1}/{num_events}: {event_data[1]} {event_data[0]}")
+			log_info(f"Event {i+1}/{num_events}: {event_data[0]} {event_data[1]}")
 			_display_single_event_optimized(event_data, rtc, event_duration)
 	
 	state.memory_monitor.check_memory("event_display_complete")
 	return True
 
 def _display_single_event_optimized(event_data, rtc, duration):
-	"""Optimized helper function to display a single event - optimized for typical 30-second events"""
+	"""Optimized helper function to display a single event"""
 	clear_display()
 	
 	# Force garbage collection before loading images
@@ -2250,7 +2769,7 @@ def _display_single_event_optimized(event_data, rtc, duration):
 	state.memory_monitor.check_memory("single_event_start")
 	
 	try:
-		if event_data[1] == "Birthday":
+		if event_data[0] == "Birthday":  # Check bottom_line (was line1)
 			# For birthday events, use the original cake image layout
 			bitmap, palette = state.image_cache.get_image(Paths.BIRTHDAY_IMAGE)
 			image_grid = displayio.TileGrid(bitmap, pixel_shader=palette)
@@ -2270,8 +2789,9 @@ def _display_single_event_optimized(event_data, rtc, duration):
 			image_grid.y = Layout.EVENT_IMAGE_Y
 			
 			# Calculate optimal text positions dynamically
-			line1_text = event_data[1]  # e.g., "Cumple"
-			line2_text = event_data[0]  # e.g., "Puchis"
+			# NEW: Swapped indices - [0] is top, [1] is bottom
+			top_text = event_data[0]     # e.g., "Puchis" - shows on TOP
+			bottom_text = event_data[1]  # e.g., "Cumple" - shows on BOTTOM
 			text_color = event_data[3] if len(event_data) > 3 else Strings.DEFAULT_EVENT_COLOR
 			
 			# Color map through dictionary access:
@@ -2280,25 +2800,25 @@ def _display_single_event_optimized(event_data, rtc, duration):
 			# Get dynamic positions
 			line1_y, line2_y = calculate_bottom_aligned_positions(
 				font,
-				line1_text,
-				line2_text,
+				top_text,
+				bottom_text,
 				display_height=Display.HEIGHT,
 				bottom_margin=Layout.BOTTOM_MARGIN,
 				line_spacing=Layout.LINE_SPACING
 			)
 			
-			# Create text labels
+			# Create text labels (line1 = top, line2 = bottom)
 			text1 = bitmap_label.Label(
 				font,
 				color=state.colors["DIMMEST_WHITE"],
-				text=line1_text,
+				text=top_text,
 				x=Layout.TEXT_MARGIN, y=line1_y
 			)
 			
 			text2 = bitmap_label.Label(
 				font,
 				color=line2_color,
-				text=line2_text,
+				text=bottom_text,
 				x=Layout.TEXT_MARGIN,
 				y=line2_y
 			)
@@ -2311,10 +2831,9 @@ def _display_single_event_optimized(event_data, rtc, duration):
 			# Add day indicator
 			if display_config.show_weekday_indicator:
 				add_day_indicator(state.main_group, rtc)
-				log_debug("Showing Weekday Color Indicator on Event Display")
+				log_debug("Showing Weekday Color Indicator on Event Display")		
 		
-		
-		# Simple strategy optimized for your usage patterns
+		# Simple strategy optimized for usage patterns
 		if duration <= Timing.EVENT_CHUNK_SIZE:
 			# Most common case: 10-60 second events, just sleep
 			interruptible_sleep(duration)
@@ -2350,7 +2869,7 @@ def show_color_test_display(duration=Timing.COLOR_TEST):
 	try:
 		# Get test colors dynamically from COLORS dictionary
 		test_color_names = ["MINT", "BUGAMBILIA", "LILAC", "RED", "GREEN", "BLUE",
-						   "ORANGE", "YELLOW", "CYAN", "PURPLE", "PINK", "AQUA"]
+						   "ORANGE", "YELLOW", "CYAN", "PURPLE", "PINK", "BROWN"]
 		texts = ["Aa", "Bb", "Cc", "Dd", "Ee", "Ff", "Gg", "Hh", "Ii", "Jj", "Kk", "Ll"]
 		
 		key_text = "Color Key: "
@@ -2495,93 +3014,71 @@ def _display_icon_batch(icon_numbers, batch_num=None, total_batches=None, manual
 	except Exception as e:
 		log_error(f"Icon display error: {e}")
 	
-def show_forecast_display(current_data=None, forecast_data=None, duration=30):
+def show_forecast_display(current_data, forecast_data, display_duration, is_fresh=False):
 	"""Optimized forecast display with smart precipitation detection"""
+	
+	# CRITICAL: Aggressive cleanup
+	clear_display()
+	gc.collect()
+	state.memory_monitor.check_memory("forecast_display_start")
 	
 	# Check if we have real data
 	if not current_data or not forecast_data or len(forecast_data) < 2:
 		log_warning(f"Skipping forecast display - insufficient data")
 		return False
 	
-	# Analyze forecast for precipitation changes
+	# FLATTENED precipitation analysis (same logic, less stack depth)
 	current_has_precip = current_data.get('has_precipitation', False)
-	forecast_indices = None
+	forecast_indices = [0, 1]  # Default
 	
-	# DEBUG: Log what we're checking
-	log_verbose(f"Analyzing precipitation - Current: {current_has_precip}")
-	for i, hour in enumerate(forecast_data):
-		log_verbose(f"  Hour {i}: has_precip={hour.get('has_precipitation')}, temp={hour.get('temperature')}")
+	# Pre-extract precipitation flags (avoid nested access)
+	precip_flags = [h.get('has_precipitation', False) for h in forecast_data[:6]]
 	
-	if not current_has_precip:
-		# No current precipitation - look for when it starts
-		rain_start_idx = None
-		rain_stop_idx = None
-		
-		for i, hour in enumerate(forecast_data):
-			if hour.get('has_precipitation', False):
-				if rain_start_idx is None:
-					rain_start_idx = i  # First hour with rain
-			else:  # No precipitation in this hour
-				if rain_start_idx is not None and rain_stop_idx is None:
-					rain_stop_idx = i  # First hour after rain stops
-					break
-		
-		if rain_start_idx is not None:
-			if rain_stop_idx is not None:
-				# Show: current, rain start, rain stop
-				forecast_indices = [rain_start_idx, rain_stop_idx]
-				log_debug(f"Precipitation forecast: starts at hour {rain_start_idx+1}, stops at hour {rain_stop_idx+1}")
-			else:
-				# Rain starts but doesn't stop in 12 hours
-				if rain_start_idx >= len(forecast_data) - 1:
-					# Rain is in last hour - show previous hour and rain hour
-					forecast_indices = [max(0, rain_start_idx - 1), rain_start_idx]
-					log_debug(f"Precipitation in last hour {rain_start_idx+1}, showing hour before")
-				else:
-					# Show rain start and next hour
-					forecast_indices = [rain_start_idx, rain_start_idx + 1]
-					log_debug(f"Precipitation starts at hour {rain_start_idx+1}, continues beyond forecast")
+	if current_has_precip:
+		# Currently raining - find when it stops
+		for i in range(len(precip_flags)):
+			if not precip_flags[i]:
+				forecast_indices = [i, min(i + 1, len(forecast_data) - 1)]
+				log_debug(f"Rain stops at hour {i+1}")
+				break
 	else:
-		# Currently raining - look for when it stops
-		rain_stop_idx = None
+		# Not raining - find when it starts
+		rain_start = -1
+		rain_stop = -1
 		
-		for i, hour in enumerate(forecast_data):
-			if not hour.get('has_precipitation', False):
-				rain_stop_idx = i
+		for i in range(len(precip_flags)):
+			if precip_flags[i] and rain_start == -1:
+				rain_start = i
+			elif not precip_flags[i] and rain_start != -1 and rain_stop == -1:
+				rain_stop = i
 				break
 		
-		if rain_stop_idx is not None:
-			# Show: current, rain stop, next hour after stop
-			forecast_indices = [rain_stop_idx, min(rain_stop_idx + 1, len(forecast_data) - 1)]
-			log_debug(f"Currently raining, stops at hour {rain_stop_idx+1}")
-		else:
-			# Rain continues - show next 2 hours
-			forecast_indices = [0, 1]
-			log_debug("Rain continues throughout forecast period")
+		if rain_start != -1:
+			if rain_stop != -1:
+				forecast_indices = [rain_start, rain_stop]
+				log_debug(f"Rain: hour {rain_start+1} to {rain_stop+1}")
+			else:
+				forecast_indices = [rain_start, min(rain_start + 1, len(forecast_data) - 1)]
+				log_debug(f"Rain starts at hour {rain_start+1}")
 	
-	# Fallback to normal behavior if no precipitation found
-	if forecast_indices is None:
-		forecast_indices = [0, 1]
-		log_debug("No precipitation, normal forecast display")
-	
-	# NOW check for duplicate hour right before displaying
+	# Simple duplicate hour check
 	current_hour = state.rtc_instance.datetime.tm_hour
-	forecast_hour_0 = int(forecast_data[forecast_indices[0]]['datetime'][11:13]) % System.HOURS_IN_DAY
+	first_forecast_hour = int(forecast_data[forecast_indices[0]]['datetime'][11:13]) % 24
 	
-	# If the selected forecast hour matches current hour, shift indices forward
-	if forecast_hour_0 == current_hour and forecast_indices[0] == 0:
-		# Only shift if we're showing the sequential hours [0,1]
-		if len(forecast_data) >= 3:
-			forecast_indices = [1, 2]
-			log_debug(f"Adjusted indices to skip duplicate hour {current_hour}")
+	if first_forecast_hour == current_hour and forecast_indices[0] == 0 and len(forecast_data) >= 3:
+		forecast_indices = [1, 2]
+		log_debug(f"Adjusted to skip duplicate hour {current_hour}")
 	
 	log_debug(f"Will show hours: {forecast_indices[0]+1} and {forecast_indices[1]+1}")
 	
-	# Log with real data
-	log_debug(f"Displaying Forecast for {duration_message(duration)}: Current {current_data['temperature']}°C, Next hours: {forecast_data[forecast_indices[0]]['temperature']}°C, {forecast_data[forecast_indices[1]]['temperature']}°C")
-	
 	clear_display()
 	gc.collect()
+	
+	# LOG what we're about to display
+	current_temp = round(current_data["feels_like"])
+	next_temps = [round(h["feels_like"]) for h in forecast_data[:2]]
+	status = "Fresh" if is_fresh else "Cached"
+	log_info(f"Displaying Forecast: Current {current_temp}°C → Next: {next_temps[0]}°C, {next_temps[1]}°C ({display_duration/60:.0f} min) [{status}]")
 	
 	try:
 		# Column 1 - current temperature with feels-like logic
@@ -2746,7 +3243,7 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 		loop_count = 0
 		last_minute = -1
 		
-		while time.monotonic() - start_time < duration:
+		while time.monotonic() - start_time < display_duration:
 			loop_count += 1
 			
 			# Update first column time only when minute changes
@@ -2767,7 +3264,7 @@ def show_forecast_display(current_data=None, forecast_data=None, duration=30):
 			
 			# Memory monitoring and cleanup
 			if loop_count % Timing.MEMORY_CHECK_INTERVAL == 0:  # Every 30 seconds
-				if duration > Timing.GC_INTERVAL and loop_count % Timing.GC_INTERVAL == 0:  # Only GC for longer durations
+				if display_duration > Timing.GC_INTERVAL and loop_count % Timing.GC_INTERVAL == 0:  # Only GC for longer durations
 					gc.collect()
 					state.memory_monitor.check_memory(f"forecast_display_gc_{loop_count//System.SECONDS_PER_HOUR}")
 				else:
@@ -2878,25 +3375,97 @@ def update_progress_bar_bitmap(progress_bitmap, elapsed_seconds, total_seconds):
 				progress_bitmap[x, y] = 1  # Elapsed (LILAC)
 			else:
 				progress_bitmap[x, y] = 2  # Remaining (MINT)
+		
+def get_schedule_progress():
+	"""
+	Calculate progress for active schedule session
+	Returns: (elapsed_seconds, total_duration, progress_ratio) or (None, None, None)
+	"""
+	if not state.active_schedule_name or not state.active_schedule_start_time:
+		return None, None, None
 	
-def show_scheduled_display(rtc, schedule_name, schedule_config, duration, current_data=None):
-	"""Display scheduled message with live weather and clock"""
-	log_info(f"Showing scheduled display: {schedule_name}")
-	clear_display()
+	current_time = time.monotonic()
+	
+	# Check if schedule has expired
+	if state.active_schedule_end_time and current_time >= state.active_schedule_end_time:
+		# Schedule is over - clear session
+		log_debug(f"Schedule session ended: {state.active_schedule_name}")
+		state.active_schedule_name = None
+		state.active_schedule_start_time = None
+		state.active_schedule_end_time = None
+		return None, None, None
+	
+	elapsed = current_time - state.active_schedule_start_time
+	total_duration = state.active_schedule_end_time - state.active_schedule_start_time
+	progress_ratio = elapsed / total_duration if total_duration > 0 else 0
+	
+	return elapsed, total_duration, progress_ratio
+
+def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, current_data=None):
+	"""
+	Display scheduled message for one segment (max 5 minutes)
+	Supports multi-segment schedules by tracking overall progress
+	"""
+	
+	# Calculate how long this segment should display
+	elapsed, full_duration, progress = get_schedule_progress()
+	
+	if elapsed is None:
+		# First segment of schedule - initialize session
+		state.active_schedule_name = schedule_name
+		state.active_schedule_start_time = time.monotonic()
+		state.active_schedule_end_time = state.active_schedule_start_time + total_duration
+		elapsed = 0
+		full_duration = total_duration
+		progress = 0
+		
+		log_info(f"Starting schedule session: {schedule_name} ({total_duration}s total)")
+	
+	else:
+		log_debug(f"Continuing schedule: {schedule_name} (elapsed: {elapsed:.0f}s / {full_duration:.0f}s)")
+	
+	# This segment duration: min(5 minutes, remaining time)
+	remaining = full_duration - elapsed
+	segment_duration = min(Timing.SCHEDULE_SEGMENT_DURATION, remaining)
+	
+	log_debug(f"Segment duration: {segment_duration}s (remaining: {remaining:.0f}s)")
+	
+	# Light cleanup before segment (keep session alive for connection reuse)
 	gc.collect()
+	clear_display()
 	
 	try:
-		# Fetch weather data if not provided
+		# Fetch weather if not provided
 		if not current_data:
-			# Fetch current weather data only
 			current_data = fetch_current_weather_only()
 		
 		if not current_data:
-			log_warning("No weather data for scheduled display")
-			show_clock_display(rtc, duration)
-			return
+			log_warning("No weather data for scheduled display segment")
+			
+			# Try cached current weather before giving up (max 30 min old)
+			current_data = get_cached_weather_if_fresh(max_age_seconds=Timing.MAX_CACHE_AGE)
+			
+			if current_data:
+				log_debug("Using cached current weather as fallback")
+				is_cached = True
+			elif elapsed == 0:
+				# First segment needs weather - show clock instead
+				log_warning("Cannot start schedule without weather - showing clock")
+				show_clock_display(rtc, segment_duration)
+				return
+			else:
+				# Continuation segment - use placeholder weather
+				log_debug("Continuing schedule with placeholder weather")
+				current_data = {
+					'feels_like': 0,
+					'weather_icon': 45,
+					'uv_index': 0
+				}
+				is_cached = False
+		else:
+			is_cached = False
 		
-		# Extract initial weather data
+		# Extract weather data
 		temperature = f"{round(current_data['feels_like'])}°"
 		weather_icon = f"{current_data['weather_icon']}.bmp"
 		uv_index = current_data['uv_index']
@@ -2915,46 +3484,41 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, duration, curren
 					)
 					state.main_group.append(uv_pixel)
 		
-		# Vertical offset for elements when UV bar present
 		y_offset = Layout.SCHEDULE_X_OFFSET if uv_index > 0 else 0
 		
-		# Weather icon (left column)
+		# Load images
 		try:
 			bitmap, palette = state.image_cache.get_image(f"{Paths.COLUMN_IMAGES}/{weather_icon}")
 			weather_img = displayio.TileGrid(bitmap, pixel_shader=palette)
 			weather_img.x = Layout.SCHEDULE_LEFT_MARGIN_X
 			weather_img.y = Layout.SCHEDULE_W_IMAGE_Y + y_offset
 		except Exception as e:
-			log_error(f"Failed to load weather icon {weather_icon}: {e}")
+			log_error(f"Failed to load weather icon: {e}")
 			state.scheduled_display_error_count += 1
-			
 			if state.scheduled_display_error_count >= 3:
-				log_error("Disabling scheduled displays due to repeated errors")
 				display_config.show_scheduled_displays = False
-			
-			show_clock_display(rtc, duration)
+			show_clock_display(rtc, segment_duration)
 			return
-			
+		
 		try:
 			bitmap, palette = load_bmp_image(f"{Paths.SCHEDULE_IMAGES}/{schedule_config['image']}")
 			schedule_img = displayio.TileGrid(bitmap, pixel_shader=palette)
 			schedule_img.x = Layout.SCHEDULE_IMAGE_X
 			schedule_img.y = Layout.SCHEDULE_IMAGE_Y
 		except Exception as e:
-			log_error(f"Failed to load schedule image {schedule_config['image']}: {e}")
+			log_error(f"Failed to load schedule image: {e}")
 			state.scheduled_display_error_count += 1
-			
 			if state.scheduled_display_error_count >= 3:
-				log_error("Disabling scheduled displays due to repeated errors")
 				display_config.show_scheduled_displays = False
-			
-			show_clock_display(rtc, duration)
+			show_clock_display(rtc, segment_duration)
 			return
 		
-		# Success - reset error counter
 		state.scheduled_display_error_count = 0
 		
-		# Time label (updates in loop)
+		# Set temperature color based on cache status
+		temp_color = state.colors["LILAC"] if is_cached else state.colors["DIMMEST_WHITE"]
+		
+		# Labels
 		time_label = bitmap_label.Label(
 			font,
 			color=state.colors["DIMMEST_WHITE"],
@@ -2962,16 +3526,15 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, duration, curren
 			y=Layout.FORECAST_TIME_Y
 		)
 		
-		# Temperature label (static)
 		temp_label = bitmap_label.Label(
 			font,
-			color=state.colors["DIMMEST_WHITE"],
+			color=temp_color,
 			text=temperature,
 			x=Layout.SCHEDULE_LEFT_MARGIN_X,
 			y=Layout.SCHEDULE_TEMP_Y + y_offset
 		)
 		
-		# Add all elements
+		# Add elements
 		state.main_group.append(weather_img)
 		state.main_group.append(schedule_img)
 		state.main_group.append(time_label)
@@ -2979,18 +3542,28 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, duration, curren
 		
 		if display_config.show_weekday_indicator:
 			add_day_indicator(state.main_group, rtc)
+			log_verbose("Showing Weekday Color Indicator on Schedule Display")
+			
+		# LOG what's being displayed this segment
+		segment_num = int(elapsed / Timing.SCHEDULE_SEGMENT_DURATION) + 1
+		total_segments = int(full_duration / Timing.SCHEDULE_SEGMENT_DURATION) + (1 if full_duration % Timing.SCHEDULE_SEGMENT_DURATION else 0)
+		cache_indicator = " [CACHED]" if is_cached else ""
+		log_info(f"Displaying Schedule: {schedule_name} - Segment {segment_num}/{total_segments} ({temperature}, {segment_duration/60:.1f} min, progress: {progress*100:.0f}%){cache_indicator}")
 		
-		# Reset failure tracking on successful initial weather fetch
+		# Update success tracking
 		if current_data:
 			state.last_successful_weather = time.monotonic()
 			state.consecutive_failures = 0
 		
-		# Track number of static elements (everything before progress bar)
-		static_elements_count = len(state.main_group)
-		
-		# Create progress bar TileGrid ONLY if enabled for this schedule
-		if schedule_config.get("progressbar", True):  # Default to True if key doesn't exist
+		## Progress bar - based on FULL schedule progress, not segment
+		if schedule_config.get("progressbar", True):
 			progress_grid, progress_bitmap = create_progress_bar_tilegrid()
+			
+			# Pre-fill progress bar based on elapsed time using existing function
+			if progress > 0:
+				update_progress_bar_bitmap(progress_bitmap, elapsed, full_duration)
+				log_debug(f"Pre-filled progress bar to {progress*100:.0f}%")
+			
 			state.main_group.append(progress_grid)
 			show_progress_bar = True
 		else:
@@ -2998,65 +3571,52 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, duration, curren
 			progress_bitmap = None
 			show_progress_bar = False
 		
-		# Display loop with live clock, weather refresh, and progress bar
-		start_time = time.monotonic()
+		# Display loop - simplified, no weather refresh within segment
+		segment_start = time.monotonic()
 		last_minute = -1
-		last_weather_update = start_time
-		last_gc = start_time
-		last_displayed_column = -1  # Track which column was last updated
+		last_displayed_column = -1
 		
-		while time.monotonic() - start_time < duration:
+		# Adaptive sleep for smooth updates
+		sleep_interval = max(Timing.MIN_SLEEP_INTERVAL, min(segment_duration / 60, Timing.MAX_SLEEP_INTERVAL))  # 1-5 seconds
+		
+		while time.monotonic() - segment_start < segment_duration:
 			current_minute = rtc.datetime.tm_min
 			current_time = time.monotonic()
-			elapsed = current_time - start_time
 			
-			# Calculate current column for progress bar
-			elapsed_ratio = elapsed / duration
-			current_column = int(Layout.PROGRESS_BAR_HORIZONTAL_WIDTH * (elapsed_ratio))
+			# Calculate OVERALL progress (from schedule start, not segment start)
+			overall_elapsed = elapsed + (current_time - segment_start)
+			overall_progress = overall_elapsed / full_duration
+			current_column = int(Layout.PROGRESS_BAR_HORIZONTAL_WIDTH * overall_progress)
 			
-			# Update progress bar only when column changes
-			if show_progress_bar and current_column != last_displayed_column:
-				update_progress_bar_bitmap(progress_bitmap, elapsed, duration)
+			# Update progress bar
+			if show_progress_bar and current_column != last_displayed_column and current_column < Layout.PROGRESS_BAR_HORIZONTAL_WIDTH:
+				update_progress_bar_bitmap(progress_bitmap, overall_elapsed, full_duration)
 				last_displayed_column = current_column
 			
-			# Garbage collect every 10 minutes
-			if current_time - last_gc >= Timing.SCHEDULE_GC_INTERVAL:
-				gc.collect()
-				log_verbose("GC during scheduled display")
-				last_gc = current_time
-			
-			# Refresh weather every X minutes
-			if current_time - last_weather_update >= 300:  # 5 minutes
-				fresh_data = fetch_current_weather_only()
-			
-				if fresh_data:
-					temp_label.text = f"{round(fresh_data['feels_like'])}°"
-					state.last_successful_weather = time.monotonic()
-					state.consecutive_failures = 0
-				
-				last_weather_update = current_time
-			
-			# Update time when minute changes
+			# Update clock
 			if current_minute != last_minute:
 				hour = rtc.datetime.tm_hour
 				display_hour = hour % System.HOURS_IN_HALF_DAY or System.HOURS_IN_HALF_DAY
-				
 				time_label.text = f"{display_hour}:{current_minute:02d}"
 				last_minute = current_minute
 			
-			interruptible_sleep(1)
-			
+			time.sleep(sleep_interval)
+		
+		log_debug(f"Segment complete")
+		
 	except Exception as e:
-		log_error(f"Scheduled display error: {e}")
-		show_clock_display(rtc, duration)
+		log_error(f"Scheduled display segment error: {e}")
+		
+		# CRITICAL: Add delay to prevent runaway loops on errors
+		# If segment_duration is very small or 0, use minimum 30 seconds
+		safe_duration = max(Timing.ERROR_SAFETY_DELAY, segment_duration)
+		log_warning(f"Showing clock for {safe_duration}s due to error")
+		show_clock_display(rtc, safe_duration)
 	
-	# Reset failure timer when exiting schedule IF we had at least one success
-	# This prevents triggering extended failure mode between consecutive schedules
-	if state.consecutive_failures == 0:
-		state.last_successful_weather = time.monotonic()
-	
-	gc.collect()
-	
+	finally:
+		# Cleanup after segment
+		gc.collect()
+
 ### SYSTEM MANAGEMENT ###
 
 def check_daily_reset(rtc):
@@ -3176,21 +3736,74 @@ def initialize_system(rtc):
 	if display_config.use_test_date:
 		update_rtc_datetime(rtc, TestData.TEST_YEAR, TestData.TEST_MONTH, TestData.TEST_DAY, TestData.TEST_HOUR, TestData.TEST_MINUTE)
 	
-	# Load events
-	events = get_events()
-	event_count, _ = get_today_events_info(rtc)
+	# Fetch events and schedules from GitHub
+	log_debug("Fetching data from GitHub...")
+	github_events, github_schedules, schedule_source = fetch_github_data(rtc)
 	
-	if event_count == 0:
-		event_count = "No"
-	
-	# Format imported count
-	if state.ephemeral_event_count > 0:
-		imported_str = f" ({state.ephemeral_event_count} imported)"
+	# Initialize events - DON'T set state.cached_events yet, let load_all_events() handle it
+	# But store github_events temporarily so load_all_events() can access it
+	if github_events:
+		# Store in a temporary location for load_all_events() to use
+		state._github_events_temp = github_events
+		log_debug(f"GitHub events: {len(github_events)} event dates")
 	else:
-		imported_str = ""
+		log_warning("Failed to fetch events from GitHub")
+		state._github_events_temp = None
 	
-	log_info(f"Hardware ready | {len(scheduled_display.schedules)} schedules | {state.total_event_count} events{imported_str} | Today: {event_count}")
-	state.memory_monitor.check_memory("events_loaded")
+	# Load all events (this will merge GitHub + permanent and set counters)
+	events = load_all_events()
+	
+	# Clear temporary storage
+	state._github_events_temp = None
+	
+	# Cache the merged events
+	state.cached_events = events
+	
+	# Initialize schedules and track source
+	schedule_source_flag = ""
+	if github_schedules:
+		scheduled_display.schedules = github_schedules
+		scheduled_display.schedules_loaded = True
+		scheduled_display.last_fetch_date = f"{rtc.datetime.tm_year:04d}-{rtc.datetime.tm_mon:02d}-{rtc.datetime.tm_mday:02d}"
+		
+		# Set flag based on source
+		if schedule_source == "date-specific":
+			schedule_source_flag = " (imported)"
+		elif schedule_source == "default":
+			schedule_source_flag = " (default)"
+		
+		log_debug(f"GitHub schedules: {len(github_schedules)} schedule(s) ({schedule_source})")
+	else:
+		log_warning("Failed to fetch schedules from GitHub, trying local file")
+		local_schedules = load_schedules_from_csv()
+		if local_schedules:
+			scheduled_display.schedules = local_schedules
+			scheduled_display.schedules_loaded = True
+			scheduled_display.last_fetch_date = f"{rtc.datetime.tm_year:04d}-{rtc.datetime.tm_mon:02d}-{rtc.datetime.tm_mday:02d}"
+			schedule_source_flag = " (local)"
+			log_debug(f"Local schedules: {len(local_schedules)} schedule(s)")
+		else:
+			log_warning("No schedules available")
+	
+	# Get event counts for today
+	total_today, all_today_events = get_today_all_events_info(rtc)
+	active_now, _ = get_today_events_info(rtc)
+	
+	# Format event count message
+	if total_today == 0:
+		today_msg = "No events"
+	elif total_today == active_now:
+		today_msg = f"{total_today} event{'s' if total_today > 1 else ''}"
+	else:
+		today_msg = f"{total_today} event{'s' if total_today > 1 else ''} ({active_now} active now)"
+	
+	# Format imported events count
+	imported_str = f" ({state.ephemeral_event_count} imported)" if state.ephemeral_event_count > 0 else ""
+	
+	# Summary log
+	schedule_count = len(scheduled_display.schedules) if scheduled_display.schedules_loaded else 0
+	log_info(f"Hardware ready | {schedule_count} schedules{schedule_source_flag} | {state.total_event_count} events{imported_str} | Today: {today_msg}")
+	state.memory_monitor.check_memory("initialization_complete")
 	
 	return events
 
@@ -3253,7 +3866,8 @@ def fetch_cycle_data(rtc):
 		
 		forecast_data = state.cached_forecast_data
 	
-	return current_data, forecast_data
+	# Return fresh flag along with data
+	return current_data, forecast_data, needs_fresh_forecast
 
 def run_display_cycle(rtc, cycle_count):
 	cycle_start_time = time.monotonic()
@@ -3263,7 +3877,7 @@ def run_display_cycle(rtc, cycle_count):
 		time_since_startup = time.monotonic() - state.startup_time
 		avg_cycle_time = time_since_startup / cycle_count
 		
-		if avg_cycle_time < 10 and cycle_count > 10:
+		if avg_cycle_time < Timing.FAST_CYCLE_THRESHOLD and cycle_count > 10:
 			log_error(f"Rapid cycling detected ({avg_cycle_time:.1f}s/cycle) - restarting")
 			interruptible_sleep(Timing.RESTART_DELAY)
 			supervisor.reload()
@@ -3305,34 +3919,47 @@ def run_display_cycle(rtc, cycle_count):
 	# CHECK FOR SCHEDULED DISPLAY FIRST
 	if display_config.show_scheduled_displays:
 		schedule_name, schedule_config = scheduled_display.get_active_schedule(rtc)
+		
 		if schedule_name:
-			# Fetch only current weather (not forecast) for scheduled display
+			# Fetch weather for this segment
 			current_data = fetch_current_weather_only()
 			
-			# Reset failure timer if we got weather data
 			if current_data:
 				state.last_successful_weather = time.monotonic()
 				state.consecutive_failures = 0
 			
+			# Get remaining time for schedule
 			display_duration = get_remaining_schedule_time(rtc, schedule_config)
+			
+			# PROTECTION: Ensure minimum cycle time
+			cycle_start = time.monotonic()
+			
+			# Show ONE segment (max 5 minutes)
 			show_scheduled_display(rtc, schedule_name, schedule_config, display_duration, current_data)
 			
-			# Log cycle summary WITH API stats
+			# CRITICAL: If cycle completed too fast, something is wrong
+			cycle_elapsed = time.monotonic() - cycle_start
+			if cycle_elapsed < Timing.FAST_CYCLE_THRESHOLD:
+				log_error(f"Schedule cycle completed suspiciously fast ({cycle_elapsed:.1f}s) - adding safety delay")
+				time.sleep(Timing.ERROR_SAFETY_DELAY)  # Force 30-second delay
+			
+			# Log cycle summary
 			cycle_duration = time.monotonic() - cycle_start_time
 			mem_stats = state.memory_monitor.get_memory_stats()
 			log_info(f"Cycle #{cycle_count} (SCHEDULED) complete in {cycle_duration/System.SECONDS_PER_MINUTE:.2f} min | UT: {state.memory_monitor.get_runtime()} | Mem: {mem_stats['usage_percent']:.1f}% | API: Total={state.api_call_count}/{API.MAX_CALLS_BEFORE_RESTART}, Current={state.current_api_calls}, Forecast={state.forecast_api_calls}\n")
 			return
+			
 	else:
 		log_debug("Scheduled displays disabled due to errors")
 	
 	# NORMAL CYCLE - Fetch data once
-	current_data, forecast_data = fetch_cycle_data(rtc)
+	current_data, forecast_data, forecast_is_fresh = fetch_cycle_data(rtc)  # Now returns 3 values
 	current_duration, forecast_duration, event_duration = calculate_display_durations(rtc)
 	
 	# Forecast display
 	forecast_shown = False
 	if display_config.show_forecast and current_data and forecast_data:
-		forecast_shown = show_forecast_display(current_data, forecast_data, forecast_duration)
+		forecast_shown = show_forecast_display(current_data, forecast_data, forecast_duration, forecast_is_fresh)
 	
 	if not forecast_shown:
 		current_duration += forecast_duration
