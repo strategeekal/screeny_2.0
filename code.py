@@ -3952,14 +3952,22 @@ def run_display_cycle(rtc, cycle_count):
 	else:
 		log_debug("Scheduled displays disabled due to errors")
 	
+	# ========================================================================
+	# TRACK IF ANYTHING WAS DISPLAYED THIS CYCLE
+	# ========================================================================
+	something_displayed = False
+	
 	# NORMAL CYCLE - Fetch data once
-	current_data, forecast_data, forecast_is_fresh = fetch_cycle_data(rtc)  # Now returns 3 values
+	current_data, forecast_data, forecast_is_fresh = fetch_cycle_data(rtc)
+	
 	current_duration, forecast_duration, event_duration = calculate_display_durations(rtc)
 	
 	# Forecast display
 	forecast_shown = False
 	if display_config.show_forecast and current_data and forecast_data:
 		forecast_shown = show_forecast_display(current_data, forecast_data, forecast_duration, forecast_is_fresh)
+		if forecast_shown:
+			something_displayed = True
 	
 	if not forecast_shown:
 		current_duration += forecast_duration
@@ -3967,27 +3975,49 @@ def run_display_cycle(rtc, cycle_count):
 	# Current weather display
 	if display_config.show_weather and current_data:
 		show_weather_display(rtc, current_duration, current_data)
+		something_displayed = True
 	
 	# Events display
 	if display_config.show_events and event_duration > 0:
 		event_shown = show_event_display(rtc, event_duration)
-		if not event_shown:
+		if event_shown:
+			something_displayed = True
+		else:
 			interruptible_sleep(1)
 	
 	# Color test (if enabled)
 	if display_config.show_color_test:
 		show_color_test_display(Timing.COLOR_TEST)
+		something_displayed = True
 	
 	# Icon test (if enabled)
 	if display_config.show_icon_test:
 		show_icon_test_display(icon_numbers=TestData.TEST_ICONS)
+		something_displayed = True
+	
+	# ========================================================================
+	# FALLBACK: If nothing was displayed, show clock
+	# ========================================================================
+	if not something_displayed:
+		log_warning("No displays active - showing clock as fallback")
+		show_clock_display(rtc, Timing.CLOCK_DISPLAY_DURATION)
+		something_displayed = True  # Clock counts as something!
 	
 	# Cache stats logging
 	if cycle_count % Timing.CYCLES_FOR_CACHE_STATS == 0:
 		log_debug(state.image_cache.get_stats())
 	
-	# Calculate cycle duration and log
+	# ========================================================================
+	# SAFETY CHECK: Ensure cycle took reasonable time
+	# ========================================================================
 	cycle_duration = time.monotonic() - cycle_start_time
+	
+	if cycle_duration < Timing.FAST_CYCLE_THRESHOLD:
+		log_error(f"Cycle completed too fast ({cycle_duration:.1f}s) - adding safety delay")
+		time.sleep(Timing.ERROR_SAFETY_DELAY)
+		cycle_duration = time.monotonic() - cycle_start_time
+	
+	# Calculate cycle duration and log
 	mem_stats = state.memory_monitor.get_memory_stats()
 	
 	log_info(f"Cycle #{cycle_count} complete in {cycle_duration/System.SECONDS_PER_MINUTE:.2f} min | UT: {state.memory_monitor.get_runtime()} | Mem: {mem_stats['usage_percent']:.1f}% | API: Total={state.api_call_count}/{API.MAX_CALLS_BEFORE_RESTART}, Current={state.current_api_calls}, Forecast={state.forecast_api_calls}\n")
