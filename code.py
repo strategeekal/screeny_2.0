@@ -3442,63 +3442,72 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 		if not current_data:
 			log_warning("No weather data for scheduled display segment")
 			
-			# Try cached current weather before giving up (max 30 min old)
+			# Try cached current weather before giving up (max 15 minutes old)
 			current_data = get_cached_weather_if_fresh(max_age_seconds=Timing.MAX_CACHE_AGE)
 			
 			if current_data:
 				log_debug("Using cached current weather as fallback")
 				is_cached = True
-			elif elapsed == 0:
-				# First segment needs weather - show clock instead
-				log_warning("Cannot start schedule without weather - showing clock")
-				show_clock_display(rtc, segment_duration)
-				return
 			else:
-				# Continuation segment - use placeholder weather
-				log_debug("Continuing schedule with placeholder weather")
-				current_data = {
-					'feels_like': 0,
-					'weather_icon': 45,
-					'uv_index': 0
-				}
+				# No weather data, skip weather section
+				log_warning("No weather data - Display schedule + clock only")
 				is_cached = False
+				
 		else:
 			is_cached = False
-		
-		# Extract weather data
-		temperature = f"{round(current_data['feels_like'])}°"
-		weather_icon = f"{current_data['weather_icon']}.bmp"
-		uv_index = current_data['uv_index']
-		
-		# Add UV bar if present
-		if uv_index > 0:
-			uv_length = calculate_uv_bar_length(uv_index)
-			for i in range(uv_length):
-				if i not in Visual.UV_SPACING_POSITIONS:
-					uv_pixel = Line(
-						Layout.SCHEDULE_LEFT_MARGIN_X + i,
-						Layout.SCHEDULE_UV_Y,
-						Layout.SCHEDULE_LEFT_MARGIN_X + i,
-						Layout.SCHEDULE_UV_Y,
-						state.colors["DIMMEST_WHITE"]
-					)
-					state.main_group.append(uv_pixel)
-		
-		y_offset = Layout.SCHEDULE_X_OFFSET if uv_index > 0 else 0
-		
-		# Load images
-		try:
-			bitmap, palette = state.image_cache.get_image(f"{Paths.COLUMN_IMAGES}/{weather_icon}")
-			weather_img = displayio.TileGrid(bitmap, pixel_shader=palette)
-			weather_img.x = Layout.SCHEDULE_LEFT_MARGIN_X
-			weather_img.y = Layout.SCHEDULE_W_IMAGE_Y + y_offset
-		except Exception as e:
-			log_error(f"Failed to load weather icon: {e}")
-			state.scheduled_display_error_count += 1
-			if state.scheduled_display_error_count >= 3:
-				display_config.show_scheduled_displays = False
-			show_clock_display(rtc, segment_duration)
-			return
+			
+		if current_data:
+			# Extract weather data
+			temperature = f"{round(current_data['feels_like'])}°"
+			weather_icon = f"{current_data['weather_icon']}.bmp"
+			uv_index = current_data['uv_index']
+			
+			# Add UV bar if present
+			if uv_index > 0:
+				uv_length = calculate_uv_bar_length(uv_index)
+				for i in range(uv_length):
+					if i not in Visual.UV_SPACING_POSITIONS:
+						uv_pixel = Line(
+							Layout.SCHEDULE_LEFT_MARGIN_X + i,
+							Layout.SCHEDULE_UV_Y,
+							Layout.SCHEDULE_LEFT_MARGIN_X + i,
+							Layout.SCHEDULE_UV_Y,
+							state.colors["DIMMEST_WHITE"]
+						)
+						state.main_group.append(uv_pixel)
+			
+			y_offset = Layout.SCHEDULE_X_OFFSET if uv_index > 0 else 0
+			
+			# Load images
+			try:
+				bitmap, palette = state.image_cache.get_image(f"{Paths.COLUMN_IMAGES}/{weather_icon}")
+				weather_img = displayio.TileGrid(bitmap, pixel_shader=palette)
+				weather_img.x = Layout.SCHEDULE_LEFT_MARGIN_X
+				weather_img.y = Layout.SCHEDULE_W_IMAGE_Y + y_offset
+			except Exception as e:
+				log_error(f"Failed to load weather icon: {e}")
+				state.scheduled_display_error_count += 1
+				if state.scheduled_display_error_count >= 3:
+					display_config.show_scheduled_displays = False
+				show_clock_display(rtc, segment_duration)
+				return
+				
+			# Set temperature color based on cache status
+			temp_color = state.colors["LILAC"] if is_cached else state.colors["DIMMEST_WHITE"]
+			
+			# Temp Labels
+				
+			temp_label = bitmap_label.Label(
+				font,
+				color=temp_color,
+				text=temperature,
+				x=Layout.SCHEDULE_LEFT_MARGIN_X,
+				y=Layout.SCHEDULE_TEMP_Y + y_offset
+			)
+			
+			# Add elements
+			state.main_group.append(weather_img)
+			state.main_group.append(temp_label)
 		
 		try:
 			bitmap, palette = load_bmp_image(f"{Paths.SCHEDULE_IMAGES}/{schedule_config['image']}")
@@ -3515,9 +3524,6 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 		
 		state.scheduled_display_error_count = 0
 		
-		# Set temperature color based on cache status
-		temp_color = state.colors["LILAC"] if is_cached else state.colors["DIMMEST_WHITE"]
-		
 		# Labels
 		time_label = bitmap_label.Label(
 			font,
@@ -3526,19 +3532,9 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 			y=Layout.FORECAST_TIME_Y
 		)
 		
-		temp_label = bitmap_label.Label(
-			font,
-			color=temp_color,
-			text=temperature,
-			x=Layout.SCHEDULE_LEFT_MARGIN_X,
-			y=Layout.SCHEDULE_TEMP_Y + y_offset
-		)
-		
 		# Add elements
-		state.main_group.append(weather_img)
 		state.main_group.append(schedule_img)
 		state.main_group.append(time_label)
-		state.main_group.append(temp_label)
 		
 		if display_config.show_weekday_indicator:
 			add_day_indicator(state.main_group, rtc)
@@ -3547,13 +3543,18 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 		# LOG what's being displayed this segment
 		segment_num = int(elapsed / Timing.SCHEDULE_SEGMENT_DURATION) + 1
 		total_segments = int(full_duration / Timing.SCHEDULE_SEGMENT_DURATION) + (1 if full_duration % Timing.SCHEDULE_SEGMENT_DURATION else 0)
-		cache_indicator = " [CACHED]" if is_cached else ""
-		log_info(f"Displaying Schedule: {schedule_name} - Segment {segment_num}/{total_segments} ({temperature}, {segment_duration/60:.1f} min, progress: {progress*100:.0f}%){cache_indicator}")
+		
+		if current_data:
+			cache_indicator = " [CACHED]" if is_cached else ""
+			log_info(f"Displaying Schedule: {schedule_name} - Segment {segment_num}/{total_segments} ({temperature}, {segment_duration/60:.1f} min, progress: {progress*100:.0f}%){cache_indicator}")
+		else:
+			log_info(f"Displaying Schedule: {schedule_name} - Segment {segment_num}/{total_segments} (Weather Skipped, progress: {progress*100:.0f}%)")
 		
 		# Update success tracking
 		if current_data:
 			state.last_successful_weather = time.monotonic()
-			state.consecutive_failures = 0
+		
+		state.consecutive_failures = 0
 		
 		## Progress bar - based on FULL schedule progress, not segment
 		if schedule_config.get("progressbar", True):
@@ -3608,9 +3609,15 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 		log_error(f"Scheduled display segment error: {e}")
 		
 		# CRITICAL: Add delay to prevent runaway loops on errors
-		# If segment_duration is very small or 0, use minimum 30 seconds
-		safe_duration = max(Timing.ERROR_SAFETY_DELAY, segment_duration)
-		log_warning(f"Showing clock for {safe_duration}s due to error")
+		
+		# Safety: If too many errors in a row, take a break
+		if state.consecutive_display_errors >= 5:
+			log_error("Too many consecutive errors - safe mode")
+			safe_duration = Timing.CLOCK_DISPLAY_DURATION  # 5 minutes
+		else:
+			# If segment_duration is very small or 0, use minimum 30 seconds
+			safe_duration = max(Timing.ERROR_SAFETY_DELAY, segment_duration)
+		
 		show_clock_display(rtc, safe_duration)
 	
 	finally:
