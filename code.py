@@ -3921,6 +3921,7 @@ def run_display_cycle(rtc, cycle_count):
 		schedule_name, schedule_config = scheduled_display.get_active_schedule(rtc)
 		
 		if schedule_name:
+			
 			# Fetch weather for this segment
 			current_data = fetch_current_weather_only()
 			
@@ -3937,7 +3938,7 @@ def run_display_cycle(rtc, cycle_count):
 			# Show ONE segment (max 5 minutes)
 			show_scheduled_display(rtc, schedule_name, schedule_config, display_duration, current_data)
 			
-			# CRITICAL: If cycle completed too fast, something is wrong
+			# Fast cycle protection
 			cycle_elapsed = time.monotonic() - cycle_start
 			if cycle_elapsed < Timing.FAST_CYCLE_THRESHOLD:
 				log_error(f"Schedule cycle completed suspiciously fast ({cycle_elapsed:.1f}s) - adding safety delay")
@@ -3952,9 +3953,7 @@ def run_display_cycle(rtc, cycle_count):
 	else:
 		log_debug("Scheduled displays disabled due to errors")
 	
-	# ========================================================================
-	# TRACK IF ANYTHING WAS DISPLAYED THIS CYCLE
-	# ========================================================================
+	# Track if anything was displayed this cycle
 	something_displayed = False
 	
 	# NORMAL CYCLE - Fetch data once
@@ -3995,9 +3994,7 @@ def run_display_cycle(rtc, cycle_count):
 		show_icon_test_display(icon_numbers=TestData.TEST_ICONS)
 		something_displayed = True
 	
-	# ========================================================================
 	# FALLBACK: If nothing was displayed, show clock
-	# ========================================================================
 	if not something_displayed:
 		log_warning("No displays active - showing clock as fallback")
 		show_clock_display(rtc, Timing.CLOCK_DISPLAY_DURATION)
@@ -4007,9 +4004,7 @@ def run_display_cycle(rtc, cycle_count):
 	if cycle_count % Timing.CYCLES_FOR_CACHE_STATS == 0:
 		log_debug(state.image_cache.get_stats())
 	
-	# ========================================================================
 	# SAFETY CHECK: Ensure cycle took reasonable time
-	# ========================================================================
 	cycle_duration = time.monotonic() - cycle_start_time
 	
 	if cycle_duration < Timing.FAST_CYCLE_THRESHOLD:
