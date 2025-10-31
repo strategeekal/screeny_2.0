@@ -379,6 +379,7 @@ class DisplayConfig:
 		# Display Elements
 		self.show_weekday_indicator = True
 		self.show_scheduled_displays = True
+		self.show_events_in_between_schedules = True
 		
 		# API controls (fetch real data vs use dummy data)
 		self.use_live_weather = True      # False = use dummy data
@@ -817,6 +818,7 @@ class WeatherDisplayState:
 		self.active_schedule_name = None
 		self.active_schedule_start_time = None  # monotonic time when schedule started
 		self.active_schedule_end_time = None    # monotonic time when schedule should end
+		self.schedule_just_ended = False
 	
 	def reset_api_counters(self):
 		"""Reset API call tracking"""
@@ -3537,6 +3539,8 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 		# LOG what's being displayed this segment
 		segment_num = int(elapsed / Timing.SCHEDULE_SEGMENT_DURATION) + 1
 		total_segments = int(full_duration / Timing.SCHEDULE_SEGMENT_DURATION) + (1 if full_duration % Timing.SCHEDULE_SEGMENT_DURATION else 0)
+
+		state.schedule_just_ended = (segment_num >= total_segments)
 		
 		if current_data:
 			cache_indicator = " [CACHED]" if is_cached else ""
@@ -3616,6 +3620,9 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 	finally:
 		# Cleanup after segment
 		gc.collect()
+		
+		# Return segment info
+		# return is_last_segment # Boolean - is this last segment of schedule display
 
 ### SYSTEM MANAGEMENT ###
 
@@ -3921,7 +3928,6 @@ def run_display_cycle(rtc, cycle_count):
 		schedule_name, schedule_config = scheduled_display.get_active_schedule(rtc)
 		
 		if schedule_name:
-			
 			# Fetch weather for this segment
 			current_data = fetch_current_weather_only()
 			
@@ -3943,6 +3949,15 @@ def run_display_cycle(rtc, cycle_count):
 			if cycle_elapsed < Timing.FAST_CYCLE_THRESHOLD:
 				log_error(f"Schedule cycle completed suspiciously fast ({cycle_elapsed:.1f}s) - adding safety delay")
 				time.sleep(Timing.ERROR_SAFETY_DELAY)  # Force 30-second delay
+			
+			log_debug(f"LAST SEGMENT -> {state.schedule_just_ended}")
+			# Always check events before showing schedule (no tracking needed)
+			if state.schedule_just_ended and display_config.show_events_in_between_schedules and display_config.show_events:
+				cleanup_global_session()
+				gc.collect()
+				show_event_display(rtc, 30)  # Quick 30-second check
+				cleanup_global_session()
+				gc.collect()
 			
 			# Log cycle summary
 			cycle_duration = time.monotonic() - cycle_start_time
