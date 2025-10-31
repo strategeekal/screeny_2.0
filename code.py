@@ -379,6 +379,7 @@ class DisplayConfig:
 		# Display Elements
 		self.show_weekday_indicator = True
 		self.show_scheduled_displays = True
+		self.show_events_in_between_schedules = True
 		
 		# API controls (fetch real data vs use dummy data)
 		self.use_live_weather = True      # False = use dummy data
@@ -817,6 +818,7 @@ class WeatherDisplayState:
 		self.active_schedule_name = None
 		self.active_schedule_start_time = None  # monotonic time when schedule started
 		self.active_schedule_end_time = None    # monotonic time when schedule should end
+		self.schedule_just_ended = False
 	
 	def reset_api_counters(self):
 		"""Reset API call tracking"""
@@ -3442,69 +3444,74 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 		if not current_data:
 			log_warning("No weather data for scheduled display segment")
 			
-			# Try cached current weather before giving up (max 30 min old)
+			# Try cached current weather before giving up (max 15 minutes old)
 			current_data = get_cached_weather_if_fresh(max_age_seconds=Timing.MAX_CACHE_AGE)
 			
 			if current_data:
 				log_debug("Using cached current weather as fallback")
 				is_cached = True
-			elif elapsed == 0:
-				# First segment needs weather - show clock instead
-				log_warning("Cannot start schedule without weather - showing clock")
-				show_clock_display(rtc, segment_duration)
-				return
 			else:
-				# Continuation segment - use placeholder weather
-				log_debug("Continuing schedule with placeholder weather")
-				current_data = {
-					'feels_like': 0,
-					'weather_icon': 45,
-					'uv_index': 0
-				}
+				# No weather data, skip weather section
+				log_warning("No weather data - Display schedule + clock only")
 				is_cached = False
+				
 		else:
 			is_cached = False
+			
+		# === WEATHER SECTION (CONDITIONAL) ===
+		if current_data:
+			# Extract weather data
+			temperature = f"{round(current_data['feels_like'])}°"
+			weather_icon = f"{current_data['weather_icon']}.bmp"
+			uv_index = current_data['uv_index']
+			
+			# Add UV bar if present
+			if uv_index > 0:
+				uv_length = calculate_uv_bar_length(uv_index)
+				for i in range(uv_length):
+					if i not in Visual.UV_SPACING_POSITIONS:
+						uv_pixel = Line(
+							Layout.SCHEDULE_LEFT_MARGIN_X + i,
+							Layout.SCHEDULE_UV_Y,
+							Layout.SCHEDULE_LEFT_MARGIN_X + i,
+							Layout.SCHEDULE_UV_Y,
+							state.colors["DIMMEST_WHITE"]
+						)
+						state.main_group.append(uv_pixel)
+			
+			y_offset = Layout.SCHEDULE_X_OFFSET if uv_index > 0 else 0
+			
+			# Load weather icon
+			try:
+				bitmap, palette = state.image_cache.get_image(f"{Paths.COLUMN_IMAGES}/{weather_icon}")
+				weather_img = displayio.TileGrid(bitmap, pixel_shader=palette)
+				weather_img.x = Layout.SCHEDULE_LEFT_MARGIN_X
+				weather_img.y = Layout.SCHEDULE_W_IMAGE_Y + y_offset
+				state.main_group.append(weather_img)
+			except Exception as e:
+				log_error(f"Failed to load weather icon: {e}")
+				
+			# Set temperature color based on cache status
+			temp_color = state.colors["LILAC"] if is_cached else state.colors["DIMMEST_WHITE"]
+			
+			# Temp Labels
+				
+			temp_label = bitmap_label.Label(
+				font,
+				color=temp_color,
+				text=temperature,
+				x=Layout.SCHEDULE_LEFT_MARGIN_X,
+				y=Layout.SCHEDULE_TEMP_Y + y_offset
+			)
+			state.main_group.append(temp_label)
 		
-		# Extract weather data
-		temperature = f"{round(current_data['feels_like'])}°"
-		weather_icon = f"{current_data['weather_icon']}.bmp"
-		uv_index = current_data['uv_index']
-		
-		# Add UV bar if present
-		if uv_index > 0:
-			uv_length = calculate_uv_bar_length(uv_index)
-			for i in range(uv_length):
-				if i not in Visual.UV_SPACING_POSITIONS:
-					uv_pixel = Line(
-						Layout.SCHEDULE_LEFT_MARGIN_X + i,
-						Layout.SCHEDULE_UV_Y,
-						Layout.SCHEDULE_LEFT_MARGIN_X + i,
-						Layout.SCHEDULE_UV_Y,
-						state.colors["DIMMEST_WHITE"]
-					)
-					state.main_group.append(uv_pixel)
-		
-		y_offset = Layout.SCHEDULE_X_OFFSET if uv_index > 0 else 0
-		
-		# Load images
-		try:
-			bitmap, palette = state.image_cache.get_image(f"{Paths.COLUMN_IMAGES}/{weather_icon}")
-			weather_img = displayio.TileGrid(bitmap, pixel_shader=palette)
-			weather_img.x = Layout.SCHEDULE_LEFT_MARGIN_X
-			weather_img.y = Layout.SCHEDULE_W_IMAGE_Y + y_offset
-		except Exception as e:
-			log_error(f"Failed to load weather icon: {e}")
-			state.scheduled_display_error_count += 1
-			if state.scheduled_display_error_count >= 3:
-				display_config.show_scheduled_displays = False
-			show_clock_display(rtc, segment_duration)
-			return
-		
+		# === SCHEDULE IMAGE (ALWAYS) ===
 		try:
 			bitmap, palette = load_bmp_image(f"{Paths.SCHEDULE_IMAGES}/{schedule_config['image']}")
 			schedule_img = displayio.TileGrid(bitmap, pixel_shader=palette)
 			schedule_img.x = Layout.SCHEDULE_IMAGE_X
 			schedule_img.y = Layout.SCHEDULE_IMAGE_Y
+			state.main_group.append(schedule_img)
 		except Exception as e:
 			log_error(f"Failed to load schedule image: {e}")
 			state.scheduled_display_error_count += 1
@@ -3515,31 +3522,16 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 		
 		state.scheduled_display_error_count = 0
 		
-		# Set temperature color based on cache status
-		temp_color = state.colors["LILAC"] if is_cached else state.colors["DIMMEST_WHITE"]
-		
-		# Labels
+		# === CLOCK LABEL (ALWAYS) ===
 		time_label = bitmap_label.Label(
 			font,
 			color=state.colors["DIMMEST_WHITE"],
 			x=Layout.SCHEDULE_LEFT_MARGIN_X,
 			y=Layout.FORECAST_TIME_Y
 		)
-		
-		temp_label = bitmap_label.Label(
-			font,
-			color=temp_color,
-			text=temperature,
-			x=Layout.SCHEDULE_LEFT_MARGIN_X,
-			y=Layout.SCHEDULE_TEMP_Y + y_offset
-		)
-		
-		# Add elements
-		state.main_group.append(weather_img)
-		state.main_group.append(schedule_img)
 		state.main_group.append(time_label)
-		state.main_group.append(temp_label)
 		
+		# === WEEKDAY INDICATOR (IF ENABLED) ===
 		if display_config.show_weekday_indicator:
 			add_day_indicator(state.main_group, rtc)
 			log_verbose("Showing Weekday Color Indicator on Schedule Display")
@@ -3547,14 +3539,20 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 		# LOG what's being displayed this segment
 		segment_num = int(elapsed / Timing.SCHEDULE_SEGMENT_DURATION) + 1
 		total_segments = int(full_duration / Timing.SCHEDULE_SEGMENT_DURATION) + (1 if full_duration % Timing.SCHEDULE_SEGMENT_DURATION else 0)
-		cache_indicator = " [CACHED]" if is_cached else ""
-		log_info(f"Displaying Schedule: {schedule_name} - Segment {segment_num}/{total_segments} ({temperature}, {segment_duration/60:.1f} min, progress: {progress*100:.0f}%){cache_indicator}")
+
+		state.schedule_just_ended = (segment_num >= total_segments)
 		
-		# Update success tracking
 		if current_data:
-			state.last_successful_weather = time.monotonic()
-			state.consecutive_failures = 0
+			cache_indicator = " [CACHED]" if is_cached else ""
+			log_info(f"Displaying Schedule: {schedule_name} - Segment {segment_num}/{total_segments} ({temperature}, {segment_duration/60:.1f} min, progress: {progress*100:.0f}%){cache_indicator}")
+		else:
+			log_info(f"Displaying Schedule: {schedule_name} - Segment {segment_num}/{total_segments} (Weather Skipped, progress: {progress*100:.0f}%)")
 		
+		# Override success tracking
+		state.last_successful_weather = time.monotonic()
+		state.consecutive_failures = 0
+		
+		# === PROGRESS BAR ===
 		## Progress bar - based on FULL schedule progress, not segment
 		if schedule_config.get("progressbar", True):
 			progress_grid, progress_bitmap = create_progress_bar_tilegrid()
@@ -3571,7 +3569,7 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 			progress_bitmap = None
 			show_progress_bar = False
 		
-		# Display loop - simplified, no weather refresh within segment
+		# === DISPLAY LOOP ===
 		segment_start = time.monotonic()
 		last_minute = -1
 		last_displayed_column = -1
@@ -3608,14 +3606,23 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 		log_error(f"Scheduled display segment error: {e}")
 		
 		# CRITICAL: Add delay to prevent runaway loops on errors
-		# If segment_duration is very small or 0, use minimum 30 seconds
-		safe_duration = max(Timing.ERROR_SAFETY_DELAY, segment_duration)
-		log_warning(f"Showing clock for {safe_duration}s due to error")
+		
+		# Safety: If too many errors in a row, take a break
+		if state.consecutive_display_errors >= 5:
+			log_error("Too many consecutive errors - safe mode")
+			safe_duration = Timing.CLOCK_DISPLAY_DURATION  # 5 minutes
+		else:
+			# If segment_duration is very small or 0, use minimum 30 seconds
+			safe_duration = max(Timing.ERROR_SAFETY_DELAY, segment_duration)
+		
 		show_clock_display(rtc, safe_duration)
 	
 	finally:
 		# Cleanup after segment
 		gc.collect()
+		
+		# Return segment info
+		# return is_last_segment # Boolean - is this last segment of schedule display
 
 ### SYSTEM MANAGEMENT ###
 
@@ -3937,11 +3944,20 @@ def run_display_cycle(rtc, cycle_count):
 			# Show ONE segment (max 5 minutes)
 			show_scheduled_display(rtc, schedule_name, schedule_config, display_duration, current_data)
 			
-			# CRITICAL: If cycle completed too fast, something is wrong
+			# Fast cycle protection
 			cycle_elapsed = time.monotonic() - cycle_start
 			if cycle_elapsed < Timing.FAST_CYCLE_THRESHOLD:
 				log_error(f"Schedule cycle completed suspiciously fast ({cycle_elapsed:.1f}s) - adding safety delay")
 				time.sleep(Timing.ERROR_SAFETY_DELAY)  # Force 30-second delay
+			
+			log_debug(f"LAST SEGMENT -> {state.schedule_just_ended}")
+			# Always check events before showing schedule (no tracking needed)
+			if state.schedule_just_ended and display_config.show_events_in_between_schedules and display_config.show_events:
+				cleanup_global_session()
+				gc.collect()
+				show_event_display(rtc, 30)  # Quick 30-second check
+				cleanup_global_session()
+				gc.collect()
 			
 			# Log cycle summary
 			cycle_duration = time.monotonic() - cycle_start_time
@@ -3952,14 +3968,20 @@ def run_display_cycle(rtc, cycle_count):
 	else:
 		log_debug("Scheduled displays disabled due to errors")
 	
+	# Track if anything was displayed this cycle
+	something_displayed = False
+	
 	# NORMAL CYCLE - Fetch data once
-	current_data, forecast_data, forecast_is_fresh = fetch_cycle_data(rtc)  # Now returns 3 values
+	current_data, forecast_data, forecast_is_fresh = fetch_cycle_data(rtc)
+	
 	current_duration, forecast_duration, event_duration = calculate_display_durations(rtc)
 	
 	# Forecast display
 	forecast_shown = False
 	if display_config.show_forecast and current_data and forecast_data:
 		forecast_shown = show_forecast_display(current_data, forecast_data, forecast_duration, forecast_is_fresh)
+		if forecast_shown:
+			something_displayed = True
 	
 	if not forecast_shown:
 		current_duration += forecast_duration
@@ -3967,27 +3989,45 @@ def run_display_cycle(rtc, cycle_count):
 	# Current weather display
 	if display_config.show_weather and current_data:
 		show_weather_display(rtc, current_duration, current_data)
+		something_displayed = True
 	
 	# Events display
 	if display_config.show_events and event_duration > 0:
 		event_shown = show_event_display(rtc, event_duration)
-		if not event_shown:
+		if event_shown:
+			something_displayed = True
+		else:
 			interruptible_sleep(1)
 	
 	# Color test (if enabled)
 	if display_config.show_color_test:
 		show_color_test_display(Timing.COLOR_TEST)
+		something_displayed = True
 	
 	# Icon test (if enabled)
 	if display_config.show_icon_test:
 		show_icon_test_display(icon_numbers=TestData.TEST_ICONS)
+		something_displayed = True
+	
+	# FALLBACK: If nothing was displayed, show clock
+	if not something_displayed:
+		log_warning("No displays active - showing clock as fallback")
+		show_clock_display(rtc, Timing.CLOCK_DISPLAY_DURATION)
+		something_displayed = True  # Clock counts as something!
 	
 	# Cache stats logging
 	if cycle_count % Timing.CYCLES_FOR_CACHE_STATS == 0:
 		log_debug(state.image_cache.get_stats())
 	
-	# Calculate cycle duration and log
+	# SAFETY CHECK: Ensure cycle took reasonable time
 	cycle_duration = time.monotonic() - cycle_start_time
+	
+	if cycle_duration < Timing.FAST_CYCLE_THRESHOLD:
+		log_error(f"Cycle completed too fast ({cycle_duration:.1f}s) - adding safety delay")
+		time.sleep(Timing.ERROR_SAFETY_DELAY)
+		cycle_duration = time.monotonic() - cycle_start_time
+	
+	# Calculate cycle duration and log
 	mem_stats = state.memory_monitor.get_memory_stats()
 	
 	log_info(f"Cycle #{cycle_count} complete in {cycle_duration/System.SECONDS_PER_MINUTE:.2f} min | UT: {state.memory_monitor.get_runtime()} | Mem: {mem_stats['usage_percent']:.1f}% | API: Total={state.api_call_count}/{API.MAX_CALLS_BEFORE_RESTART}, Current={state.current_api_calls}, Forecast={state.forecast_api_calls}\n")
