@@ -27,3 +27,6 @@ ADAFRUIT_AIO_KEY = "YOUR_ADAFRUIT_AIO_KEY"
 
 # Timezone names from http://worldtimeapi.org/timezones
 TIMEZONE = "America/Chicago"
+
+#GitHub Repo URL
+GITHUB_REPO_URL = "https://raw.githubusercontent.com/strategeekal/pantallita-events/refs/heads/main/ephemeral_events.csv"

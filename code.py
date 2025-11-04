@@ -330,7 +330,7 @@ class Strings:
 	WIFI_PASSWORD_VAR = "CIRCUITPY_WIFI_PASSWORD"
 	
 	# Event sources
-	GITHUB_REPO_URL = "https://raw.githubusercontent.com/strategeekal/pantallita-events/refs/heads/main/ephemeral_events.csv"
+	GITHUB_REPO_URL = os.getenv("GITHUB_REPO_URL")
 	
 	# Font test characters
 	FONT_METRICS_TEST_CHARS = "Aygjpq"
