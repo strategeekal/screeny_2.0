@@ -1146,26 +1146,29 @@ def get_timezone_from_location_api():
 		
 		session = get_requests_session()
 		response = session.get(url)
-		
-		if response.status_code == 200:
-			data = response.json()
-			timezone_info = data.get("TimeZone", {})
-			
-			# Extract location details
-			city = data.get("LocalizedName", "Unknown")
-			state = data.get("AdministrativeArea", {}).get("ID", "")
-			
-			return {
-				"name": timezone_info.get("Name", Strings.TIMEZONE_DEFAULT),
-				"offset": int(timezone_info.get("GmtOffset", -6)),
-				"is_dst": timezone_info.get("IsDaylightSaving", False),
-				"city": city,  # NEW
-				"state": state,  # NEW
-				"location": f"{city}, {state}" if state else city  # NEW
-			}
-		else:
-			log_warning(f"Location API failed: {response.status_code}")
-			return None
+
+		try:
+			if response.status_code == 200:
+				data = response.json()
+				timezone_info = data.get("TimeZone", {})
+
+				# Extract location details
+				city = data.get("LocalizedName", "Unknown")
+				state = data.get("AdministrativeArea", {}).get("ID", "")
+
+				return {
+					"name": timezone_info.get("Name", Strings.TIMEZONE_DEFAULT),
+					"offset": int(timezone_info.get("GmtOffset", -6)),
+					"is_dst": timezone_info.get("IsDaylightSaving", False),
+					"city": city,  # NEW
+					"state": state,  # NEW
+					"location": f"{city}, {state}" if state else city  # NEW
+				}
+			else:
+				log_warning(f"Location API failed: {response.status_code}")
+				return None
+		finally:
+			response.close()
 			
 	except Exception as e:
 		log_warning(f"Location API error: {e}")
@@ -1277,79 +1280,90 @@ def fetch_weather_with_retries(url, max_retries=None, context="API"):
 	last_error = None
 	
 	for attempt in range(max_retries + 1):
+		response = None  # Initialize before try block
 		try:
 			# Check WiFi before attempting
 			if not check_and_recover_wifi():
 				log_error(f"{context}: WiFi unavailable")
 				return None
-			
+
 			session = get_requests_session()
 			if not session:
 				log_error(f"{context}: No requests session available")
 				return None
-			
+
 			log_verbose(f"{context} attempt {attempt + 1}/{max_retries + 1}")
-			
+
 			response = session.get(url)
-			
-			# Success case
-			if response.status_code == API.HTTP_OK:
-				log_verbose(f"{context}: Success")
-				return response.json()
-			
-			# Handle specific HTTP errors
-			elif response.status_code == API.HTTP_SERVICE_UNAVAILABLE:
-				log_warning(f"{context}: Service unavailable (503)")
-				last_error = "Service unavailable"
-				
-			elif response.status_code == API.HTTP_TOO_MANY_REQUESTS:
-				log_warning(f"{context}: Rate limited (429)")
-				last_error = "Rate limited"
-				# Longer delay for rate limiting
+
+			try:
+				# Success case
+				if response.status_code == API.HTTP_OK:
+					log_verbose(f"{context}: Success")
+					data = response.json()
+					return data
+
+				# Handle specific HTTP errors
+				elif response.status_code == API.HTTP_SERVICE_UNAVAILABLE:
+					log_warning(f"{context}: Service unavailable (503)")
+					last_error = "Service unavailable"
+
+				elif response.status_code == API.HTTP_TOO_MANY_REQUESTS:
+					log_warning(f"{context}: Rate limited (429)")
+					last_error = "Rate limited"
+					# Longer delay for rate limiting
+					if attempt < max_retries:
+						delay = API.RETRY_DELAY * 3
+						log_debug(f"Rate limit cooldown: {delay}s")
+						interruptible_sleep(delay)
+						continue
+
+				elif response.status_code == API.HTTP_UNAUTHORIZED:
+					log_error(f"{context}: Unauthorized (401) - check API key")
+					state.has_permanent_error = True  # Mark as permanent error
+					return None
+
+				elif response.status_code == API.HTTP_NOT_FOUND:
+					log_error(f"{context}: Not found (404) - check location key")
+					state.has_permanent_error = True
+					return None
+
+				elif response.status_code == API.HTTP_BAD_REQUEST:
+					log_error(f"{context}: Bad request (400) - check URL/parameters")
+					state.has_permanent_error = True
+					return None
+
+				elif response.status_code == API.HTTP_FORBIDDEN:
+					log_error(f"{context}: Forbidden (403) - API key lacks permissions")
+					state.has_permanent_error = True
+					return None
+
+				elif response.status_code == API.HTTP_INTERNAL_SERVER_ERROR:
+					log_warning(f"{context}: Server error (500) - AccuWeather issue")
+					last_error = "Server error (500)"
+					# Will retry below
+
+				else:
+					log_error(f"{context}: HTTP {response.status_code}")
+					last_error = f"HTTP {response.status_code}"
+
+				# Exponential backoff for retryable errors
 				if attempt < max_retries:
-					delay = API.RETRY_DELAY * 3
-					log_debug(f"Rate limit cooldown: {delay}s")
+					delay = min(
+						API.RETRY_DELAY * (2 ** attempt),
+						Recovery.API_RETRY_MAX_DELAY
+					)
+					log_debug(f"Retrying in {delay}s...")
 					interruptible_sleep(delay)
-					continue
-					
-			elif response.status_code == API.HTTP_UNAUTHORIZED:
-				log_error(f"{context}: Unauthorized (401) - check API key")
-				state.has_permanent_error = True  # Mark as permanent error
-				return None
-				
-			elif response.status_code == API.HTTP_NOT_FOUND:
-				log_error(f"{context}: Not found (404) - check location key")
-				state.has_permanent_error = True
-				return None
-			
-			elif response.status_code == API.HTTP_BAD_REQUEST:
-				log_error(f"{context}: Bad request (400) - check URL/parameters")
-				state.has_permanent_error = True
-				return None
-			
-			elif response.status_code == API.HTTP_FORBIDDEN:
-				log_error(f"{context}: Forbidden (403) - API key lacks permissions")
-				state.has_permanent_error = True
-				return None
-			
-			elif response.status_code == API.HTTP_INTERNAL_SERVER_ERROR:
-				log_warning(f"{context}: Server error (500) - AccuWeather issue")
-				last_error = "Server error (500)"
-				# Will retry below
-				
-			else:
-				log_error(f"{context}: HTTP {response.status_code}")
-				last_error = f"HTTP {response.status_code}"
-			
-			# Exponential backoff for retryable errors
-			if attempt < max_retries:
-				delay = min(
-					API.RETRY_DELAY * (2 ** attempt),
-					Recovery.API_RETRY_MAX_DELAY
-				)
-				log_debug(f"Retrying in {delay}s...")
-				interruptible_sleep(delay)
-				
+
+			finally:
+				# CRITICAL: Always close response after each attempt
+				if response is not None:
+					try:
+						response.close()
+					except:
+						pass  # Ignore close errors
+
 		except RuntimeError as e:
 			error_msg = str(e)
 			last_error = f"Runtime error: {error_msg}"
@@ -2152,16 +2166,19 @@ def fetch_github_data(rtc):
 	# ===== FETCH EVENTS =====
 	events_url = f"{Strings.GITHUB_REPO_URL}?t={cache_buster}"
 	events = {}
-	
+
 	try:
 		log_verbose(f"Fetching: {events_url}")
 		response = session.get(events_url, timeout=10)
-		
-		if response.status_code == 200:
-			events = parse_events_csv_content(response.text, rtc)
-			log_verbose(f"Events fetched: {len(events)} event dates")
-		else:
-			log_warning(f"Failed to fetch events: HTTP {response.status_code}")
+
+		try:
+			if response.status_code == 200:
+				events = parse_events_csv_content(response.text, rtc)
+				log_verbose(f"Events fetched: {len(events)} event dates")
+			else:
+				log_warning(f"Failed to fetch events: HTTP {response.status_code}")
+		finally:
+			response.close()  # Close events response
 	except Exception as e:
 		log_warning(f"Failed to fetch events: {e}")
 	
@@ -2176,29 +2193,39 @@ def fetch_github_data(rtc):
 		# Try date-specific schedule first
 		schedule_url = f"{github_base}/{Paths.GITHUB_SCHEDULE_FOLDER}/{date_str}.csv?t={cache_buster}"
 		log_verbose(f"Fetching: {schedule_url}")
-		
+
 		response = session.get(schedule_url, timeout=10)
-		
-		if response.status_code == 200:
-			schedules = parse_schedule_csv_content(response.text, rtc)
-			schedule_source = "date-specific"
-			log_verbose(f"Schedule fetched: {date_str}.csv ({len(schedules)} schedule(s))")
-			
-		elif response.status_code == 404:
-			# No date-specific file, try default
-			log_verbose(f"No schedule for {date_str}, trying default.csv")
-			default_url = f"{github_base}/{Paths.GITHUB_SCHEDULE_FOLDER}/default.csv?t={cache_buster}"
-			
-			response = session.get(default_url, timeout=10)
-			
+
+		try:
 			if response.status_code == 200:
 				schedules = parse_schedule_csv_content(response.text, rtc)
-				schedule_source = "default"
-				log_verbose(f"Schedule fetched: default.csv ({len(schedules)} schedule(s))")
+				schedule_source = "date-specific"
+				log_verbose(f"Schedule fetched: {date_str}.csv ({len(schedules)} schedule(s))")
+
+			elif response.status_code == 404:
+				# No date-specific file, try default
+				response.close()  # Close first response before fetching second
+				log_verbose(f"No schedule for {date_str}, trying default.csv")
+				default_url = f"{github_base}/{Paths.GITHUB_SCHEDULE_FOLDER}/default.csv?t={cache_buster}"
+
+				response = session.get(default_url, timeout=10)
+				try:
+					if response.status_code == 200:
+						schedules = parse_schedule_csv_content(response.text, rtc)
+						schedule_source = "default"
+						log_verbose(f"Schedule fetched: default.csv ({len(schedules)} schedule(s))")
+					else:
+						log_warning(f"No default schedule found: HTTP {response.status_code}")
+				finally:
+					response.close()  # Close default response
 			else:
-				log_warning(f"No default schedule found: HTTP {response.status_code}")
-		else:
-			log_warning(f"Failed to fetch schedule: HTTP {response.status_code}")
+				log_warning(f"Failed to fetch schedule: HTTP {response.status_code}")
+		finally:
+			# Make sure date-specific response is closed (may already be closed in 404 case)
+			try:
+				response.close()
+			except:
+				pass  # May already be closed
 			
 	except Exception as e:
 		log_warning(f"Failed to fetch schedule: {e}")
@@ -3434,6 +3461,16 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 	
 	# Light cleanup before segment (keep session alive for connection reuse)
 	gc.collect()
+
+	# PERIODIC CLEANUP: Every 4th segment during long schedules
+	# Prevents socket accumulation over multi-hour sessions
+	segment_num = int(elapsed / Timing.SCHEDULE_SEGMENT_DURATION) + 1
+	if segment_num > 1 and segment_num % 4 == 0:
+		log_info(f"Mid-schedule cleanup at segment {segment_num}")
+		cleanup_global_session()
+		gc.collect()
+		time.sleep(0.5)  # Let sockets fully close
+
 	clear_display()
 	
 	try:
@@ -3928,9 +3965,17 @@ def run_display_cycle(rtc, cycle_count):
 		schedule_name, schedule_config = scheduled_display.get_active_schedule(rtc)
 		
 		if schedule_name:
-			# Fetch weather for this segment
-			current_data = fetch_current_weather_only()
-			
+			# Try cached weather first (15 min = 3 segments)
+			current_data = get_cached_weather_if_fresh(max_age_seconds=900)
+
+			if current_data:
+				cache_age_min = int((time.monotonic() - state.cached_current_weather_time) / 60)
+				log_debug(f"Using cached weather for schedule ({cache_age_min} min old)")
+			else:
+				# Cache stale or missing - fetch fresh
+				log_debug("Fetching fresh weather for schedule")
+				current_data = fetch_current_weather_only()
+
 			if current_data:
 				state.last_successful_weather = time.monotonic()
 				state.consecutive_failures = 0
