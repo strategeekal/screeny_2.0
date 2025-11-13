@@ -594,9 +594,9 @@ Worth the complexity?
 
 **Q5: New Module Budget**
 With current usage (~240 calls/day) and limit (500 calls/day):
-- **Available budget:** 260 calls/day
-- Stock prices: 1 call per hour = 24 calls/day ✅
-- Sports scores: 1 call per 15 min during games = ~60 calls/game ✅
+- **Available budget:** 260 calls/day for buffer
+- Stock prices: 1 call per hour = 24 calls/day ✅ # Different API pool
+- Sports scores: 1 call per 15 min during games = ~60 calls/game ✅ # Different API Pol
 - Both together: 84 calls/day ✅ (leaves 176 buffer)
 
 Which features are priority?
