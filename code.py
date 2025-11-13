@@ -1,4 +1,5 @@
 ##### PANTALLITA #####
+# == Version 2.0.0 == #
 
 # === LIBRARIES ===
 # Standard library
