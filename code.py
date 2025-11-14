@@ -1,5 +1,6 @@
-##### PANTALLITA 2.0.1 #####
-# Stack exhaustion fix: Flattened nested try/except blocks to prevent crashes
+##### PANTALLITA 2.0.2 #####
+# Stack exhaustion fix: Flattened nested try/except blocks to prevent crashes (v2.0.1)
+# Socket exhaustion fix: response.close() + smart caching + mid-schedule cleanup (v2.0.2)
 # See STACK_TEST_ANALYSIS.md for technical details
 
 # === LIBRARIES ===
@@ -820,6 +821,7 @@ class WeatherDisplayState:
 		self.active_schedule_name = None
 		self.active_schedule_start_time = None  # monotonic time when schedule started
 		self.active_schedule_end_time = None    # monotonic time when schedule should end
+		self.active_schedule_segment_count = 0  # Count segments for mid-schedule cleanup
 		self.schedule_just_ended = False
 	
 	def reset_api_counters(self):
@@ -1369,35 +1371,44 @@ def fetch_weather_with_retries(url, max_retries=None, context="API"):
 				interruptible_sleep(API.RETRY_DELAY)
 			continue  # Retry
 
-		# Process response - status handling delegated to helper
-		result = _process_response_status(response, context)
+		# Process and cleanup response
+		try:
+			# Process response - status handling delegated to helper
+			result = _process_response_status(response, context)
 
-		# Success or permanent error
-		if result is not None and result is not False:
-			return result
+			# Success or permanent error
+			if result is not None and result is not False:
+				return result
 
-		# Permanent error (None from helper)
-		if result is None:
-			return None
+			# Permanent error (None from helper)
+			if result is None:
+				return None
 
-		# Retryable error (False from helper)
-		# Special case: rate limiting needs longer delay
-		if response.status_code == API.HTTP_TOO_MANY_REQUESTS:
-			if attempt < max_retries:
-				delay = API.RETRY_DELAY * 3
-				log_debug(f"Rate limit cooldown: {delay}s")
-				interruptible_sleep(delay)
-		else:
-			# Standard exponential backoff
-			if attempt < max_retries:
-				delay = min(
-					API.RETRY_DELAY * (2 ** attempt),
-					Recovery.API_RETRY_MAX_DELAY
-				)
-				log_debug(f"Retrying in {delay}s...")
-				interruptible_sleep(delay)
+			# Retryable error (False from helper)
+			# Special case: rate limiting needs longer delay
+			if response.status_code == API.HTTP_TOO_MANY_REQUESTS:
+				if attempt < max_retries:
+					delay = API.RETRY_DELAY * 3
+					log_debug(f"Rate limit cooldown: {delay}s")
+					interruptible_sleep(delay)
+			else:
+				# Standard exponential backoff
+				if attempt < max_retries:
+					delay = min(
+						API.RETRY_DELAY * (2 ** attempt),
+						Recovery.API_RETRY_MAX_DELAY
+					)
+					log_debug(f"Retrying in {delay}s...")
+					interruptible_sleep(delay)
 
-		last_error = f"HTTP {response.status_code}"
+			last_error = f"HTTP {response.status_code}"
+		finally:
+			# Always close response to free socket
+			if response:
+				try:
+					response.close()
+				except:
+					pass  # Ignore errors during cleanup
 
 	log_error(f"{context}: All {max_retries + 1} attempts failed. Last error: {last_error}")
 	return None
@@ -3437,6 +3448,7 @@ def get_schedule_progress():
 		state.active_schedule_name = None
 		state.active_schedule_start_time = None
 		state.active_schedule_end_time = None
+		state.active_schedule_segment_count = 0
 		return None, None, None
 	
 	elapsed = current_time - state.active_schedule_start_time
@@ -3459,21 +3471,32 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 		state.active_schedule_name = schedule_name
 		state.active_schedule_start_time = time.monotonic()
 		state.active_schedule_end_time = state.active_schedule_start_time + total_duration
+		state.active_schedule_segment_count = 0  # Reset segment counter
 		elapsed = 0
 		full_duration = total_duration
 		progress = 0
-		
+
 		log_info(f"Starting schedule session: {schedule_name} ({total_duration}s total)")
-	
+
 	else:
 		log_debug(f"Continuing schedule: {schedule_name} (elapsed: {elapsed:.0f}s / {full_duration:.0f}s)")
-	
+
+	# Increment segment count
+	state.active_schedule_segment_count += 1
+	log_debug(f"Schedule segment #{state.active_schedule_segment_count}")
+
+	# Mid-schedule cleanup every 4 segments (~20 minutes) to prevent socket exhaustion
+	if state.active_schedule_segment_count % 4 == 0:
+		log_info(f"Mid-schedule cleanup at segment {state.active_schedule_segment_count}")
+		cleanup_global_session()
+		gc.collect()
+
 	# This segment duration: min(5 minutes, remaining time)
 	remaining = full_duration - elapsed
 	segment_duration = min(Timing.SCHEDULE_SEGMENT_DURATION, remaining)
-	
+
 	log_debug(f"Segment duration: {segment_duration}s (remaining: {remaining:.0f}s)")
-	
+
 	# Light cleanup before segment (keep session alive for connection reuse)
 	gc.collect()
 	clear_display()
@@ -3482,24 +3505,27 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 	try:
 		# Fetch weather if not provided
 		if not current_data:
-			current_data = fetch_current_weather_only()
-
-		if not current_data:
-			log_warning("No weather data for scheduled display segment")
-
-			# Try cached current weather before giving up (max 15 minutes old)
+			# Smart caching: check cache first before fetching
 			current_data = get_cached_weather_if_fresh(max_age_seconds=Timing.MAX_CACHE_AGE)
 
 			if current_data:
-				log_debug("Using cached current weather as fallback")
+				log_debug("Using fresh cached weather (< 15 minutes old)")
 				is_cached = True
 			else:
-				# No weather data, skip weather section
-				log_warning("No weather data - Display schedule + clock only")
+				# Cache stale or missing - fetch new data
+				log_debug("Cache stale or missing - fetching fresh weather")
+				current_data = fetch_current_weather_only()
 				is_cached = False
 
 		else:
+			# current_data was provided as parameter
 			is_cached = False
+
+		if not current_data:
+			# No weather data available, skip weather section
+			log_warning("No weather data - Display schedule + clock only")
+			is_cached = False
+
 	except Exception as e:
 		log_error(f"Schedule weather fetch error: {e}")
 		current_data = None
@@ -3981,11 +4007,18 @@ def _run_scheduled_cycle(rtc, cycle_count, cycle_start_time):
 	if not schedule_name:
 		return False
 
-	# Fetch weather for segment
-	current_data = fetch_current_weather_only()
+	# Fetch weather for segment (with smart caching)
+	# Check cache first - only fetch if cache is stale (> 15 minutes)
+	current_data = get_cached_weather_if_fresh(max_age_seconds=Timing.MAX_CACHE_AGE)
+
 	if current_data:
-		state.last_successful_weather = time.monotonic()
-		state.consecutive_failures = 0
+		log_debug("Using fresh cached weather for schedule cycle")
+	else:
+		log_debug("Cache stale or missing - fetching fresh weather for schedule cycle")
+		current_data = fetch_current_weather_only()
+		if current_data:
+			state.last_successful_weather = time.monotonic()
+			state.consecutive_failures = 0
 
 	# Display schedule segment
 	display_duration = get_remaining_schedule_time(rtc, schedule_config)

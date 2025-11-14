@@ -1,4 +1,4 @@
-# Pantallita 2.0.1
+# Pantallita 2.0.2
 
 A dual RGB matrix weather display system running on MatrixPortal S3, showing real-time weather, forecasts, events, and scheduled activities for family use.
 
@@ -306,17 +306,17 @@ def __init__(self):
 
 ## Known Issues
 
-### Socket Exhaustion During Long Schedules
+### Socket Exhaustion During Long Schedules (FIXED in 2.0.2)
 **Symptom:** Socket errors after 8-10 segments of 2-hour schedule displays
 
-**Root Cause:** HTTP response objects not explicitly closed, accumulating in global session
+**Root Cause:** HTTP response objects not explicitly closed, accumulating in global session during multi-segment schedules
 
-**Workaround:** Current cleanup strategy handles normal cycles (300+ cycles), but struggles with 24-segment schedules
-
-**Fix:** See `CODE_REVIEW_REVISED.md` and `QUICK_FIX_GUIDE.md` for implementation details
-- Add `response.close()` in `try/finally` blocks (5 locations)
-- Add mid-schedule cleanup every 4 segments
-- Implement smarter weather caching (15 min for schedules)
+**Fix Applied:**
+- Added `response.close()` in `try/finally` blocks in fetch_weather_with_retries() (primary fix)
+- Implemented smart weather caching (checks cache first, only fetches if > 15 minutes old)
+- Added mid-schedule cleanup every 4 segments (~20 minutes) as safety net
+- Reduces API calls by 66% during schedules (24 calls → 8 calls for 2-hour schedule)
+- Ensures sockets are properly released even during extended operations
 
 ### Stack Exhaustion (FIXED in 2.0.1)
 **Symptom:** "pystack exhausted" error during forecast display
@@ -821,13 +821,19 @@ See "Future Enhancements" section for implementation timeline.
 
 ## Version History
 
-### 2.0.1 (Current)
+### 2.0.2 (Current)
+- **FIXED:** Socket exhaustion during long schedule displays
+- Added response.close() in try/finally blocks (primary fix)
+- Implemented smart weather caching (15-minute refresh, 66% reduction in API calls)
+- Added mid-schedule cleanup every 4 segments (~20 minutes)
+- Prevents socket accumulation during multi-hour schedules
+
+### 2.0.1
 - **FIXED:** Stack exhaustion crashes during forecast display
 - Flattened nested try/except blocks (3 levels → 1 level)
 - Established CircuitPython stack limits through testing
 - 52% stack headroom available for future features
 - Documented safe coding patterns for CircuitPython
-- Ready for socket exhaustion fixes and new features
 
 ### 2.0.0
 - Stable 25+ hour uptime in normal cycles
@@ -839,8 +845,6 @@ See "Future Enhancements" section for implementation timeline.
 - API budget tracking with preventive restart
 
 ### Known Limitations
-- Socket exhaustion during multi-hour schedules (fix documented, not yet applied)
-- Response objects not explicitly closed
 - No remote configuration updates
 - Manual CSV editing required
 
