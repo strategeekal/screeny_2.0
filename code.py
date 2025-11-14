@@ -1,4 +1,6 @@
-##### PANTALLITA #####
+##### PANTALLITA 2.0.1 #####
+# Stack exhaustion fix: Flattened nested try/except blocks to prevent crashes
+# See STACK_TEST_ANALYSIS.md for technical details
 
 # === LIBRARIES ===
 # Standard library

@@ -1,4 +1,4 @@
-# Pantallita 2.0.0
+# Pantallita 2.0.1
 
 A dual RGB matrix weather display system running on MatrixPortal S3, showing real-time weather, forecasts, events, and scheduled activities for family use.
 
@@ -318,15 +318,28 @@ def __init__(self):
 - Add mid-schedule cleanup every 4 segments
 - Implement smarter weather caching (15 min for schedules)
 
-### Stack Exhaustion
-**Symptom:** "pystack exhausted" error
+### Stack Exhaustion (FIXED in 2.0.1)
+**Symptom:** "pystack exhausted" error during forecast display
 
-**Cause:** Deep nesting in CircuitPython's limited stack
+**Root Cause:** CircuitPython cannot handle more than 1 level of nested try/except blocks. The forecast image loading loop had 3 levels of nested exception handling, causing guaranteed crashes.
 
-**Mitigation:**
-- Use early returns to reduce nesting
-- Minimize nested conditionals
-- Avoid recursive calls
+**Fix Applied:**
+- Flattened nested try/except blocks to sequential try blocks
+- Reduced exception nesting from 3 levels to 1 level maximum
+- No helper functions added (which would increase stack depth)
+
+**Stack Capacity Testing Results:**
+- Pure recursion limit: 25 levels
+- Application recursion depth: 12 levels (52% headroom available)
+- Nested exception handling: Max 1 level deep (CircuitPython limitation)
+
+**Development Guidelines:**
+- ✅ Use sequential try blocks (not nested)
+- ✅ Early returns to reduce nesting
+- ✅ Avoid nesting exception handlers
+- ❌ Never nest try/except more than 1 level deep
+
+**Technical Details:** See `STACK_TEST_ANALYSIS.md` for complete testing methodology and findings.
 
 ### Memory Fragmentation
 **Symptom:** Gradual memory increase over many hours
@@ -808,7 +821,15 @@ See "Future Enhancements" section for implementation timeline.
 
 ## Version History
 
-### 2.0.0 (Current)
+### 2.0.1 (Current)
+- **FIXED:** Stack exhaustion crashes during forecast display
+- Flattened nested try/except blocks (3 levels → 1 level)
+- Established CircuitPython stack limits through testing
+- 52% stack headroom available for future features
+- Documented safe coding patterns for CircuitPython
+- Ready for socket exhaustion fixes and new features
+
+### 2.0.0
 - Stable 25+ hour uptime in normal cycles
 - Dual matrix support with device-specific configs
 - Segmented schedule displays (up to 2 hours)
@@ -818,7 +839,7 @@ See "Future Enhancements" section for implementation timeline.
 - API budget tracking with preventive restart
 
 ### Known Limitations
-- Socket exhaustion during multi-hour schedules
+- Socket exhaustion during multi-hour schedules (fix documented, not yet applied)
 - Response objects not explicitly closed
 - No remote configuration updates
 - Manual CSV editing required
