@@ -1,5 +1,4 @@
 ##### PANTALLITA #####
-# == Version 2.0.0 == #
 
 # === LIBRARIES ===
 # Standard library
@@ -35,7 +34,7 @@ gc.collect()
 # === STACK MONITORING ===
 
 def get_stack_depth():
-	"""Get current call stack depth for monitoring (FLATTENED VERSION TRACKER)"""
+	"""Get current call stack depth for monitoring (ORIGINAL VERSION TRACKER)"""
 	try:
 		depth = 0
 		frame = sys._getframe()
@@ -704,7 +703,7 @@ class MemoryMonitor:
 		self.peak_usage = 0
 		self.measurements = []
 		self.max_measurements = 5  # Reduced from 10
-		self.max_stack_depth = 0  # STACK MONITORING (FLATTENED VERSION)
+		self.max_stack_depth = 0  # STACK MONITORING (ORIGINAL VERSION)
 		
 	def get_memory_stats(self):
 		"""Get current memory statistics with percentages"""
@@ -729,18 +728,18 @@ class MemoryMonitor:
 		return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 	
 	def check_memory(self, checkpoint_name=""):
-		"""Check memory and log only if there's an issue (FLATTENED VERSION)"""
+		"""Check memory and log only if there's an issue (ORIGINAL VERSION)"""
 		stats = self.get_memory_stats()
 		runtime = self.get_runtime()
 
 		if stats["used_bytes"] > self.peak_usage:
 			self.peak_usage = stats["used_bytes"]
 
-		# STACK DEPTH MONITORING (FLATTENED VERSION)
+		# STACK DEPTH MONITORING (ORIGINAL VERSION)
 		stack_depth = get_stack_depth()
 		if stack_depth > 0 and stack_depth > self.max_stack_depth:
 			self.max_stack_depth = stack_depth
-			log_info(f"[FLATTENED] Stack: {stack_depth} frames (NEW MAX) at {checkpoint_name}")
+			log_info(f"[ORIGINAL] Stack: {stack_depth} frames (NEW MAX) at {checkpoint_name}")
 
 		self.measurements.append({
 			"name": checkpoint_name,
@@ -759,13 +758,13 @@ class MemoryMonitor:
 		return "ok"
 	
 	def get_memory_report(self):
-		"""Generate a simplified memory report (FLATTENED VERSION)"""
+		"""Generate a simplified memory report (ORIGINAL VERSION)"""
 		stats = self.get_memory_stats()
 		runtime = self.get_runtime()
 		peak_percent = (self.peak_usage / Memory.ESTIMATED_TOTAL) * 100
 
 		report = [
-			"=== MEMORY REPORT (FLATTENED VERSION) ===",
+			"=== MEMORY REPORT (ORIGINAL VERSION) ===",
 			f"Runtime: {runtime}",
 			f"Current: {stats['usage_percent']:.1f}% used",
 			f"Peak usage: {peak_percent:.1f}%",
@@ -1295,124 +1294,79 @@ def cleanup_global_session():
 
 ### API FUNCTIONS ###
 
-def _handle_network_error(error, context, attempt, max_retries):
-	"""Helper: Handle network errors - reduces nesting in fetch functions"""
-	error_msg = str(error)
-
-	if "pystack exhausted" in error_msg.lower():
-		log_error(f"{context}: Stack exhausted - forcing cleanup")
-	elif "already connected" in error_msg.lower():
-		log_error(f"{context}: Socket stuck - forcing cleanup")
-	elif "ETIMEDOUT" in error_msg or "104" in error_msg or "32" in error_msg:
-		log_warning(f"{context}: Network timeout on attempt {attempt + 1}")
-	else:
-		log_warning(f"{context}: Network error on attempt {attempt + 1}: {error_msg}")
-
-	# Nuclear cleanup for socket/stack issues
-	if "pystack exhausted" in error_msg.lower() or "already connected" in error_msg.lower():
-		cleanup_global_session()
-		cleanup_sockets()
-		gc.collect()
-		time.sleep(2)
-
-	# Retry delay
-	if attempt < max_retries:
-		delay = API.RETRY_BASE_DELAY * (2 ** attempt)
-		log_verbose(f"Retrying in {delay}s...")
-		time.sleep(delay)
-
-	return f"Network error: {error_msg}"
-
-def _process_response_status(response, context):
-	"""Helper: Process HTTP response status - returns data or None"""
-	status = response.status_code
-
-	# Success
-	if status == API.HTTP_OK:
-		log_verbose(f"{context}: Success")
-		return response.json()
-
-	# Permanent errors (return None to signal exit)
-	permanent_errors = {
-		API.HTTP_UNAUTHORIZED: "Unauthorized (401) - check API key",
-		API.HTTP_NOT_FOUND: "Not found (404) - check location key",
-		API.HTTP_BAD_REQUEST: "Bad request (400) - check URL/parameters",
-		API.HTTP_FORBIDDEN: "Forbidden (403) - API key lacks permissions"
-	}
-
-	if status in permanent_errors:
-		log_error(f"{context}: {permanent_errors[status]}")
-		state.has_permanent_error = True
-		return None
-
-	# Retryable errors (return False to signal retry)
-	if status == API.HTTP_SERVICE_UNAVAILABLE:
-		log_warning(f"{context}: Service unavailable (503)")
-		return False
-	elif status == API.HTTP_INTERNAL_SERVER_ERROR:
-		log_warning(f"{context}: Server error (500)")
-		return False
-	elif status == API.HTTP_TOO_MANY_REQUESTS:
-		log_warning(f"{context}: Rate limited (429)")
-		return False  # Caller will handle rate limit delay
-	else:
-		log_error(f"{context}: HTTP {status}")
-		return False
-
 def fetch_weather_with_retries(url, max_retries=None, context="API"):
-	"""Flattened weather fetch - same logic, reduced nesting (Category A1)"""
+	"""Enhanced weather data fetch with detailed error handling"""
 	if max_retries is None:
 		max_retries = API.MAX_RETRIES
-
+	
 	last_error = None
-
+	
 	for attempt in range(max_retries + 1):
-		# Early exits - no nesting
-		if not check_and_recover_wifi():
-			log_error(f"{context}: WiFi unavailable")
-			return None
-
-		session = get_requests_session()
-		if not session:
-			log_error(f"{context}: No requests session available")
-			return None
-
-		log_verbose(f"{context} attempt {attempt + 1}/{max_retries + 1}")
-
-		# Try to fetch - exception handling delegated to helper
-		response = None
 		try:
+			# Check WiFi before attempting
+			if not check_and_recover_wifi():
+				log_error(f"{context}: WiFi unavailable")
+				return None
+			
+			session = get_requests_session()
+			if not session:
+				log_error(f"{context}: No requests session available")
+				return None
+			
+			log_verbose(f"{context} attempt {attempt + 1}/{max_retries + 1}")
+			
 			response = session.get(url)
-		except (RuntimeError, OSError) as e:
-			last_error = _handle_network_error(e, context, attempt, max_retries)
-			continue  # Retry
-		except Exception as e:
-			log_error(f"{context} unexpected error: {type(e).__name__}: {e}")
-			last_error = str(e)
-			if attempt < max_retries:
-				interruptible_sleep(API.RETRY_DELAY)
-			continue  # Retry
-
-		# Process response - status handling delegated to helper
-		result = _process_response_status(response, context)
-
-		# Success or permanent error
-		if result is not None and result is not False:
-			return result
-
-		# Permanent error (None from helper)
-		if result is None:
-			return None
-
-		# Retryable error (False from helper)
-		# Special case: rate limiting needs longer delay
-		if response.status_code == API.HTTP_TOO_MANY_REQUESTS:
-			if attempt < max_retries:
-				delay = API.RETRY_DELAY * 3
-				log_debug(f"Rate limit cooldown: {delay}s")
-				interruptible_sleep(delay)
-		else:
-			# Standard exponential backoff
+			
+			# Success case
+			if response.status_code == API.HTTP_OK:
+				log_verbose(f"{context}: Success")
+				return response.json()
+			
+			# Handle specific HTTP errors
+			elif response.status_code == API.HTTP_SERVICE_UNAVAILABLE:
+				log_warning(f"{context}: Service unavailable (503)")
+				last_error = "Service unavailable"
+				
+			elif response.status_code == API.HTTP_TOO_MANY_REQUESTS:
+				log_warning(f"{context}: Rate limited (429)")
+				last_error = "Rate limited"
+				# Longer delay for rate limiting
+				if attempt < max_retries:
+					delay = API.RETRY_DELAY * 3
+					log_debug(f"Rate limit cooldown: {delay}s")
+					interruptible_sleep(delay)
+					continue
+					
+			elif response.status_code == API.HTTP_UNAUTHORIZED:
+				log_error(f"{context}: Unauthorized (401) - check API key")
+				state.has_permanent_error = True  # Mark as permanent error
+				return None
+				
+			elif response.status_code == API.HTTP_NOT_FOUND:
+				log_error(f"{context}: Not found (404) - check location key")
+				state.has_permanent_error = True
+				return None
+			
+			elif response.status_code == API.HTTP_BAD_REQUEST:
+				log_error(f"{context}: Bad request (400) - check URL/parameters")
+				state.has_permanent_error = True
+				return None
+			
+			elif response.status_code == API.HTTP_FORBIDDEN:
+				log_error(f"{context}: Forbidden (403) - API key lacks permissions")
+				state.has_permanent_error = True
+				return None
+			
+			elif response.status_code == API.HTTP_INTERNAL_SERVER_ERROR:
+				log_warning(f"{context}: Server error (500) - AccuWeather issue")
+				last_error = "Server error (500)"
+				# Will retry below
+				
+			else:
+				log_error(f"{context}: HTTP {response.status_code}")
+				last_error = f"HTTP {response.status_code}"
+			
+			# Exponential backoff for retryable errors
 			if attempt < max_retries:
 				delay = min(
 					API.RETRY_DELAY * (2 ** attempt),
@@ -1420,9 +1374,64 @@ def fetch_weather_with_retries(url, max_retries=None, context="API"):
 				)
 				log_debug(f"Retrying in {delay}s...")
 				interruptible_sleep(delay)
-
-		last_error = f"HTTP {response.status_code}"
-
+				
+		except RuntimeError as e:
+			error_msg = str(e)
+			last_error = f"Runtime error: {error_msg}"
+			
+			if "pystack exhausted" in error_msg.lower():
+				log_error(f"{context}: Stack exhausted - memory issue, forcing cleanup")
+			elif "already connected" in error_msg.lower():
+				log_error(f"{context}: Socket already connected - forcing cleanup")
+			else:
+				log_error(f"{context}: Runtime error on attempt {attempt + 1}: {error_msg}")
+			
+			# Nuclear cleanup for any RuntimeError
+			cleanup_global_session()
+			cleanup_sockets()
+			gc.collect()
+			time.sleep(2)
+			
+			if attempt < max_retries:
+				delay = API.RETRY_BASE_DELAY * (2 ** attempt)
+				log_verbose(f"Retrying in {delay}s...")
+				time.sleep(delay)
+		
+		except OSError as e:
+			error_msg = str(e)
+			last_error = f"Network error: {error_msg}"
+			
+			# Detect socket issues
+			if "already connected" in error_msg.lower() or "pystack exhausted" in error_msg.lower():
+				log_error(f"{context}: Socket stuck - forcing nuclear cleanup")
+				
+				# Nuclear option: destroy everything
+				cleanup_global_session()
+				cleanup_sockets()
+				gc.collect()
+				
+				# Longer delay to ensure sockets fully close
+				time.sleep(2)
+				
+				# This will force session recreation on next attempt
+			elif "ETIMEDOUT" in error_msg or "104" in error_msg or "32" in error_msg:
+				log_warning(f"{context}: Network timeout on attempt {attempt + 1}")
+			else:
+				log_warning(f"{context}: Network error on attempt {attempt + 1}: {error_msg}")
+			
+			# Retry with delay
+			if attempt < max_retries:
+				delay = API.RETRY_BASE_DELAY * (2 ** attempt)
+				log_verbose(f"Retrying in {delay}s...")
+				time.sleep(delay)
+				
+					
+		except Exception as e:
+			log_error(f"{context} attempt {attempt + 1} unexpected error: {type(e).__name__}: {e}")
+			last_error = str(e)
+			if attempt < max_retries:
+				interruptible_sleep(API.RETRY_DELAY)
+	
 	log_error(f"{context}: All {max_retries + 1} attempts failed. Last error: {last_error}")
 	return None
 
@@ -3892,188 +3901,161 @@ def fetch_cycle_data(rtc):
 	# Return fresh flag along with data
 	return current_data, forecast_data, needs_fresh_forecast
 
-def _check_rapid_cycling(cycle_count):
-	"""Helper: Detect and handle rapid cycling (Category A2)"""
-	if cycle_count <= 1:
-		return False
-
-	time_since_startup = time.monotonic() - state.startup_time
-	avg_cycle_time = time_since_startup / cycle_count
-
-	if avg_cycle_time >= Timing.FAST_CYCLE_THRESHOLD or cycle_count <= 10:
-		return False
-
-	log_error(f"Rapid cycling detected ({avg_cycle_time:.1f}s/cycle) - restarting")
-	interruptible_sleep(Timing.RESTART_DELAY)
-	supervisor.reload()
-	return True
-
-def _ensure_wifi_available(rtc):
-	"""Helper: Check WiFi with recovery attempt (Category A2)"""
-	if is_wifi_connected():
-		return True
-
-	log_debug("WiFi disconnected, attempting recovery...")
-	if check_and_recover_wifi():
-		return True
-
-	log_warning("No WiFi - showing clock")
-	show_clock_display(rtc, Timing.CLOCK_DISPLAY_DURATION)
-	return False
-
-def _check_failure_mode(rtc):
-	"""Helper: Check and handle extended failure mode (Category A2)"""
+def run_display_cycle(rtc, cycle_count):
+	cycle_start_time = time.monotonic()
+	
+	# Detect rapid cycling (completing in < 10 seconds suggests errors)
+	if cycle_count > 1:
+		time_since_startup = time.monotonic() - state.startup_time
+		avg_cycle_time = time_since_startup / cycle_count
+		
+		if avg_cycle_time < Timing.FAST_CYCLE_THRESHOLD and cycle_count > 10:
+			log_error(f"Rapid cycling detected ({avg_cycle_time:.1f}s/cycle) - restarting")
+			interruptible_sleep(Timing.RESTART_DELAY)
+			supervisor.reload()
+	
+	# Memory monitoring and maintenance
+	if cycle_count % Timing.CYCLES_FOR_MEMORY_REPORT == 0:
+		state.memory_monitor.log_report()
+	check_daily_reset(rtc)
+	
+	# Check WiFi and attempt recovery if needed
+	wifi_available = is_wifi_connected()
+	
+	if not wifi_available:
+		# Try to recover (respects cooldown)
+		log_debug("WiFi disconnected, attempting recovery...")
+		wifi_available = check_and_recover_wifi()
+	
+	if not wifi_available:
+		log_warning("No WiFi - showing clock")
+		show_clock_display(rtc, Timing.CLOCK_DISPLAY_DURATION)
+		
+		cycle_duration = time.monotonic() - cycle_start_time
+		mem_stats = state.memory_monitor.get_memory_stats()
+		log_info(f"Cycle #{cycle_count} (NO WIFI) complete in {cycle_duration/System.SECONDS_PER_MINUTE:.2f} min\n")
+		return  # Exit early
+	
+	# WiFi is available - check for extended failure mode
 	time_since_success = time.monotonic() - state.last_successful_weather
 	in_failure_mode = time_since_success > Timing.EXTENDED_FAILURE_THRESHOLD
-
-	# Exit failure mode if recovered
+	
 	if not in_failure_mode and state.in_extended_failure_mode:
 		log_info("EXITING extended failure mode")
 		state.in_extended_failure_mode = False
-		return False
-
+	
 	if in_failure_mode:
 		handle_extended_failure_mode(rtc, time_since_success)
-		return True
-
-	return False
-
-def _run_scheduled_cycle(rtc, cycle_count, cycle_start_time):
-	"""Helper: Handle scheduled display if active (Category A2)"""
-	if not display_config.show_scheduled_displays:
+		return
+	
+	# CHECK FOR SCHEDULED DISPLAY FIRST
+	if display_config.show_scheduled_displays:
+		schedule_name, schedule_config = scheduled_display.get_active_schedule(rtc)
+		
+		if schedule_name:
+			# Fetch weather for this segment
+			current_data = fetch_current_weather_only()
+			
+			if current_data:
+				state.last_successful_weather = time.monotonic()
+				state.consecutive_failures = 0
+			
+			# Get remaining time for schedule
+			display_duration = get_remaining_schedule_time(rtc, schedule_config)
+			
+			# PROTECTION: Ensure minimum cycle time
+			cycle_start = time.monotonic()
+			
+			# Show ONE segment (max 5 minutes)
+			show_scheduled_display(rtc, schedule_name, schedule_config, display_duration, current_data)
+			
+			# Fast cycle protection
+			cycle_elapsed = time.monotonic() - cycle_start
+			if cycle_elapsed < Timing.FAST_CYCLE_THRESHOLD:
+				log_error(f"Schedule cycle completed suspiciously fast ({cycle_elapsed:.1f}s) - adding safety delay")
+				time.sleep(Timing.ERROR_SAFETY_DELAY)  # Force 30-second delay
+			
+			log_debug(f"LAST SEGMENT -> {state.schedule_just_ended}")
+			# Always check events before showing schedule (no tracking needed)
+			if state.schedule_just_ended and display_config.show_events_in_between_schedules and display_config.show_events:
+				cleanup_global_session()
+				gc.collect()
+				show_event_display(rtc, 30)  # Quick 30-second check
+				cleanup_global_session()
+				gc.collect()
+			
+			# Log cycle summary
+			cycle_duration = time.monotonic() - cycle_start_time
+			mem_stats = state.memory_monitor.get_memory_stats()
+			log_info(f"Cycle #{cycle_count} (SCHEDULED) complete in {cycle_duration/System.SECONDS_PER_MINUTE:.2f} min | UT: {state.memory_monitor.get_runtime()} | Mem: {mem_stats['usage_percent']:.1f}% | API: Total={state.api_call_count}/{API.MAX_CALLS_BEFORE_RESTART}, Current={state.current_api_calls}, Forecast={state.forecast_api_calls}\n")
+			return
+			
+	else:
 		log_debug("Scheduled displays disabled due to errors")
-		return False
-
-	schedule_name, schedule_config = scheduled_display.get_active_schedule(rtc)
-	if not schedule_name:
-		return False
-
-	# Fetch weather for segment
-	current_data = fetch_current_weather_only()
-	if current_data:
-		state.last_successful_weather = time.monotonic()
-		state.consecutive_failures = 0
-
-	# Display schedule segment
-	display_duration = get_remaining_schedule_time(rtc, schedule_config)
-	segment_start = time.monotonic()
-
-	show_scheduled_display(rtc, schedule_name, schedule_config, display_duration, current_data)
-
-	# Fast cycle protection
-	segment_elapsed = time.monotonic() - segment_start
-	if segment_elapsed < Timing.FAST_CYCLE_THRESHOLD:
-		log_error(f"Schedule cycle suspiciously fast ({segment_elapsed:.1f}s) - adding delay")
-		time.sleep(Timing.ERROR_SAFETY_DELAY)
-
-	# Check for events between schedules
-	log_debug(f"LAST SEGMENT -> {state.schedule_just_ended}")
-	if state.schedule_just_ended and display_config.show_events_in_between_schedules and display_config.show_events:
-		cleanup_global_session()
-		gc.collect()
-		show_event_display(rtc, 30)
-		cleanup_global_session()
-		gc.collect()
-
-	# Log cycle summary
-	cycle_duration = time.monotonic() - cycle_start_time
-	mem_stats = state.memory_monitor.get_memory_stats()
-	log_info(f"Cycle #{cycle_count} (SCHEDULED) complete in {cycle_duration/System.SECONDS_PER_MINUTE:.2f} min | UT: {state.memory_monitor.get_runtime()} | Mem: {mem_stats['usage_percent']:.1f}% | API: Total={state.api_call_count}/{API.MAX_CALLS_BEFORE_RESTART}, Current={state.current_api_calls}, Forecast={state.forecast_api_calls}\n")
-	return True
-
-def _run_normal_cycle(rtc, cycle_count, cycle_start_time):
-	"""Helper: Run normal display cycle (Category A2)"""
+	
+	# Track if anything was displayed this cycle
 	something_displayed = False
-
-	# Fetch data once
+	
+	# NORMAL CYCLE - Fetch data once
 	current_data, forecast_data, forecast_is_fresh = fetch_cycle_data(rtc)
+	
 	current_duration, forecast_duration, event_duration = calculate_display_durations(rtc)
-
+	
 	# Forecast display
 	forecast_shown = False
 	if display_config.show_forecast and current_data and forecast_data:
 		forecast_shown = show_forecast_display(current_data, forecast_data, forecast_duration, forecast_is_fresh)
-		something_displayed = something_displayed or forecast_shown
-
+		if forecast_shown:
+			something_displayed = True
+	
 	if not forecast_shown:
 		current_duration += forecast_duration
-
-	# Weather display
+	
+	# Current weather display
 	if display_config.show_weather and current_data:
 		show_weather_display(rtc, current_duration, current_data)
 		something_displayed = True
-
+	
 	# Events display
 	if display_config.show_events and event_duration > 0:
 		event_shown = show_event_display(rtc, event_duration)
-		something_displayed = something_displayed or event_shown
-		if not event_shown:
+		if event_shown:
+			something_displayed = True
+		else:
 			interruptible_sleep(1)
-
-	# Test modes
+	
+	# Color test (if enabled)
 	if display_config.show_color_test:
 		show_color_test_display(Timing.COLOR_TEST)
 		something_displayed = True
-
+	
+	# Icon test (if enabled)
 	if display_config.show_icon_test:
 		show_icon_test_display(icon_numbers=TestData.TEST_ICONS)
 		something_displayed = True
-
-	# Fallback: show clock if nothing displayed
+	
+	# FALLBACK: If nothing was displayed, show clock
 	if not something_displayed:
 		log_warning("No displays active - showing clock as fallback")
 		show_clock_display(rtc, Timing.CLOCK_DISPLAY_DURATION)
-		something_displayed = True
-
+		something_displayed = True  # Clock counts as something!
+	
 	# Cache stats logging
 	if cycle_count % Timing.CYCLES_FOR_CACHE_STATS == 0:
 		log_debug(state.image_cache.get_stats())
-
-	# Safety check: ensure cycle took reasonable time
+	
+	# SAFETY CHECK: Ensure cycle took reasonable time
 	cycle_duration = time.monotonic() - cycle_start_time
+	
 	if cycle_duration < Timing.FAST_CYCLE_THRESHOLD:
 		log_error(f"Cycle completed too fast ({cycle_duration:.1f}s) - adding safety delay")
 		time.sleep(Timing.ERROR_SAFETY_DELAY)
 		cycle_duration = time.monotonic() - cycle_start_time
-
-	# Log completion
+	
+	# Calculate cycle duration and log
 	mem_stats = state.memory_monitor.get_memory_stats()
+	
 	log_info(f"Cycle #{cycle_count} complete in {cycle_duration/System.SECONDS_PER_MINUTE:.2f} min | UT: {state.memory_monitor.get_runtime()} | Mem: {mem_stats['usage_percent']:.1f}% | API: Total={state.api_call_count}/{API.MAX_CALLS_BEFORE_RESTART}, Current={state.current_api_calls}, Forecast={state.forecast_api_calls}\n")
-
-def _log_cycle_complete(cycle_count, cycle_start_time, mode):
-	"""Helper: Log cycle completion (Category A2)"""
-	cycle_duration = time.monotonic() - cycle_start_time
-	mem_stats = state.memory_monitor.get_memory_stats()
-	log_info(f"Cycle #{cycle_count} ({mode}) complete in {cycle_duration/System.SECONDS_PER_MINUTE:.2f} min\n")
-
-def run_display_cycle(rtc, cycle_count):
-	"""Flattened main cycle - delegates to helpers (Category A2)"""
-	cycle_start_time = time.monotonic()
-
-	# Early exit: rapid cycling detection
-	if _check_rapid_cycling(cycle_count):
-		return
-
-	# Maintenance
-	if cycle_count % Timing.CYCLES_FOR_MEMORY_REPORT == 0:
-		state.memory_monitor.log_report()
-	check_daily_reset(rtc)
-
-	# Early exit: no WiFi
-	if not _ensure_wifi_available(rtc):
-		_log_cycle_complete(cycle_count, cycle_start_time, "NO WIFI")
-		return
-
-	# Early exit: extended failure mode
-	if _check_failure_mode(rtc):
-		return
-
-	# Try scheduled display first (priority path)
-	if _run_scheduled_cycle(rtc, cycle_count, cycle_start_time):
-		return  # Schedule handled everything
-
-	# Normal cycle
-	_run_normal_cycle(rtc, cycle_count, cycle_start_time)
 		
 
 ### ============================================ MAIN PROGRAM  =========================================== ###
