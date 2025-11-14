@@ -3099,7 +3099,8 @@ def show_forecast_display(current_data, forecast_data, display_duration, is_fres
 	next_temps = [round(h["feels_like"]) for h in forecast_data[:2]]
 	status = "Fresh" if is_fresh else "Cached"
 	log_info(f"Displaying Forecast: Current {current_temp}°C → Next: {next_temps[0]}°C, {next_temps[1]}°C ({display_duration/60:.0f} min) [{status}]")
-	
+
+	# Extract weather data (no exception handling needed for dict access with defaults)
 	try:
 		# Column 1 - current temperature with feels-like logic
 		temp_col1 = current_data['temperature']
@@ -3177,50 +3178,54 @@ def show_forecast_display(current_data, forecast_data, display_duration, is_fres
 		
 		col2_time = format_hour(hour_plus_1)
 		col3_time = format_hour(hour_plus_2)
-		
-		# Column positioning constants
-		column_y = Layout.FORECAST_COLUMN_Y
-		column_width = Layout.FORECAST_COLUMN_WIDTH
-		time_y = Layout.FORECAST_TIME_Y
-		temp_y = Layout.FORECAST_TEMP_Y
-		
-		# Load and position weather icon columns with sequential error handling
-		columns_data = [
-			{"image": col1_icon, "x": Layout.FORECAST_COL1_X, "temp": col1_temp},
-			{"image": col2_icon, "x": Layout.FORECAST_COL2_X, "temp": col2_temp},
-			{"image": col3_icon, "x": Layout.FORECAST_COL3_X, "temp": col3_temp}
-		]
+	except Exception as e:
+		log_error(f"Forecast data extraction error: {e}")
+		return False
 
-		for i, col in enumerate(columns_data):
-			bitmap = None
-			palette = None
+	# Column positioning constants
+	column_y = Layout.FORECAST_COLUMN_Y
+	column_width = Layout.FORECAST_COLUMN_WIDTH
+	time_y = Layout.FORECAST_TIME_Y
+	temp_y = Layout.FORECAST_TEMP_Y
 
-			# Try primary weather icon
+	# Load weather icon columns - NO parent try block (reduces nesting to 1 level)
+	columns_data = [
+		{"image": col1_icon, "x": Layout.FORECAST_COL1_X, "temp": col1_temp},
+		{"image": col2_icon, "x": Layout.FORECAST_COL2_X, "temp": col2_temp},
+		{"image": col3_icon, "x": Layout.FORECAST_COL3_X, "temp": col3_temp}
+	]
+
+	for i, col in enumerate(columns_data):
+		bitmap = None
+		palette = None
+
+		# Try primary weather icon (1-level try - safe!)
+		try:
+			bitmap, palette = state.image_cache.get_image(f"{Paths.COLUMN_IMAGES}/{col['image']}")
+		except:
+			pass  # Will try fallback
+
+		# Try fallback if primary failed (1-level try - safe!)
+		if bitmap is None:
 			try:
-				bitmap, palette = state.image_cache.get_image(f"{Paths.COLUMN_IMAGES}/{col['image']}")
+				bitmap, palette = state.image_cache.get_image(f"{Paths.COLUMN_IMAGES}/{i+1}.bmp")
+				log_warning(f"Used fallback column image for column {i+1}")
 			except:
-				pass  # Will try fallback
+				pass  # Will skip this column
 
-			# Try fallback if primary failed
-			if bitmap is None:
-				try:
-					bitmap, palette = state.image_cache.get_image(f"{Paths.COLUMN_IMAGES}/{i+1}.bmp")
-					log_warning(f"Used fallback column image for column {i+1}")
-				except:
-					pass  # Will skip this column
+		# Skip this column if both failed
+		if bitmap is None:
+			log_warning(f"Failed to load column {i+1} image")
+			continue
 
-			# Skip this column if both failed
-			if bitmap is None:
-				log_warning(f"Failed to load column {i+1} image")
-				continue
+		# Create and add column (no exception handling needed)
+		col_img = displayio.TileGrid(bitmap, pixel_shader=palette)
+		col_img.x = col["x"]
+		col_img.y = column_y
+		state.main_group.append(col_img)
 
-			# Create and add column (no exception handling needed)
-			col_img = displayio.TileGrid(bitmap, pixel_shader=palette)
-			col_img.x = col["x"]
-			col_img.y = column_y
-			state.main_group.append(col_img)
-
-		
+	# Create and display labels - wrap in try block for display errors
+	try:
 		# Create time labels - only column 1 will be updated
 		col1_time_label = bitmap_label.Label(
 			font,
@@ -3472,18 +3477,19 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 	# Light cleanup before segment (keep session alive for connection reuse)
 	gc.collect()
 	clear_display()
-	
+
+	# Fetch weather data (separate try block for data fetching)
 	try:
 		# Fetch weather if not provided
 		if not current_data:
 			current_data = fetch_current_weather_only()
-		
+
 		if not current_data:
 			log_warning("No weather data for scheduled display segment")
-			
+
 			# Try cached current weather before giving up (max 15 minutes old)
 			current_data = get_cached_weather_if_fresh(max_age_seconds=Timing.MAX_CACHE_AGE)
-			
+
 			if current_data:
 				log_debug("Using cached current weather as fallback")
 				is_cached = True
@@ -3491,74 +3497,80 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 				# No weather data, skip weather section
 				log_warning("No weather data - Display schedule + clock only")
 				is_cached = False
-				
+
 		else:
 			is_cached = False
-			
-		# === WEATHER SECTION (CONDITIONAL) ===
-		if current_data:
-			# Extract weather data
-			temperature = f"{round(current_data['feels_like'])}°"
-			weather_icon = f"{current_data['weather_icon']}.bmp"
-			uv_index = current_data['uv_index']
-			
-			# Add UV bar if present
-			if uv_index > 0:
-				uv_length = calculate_uv_bar_length(uv_index)
-				for i in range(uv_length):
-					if i not in Visual.UV_SPACING_POSITIONS:
-						uv_pixel = Line(
-							Layout.SCHEDULE_LEFT_MARGIN_X + i,
-							Layout.SCHEDULE_UV_Y,
-							Layout.SCHEDULE_LEFT_MARGIN_X + i,
-							Layout.SCHEDULE_UV_Y,
-							state.colors["DIMMEST_WHITE"]
-						)
-						state.main_group.append(uv_pixel)
-			
-			y_offset = Layout.SCHEDULE_X_OFFSET if uv_index > 0 else 0
-			
-			# Load weather icon
-			try:
-				bitmap, palette = state.image_cache.get_image(f"{Paths.COLUMN_IMAGES}/{weather_icon}")
-				weather_img = displayio.TileGrid(bitmap, pixel_shader=palette)
-				weather_img.x = Layout.SCHEDULE_LEFT_MARGIN_X
-				weather_img.y = Layout.SCHEDULE_W_IMAGE_Y + y_offset
-				state.main_group.append(weather_img)
-			except Exception as e:
-				log_error(f"Failed to load weather icon: {e}")
-				
-			# Set temperature color based on cache status
-			temp_color = state.colors["LILAC"] if is_cached else state.colors["DIMMEST_WHITE"]
-			
-			# Temp Labels
-				
-			temp_label = bitmap_label.Label(
-				font,
-				color=temp_color,
-				text=temperature,
-				x=Layout.SCHEDULE_LEFT_MARGIN_X,
-				y=Layout.SCHEDULE_TEMP_Y + y_offset
-			)
-			state.main_group.append(temp_label)
-		
-		# === SCHEDULE IMAGE (ALWAYS) ===
+	except Exception as e:
+		log_error(f"Schedule weather fetch error: {e}")
+		current_data = None
+		is_cached = False
+
+	# === WEATHER SECTION (CONDITIONAL) - No parent try block ===
+	if current_data:
+		# Extract weather data
+		temperature = f"{round(current_data['feels_like'])}°"
+		weather_icon = f"{current_data['weather_icon']}.bmp"
+		uv_index = current_data['uv_index']
+
+		# Add UV bar if present
+		if uv_index > 0:
+			uv_length = calculate_uv_bar_length(uv_index)
+			for i in range(uv_length):
+				if i not in Visual.UV_SPACING_POSITIONS:
+					uv_pixel = Line(
+						Layout.SCHEDULE_LEFT_MARGIN_X + i,
+						Layout.SCHEDULE_UV_Y,
+						Layout.SCHEDULE_LEFT_MARGIN_X + i,
+						Layout.SCHEDULE_UV_Y,
+						state.colors["DIMMEST_WHITE"]
+					)
+					state.main_group.append(uv_pixel)
+
+		y_offset = Layout.SCHEDULE_X_OFFSET if uv_index > 0 else 0
+
+		# Load weather icon (1-level try - safe!)
 		try:
-			bitmap, palette = load_bmp_image(f"{Paths.SCHEDULE_IMAGES}/{schedule_config['image']}")
-			schedule_img = displayio.TileGrid(bitmap, pixel_shader=palette)
-			schedule_img.x = Layout.SCHEDULE_IMAGE_X
-			schedule_img.y = Layout.SCHEDULE_IMAGE_Y
-			state.main_group.append(schedule_img)
+			bitmap, palette = state.image_cache.get_image(f"{Paths.COLUMN_IMAGES}/{weather_icon}")
+			weather_img = displayio.TileGrid(bitmap, pixel_shader=palette)
+			weather_img.x = Layout.SCHEDULE_LEFT_MARGIN_X
+			weather_img.y = Layout.SCHEDULE_W_IMAGE_Y + y_offset
+			state.main_group.append(weather_img)
 		except Exception as e:
-			log_error(f"Failed to load schedule image: {e}")
-			state.scheduled_display_error_count += 1
-			if state.scheduled_display_error_count >= 3:
-				display_config.show_scheduled_displays = False
-			show_clock_display(rtc, segment_duration)
-			return
-		
-		state.scheduled_display_error_count = 0
-		
+			log_error(f"Failed to load weather icon: {e}")
+
+		# Set temperature color based on cache status
+		temp_color = state.colors["LILAC"] if is_cached else state.colors["DIMMEST_WHITE"]
+
+		# Temp Labels
+
+		temp_label = bitmap_label.Label(
+			font,
+			color=temp_color,
+			text=temperature,
+			x=Layout.SCHEDULE_LEFT_MARGIN_X,
+			y=Layout.SCHEDULE_TEMP_Y + y_offset
+		)
+		state.main_group.append(temp_label)
+
+	# === SCHEDULE IMAGE (ALWAYS) - 1-level try (safe!) ===
+	try:
+		bitmap, palette = load_bmp_image(f"{Paths.SCHEDULE_IMAGES}/{schedule_config['image']}")
+		schedule_img = displayio.TileGrid(bitmap, pixel_shader=palette)
+		schedule_img.x = Layout.SCHEDULE_IMAGE_X
+		schedule_img.y = Layout.SCHEDULE_IMAGE_Y
+		state.main_group.append(schedule_img)
+	except Exception as e:
+		log_error(f"Failed to load schedule image: {e}")
+		state.scheduled_display_error_count += 1
+		if state.scheduled_display_error_count >= 3:
+			display_config.show_scheduled_displays = False
+		show_clock_display(rtc, segment_duration)
+		return
+
+	state.scheduled_display_error_count = 0
+
+	# === CLOCK LABEL AND DISPLAY LOOP - wrap in try for display errors ===
+	try:
 		# === CLOCK LABEL (ALWAYS) ===
 		time_label = bitmap_label.Label(
 			font,
@@ -3567,7 +3579,7 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 			y=Layout.FORECAST_TIME_Y
 		)
 		state.main_group.append(time_label)
-		
+
 		# === WEEKDAY INDICATOR (IF ENABLED) ===
 		if display_config.show_weekday_indicator:
 			add_day_indicator(state.main_group, rtc)
