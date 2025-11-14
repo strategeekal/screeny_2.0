@@ -56,6 +56,38 @@ def test_stack_capacity():
 
 	return recursive_test(0)
 
+def test_nested_exception_depth():
+	"""Test nested try/except depth - measures the ACTUAL problem pattern (ORIGINAL VERSION)"""
+	def nested_exception_test(depth=0):
+		if depth > 50:  # Safety limit
+			return depth
+
+		try:
+			# Outer exception handler
+			try:
+				# Inner exception handler (the problematic pattern)
+				try:
+					# Innermost - simulate image loading with potential error
+					local_data = {"depth": depth, "image": "test.bmp"}
+
+					# Recurse to test deeper nesting
+					result = nested_exception_test(depth + 1)
+					return result
+				except:
+					# Image load fallback
+					pass
+			except:
+				# Outer fallback
+				pass
+		except Exception as e:
+			# Stack exhausted at this depth
+			return depth
+
+		# If we get here without recursing, we hit the safety limit
+		return depth
+
+	return nested_exception_test(0)
+
 # === CONSTANTS ===
 
 ## Display Hardware
@@ -4092,13 +4124,23 @@ def main():
 		# STACK CAPACITY TEST (ORIGINAL VERSION)
 		log_info("=== STACK CAPACITY TEST (ORIGINAL) ===")
 		max_depth = test_stack_capacity()
-		log_info(f"Max recursive depth: {max_depth} levels")
+		log_info(f"Recursion depth: {max_depth} levels")
 		if max_depth >= 20:
 			log_info(f"✅ Stack headroom: EXCELLENT ({max_depth} levels - plenty of room for features)")
 		elif max_depth >= 12:
 			log_info(f"⚠️  Stack headroom: MARGINAL ({max_depth} levels - limited room)")
 		else:
 			log_warning(f"🔴 Stack headroom: DANGER ({max_depth} levels - maxed out!)")
+
+		# NESTED EXCEPTION TEST - Tests the actual crash pattern
+		nested_depth = test_nested_exception_depth()
+		log_info(f"Nested try/except depth: {nested_depth} levels")
+		if nested_depth >= 10:
+			log_info(f"✅ Exception nesting: SAFE ({nested_depth} levels)")
+		elif nested_depth >= 6:
+			log_info(f"⚠️  Exception nesting: RISKY ({nested_depth} levels)")
+		else:
+			log_warning(f"🔴 Exception nesting: CRASH RISK ({nested_depth} levels)")
 		log_info("=== END STACK TEST ===\n")
 
 		# Log active display features
