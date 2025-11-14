@@ -809,10 +809,16 @@ class WeatherDisplayState:
 		self.wifi_reconnect_attempts = 0
 		self.last_wifi_attempt = 0
 		self.system_error_count = 0
-		
+
 		self.in_extended_failure_mode = False
 		self.scheduled_display_error_count = 0
 		self.has_permanent_error = False  # Track 401/404 errors
+
+		# Socket health monitoring (indirect)
+		self.http_requests_total = 0
+		self.http_requests_success = 0
+		self.http_requests_failed = 0
+		self.session_cleanup_count = 0
 		
 		# Event tracking
 		self.ephemeral_event_count = 0
@@ -1258,22 +1264,23 @@ def cleanup_global_session():
 	if _global_session is not None:
 		try:
 			log_debug("Destroying global session")
+			state.session_cleanup_count += 1  # Track cleanups
 			# Try to close gracefully first
 			try:
 				_global_session.close()
 			except:
 				pass
-			
+
 			# Force delete the session object
 			del _global_session
 			_global_session = None
-			
+
 			# Aggressive socket cleanup
 			cleanup_sockets()
-			
+
 			# Force garbage collection
 			gc.collect()
-			
+
 			# Brief pause to let sockets fully close
 			time.sleep(0.5)
 			
@@ -1372,9 +1379,11 @@ def fetch_weather_with_retries(url, max_retries=None, context="API"):
 		# Try to fetch - exception handling delegated to helper
 		response = None
 		try:
+			state.http_requests_total += 1  # Track all attempts
 			response = session.get(url)
 		except (RuntimeError, OSError) as e:
 			last_error = _handle_network_error(e, context, attempt, max_retries)
+			state.http_requests_failed += 1  # Track failure
 			continue  # Retry
 		except Exception as e:
 			log_error(f"{context} unexpected error: {type(e).__name__}: {e}")
@@ -1390,6 +1399,7 @@ def fetch_weather_with_retries(url, max_retries=None, context="API"):
 
 			# Success or permanent error
 			if result is not None and result is not False:
+				state.http_requests_success += 1  # Track success
 				return result
 
 			# Permanent error (None from helper)
@@ -3535,6 +3545,7 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 	# This runs across ALL schedules, not just within one schedule
 	if state.global_segment_count % 4 == 0:
 		log_info(f"Mid-schedule cleanup at global segment {state.global_segment_count} (schedule segment {state.active_schedule_segment_count})")
+		log_info(f"Socket health: HTTP total={state.http_requests_total}, success={state.http_requests_success}, failed={state.http_requests_failed}, cleanups={state.session_cleanup_count}")
 		cleanup_global_session()
 		gc.collect()
 
