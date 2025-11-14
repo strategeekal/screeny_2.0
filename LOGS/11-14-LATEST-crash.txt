@@ -1,0 +1,164 @@
+[2025-11-14 08:53:53] INFO: Hardware ready | 14 schedules (imported) | 68 events (27 imported) | Today: No events
+[2025-11-14 08:53:57] INFO: Time synced to America/Chicago (UTC-6)
+[2025-11-14 08:53:57] INFO: Fetching time and weather for: Sheffield And Depaul, IL
+[2025-11-14 08:53:57] INFO: Active displays: weather, forecast, events, weekday indicator
+[2025-11-14 08:53:57] INFO: == STARTING MAIN DISPLAY LOOP == 
+
+[2025-11-14 08:53:57] INFO: ## CYCLE 1 ##
+[2025-11-14 08:53:57] INFO: Weather: Sunny, 11.2°C
+[2025-11-14 08:53:58] INFO: Forecast: 12 hours (fresh) | Next: 8.9°C
+[2025-11-14 08:53:59] INFO: Displaying Forecast: Current 11°C → Next: 9°C, 11°C (1 min) [Fresh]
+[2025-11-14 08:55:17] INFO: Displaying Weather: Sunny, 11°C (4 min)
+[2025-11-14 08:59:23] INFO: Cycle #1 complete in 5.45 min | UT: 00:05:32 | Mem: 12.9% | API: Total=2/350, Current=1, Forecast=1
+
+[2025-11-14 08:59:23] INFO: ## CYCLE 2 ##
+[2025-11-14 08:59:24] INFO: Weather: Sunny, 11.8°C
+[2025-11-14 08:59:25] INFO: Displaying Forecast: Current 12°C → Next: 9°C, 11°C (1 min) [Cached]
+[2025-11-14 09:00:27] INFO: Displaying Weather: Sunny, 12°C (4 min)
+[2025-11-14 09:04:29] INFO: Cycle #2 complete in 5.09 min | UT: 00:10:37 | Mem: 10.8% | API: Total=3/350, Current=2, Forecast=1
+
+[2025-11-14 09:04:29] INFO: ## CYCLE 3 ##
+[2025-11-14 09:04:29] INFO: Weather: Sunny, 11.8°C
+[2025-11-14 09:04:31] INFO: Displaying Forecast: Current 12°C → Next: 9°C, 11°C (1 min) [Cached]
+[2025-11-14 09:05:32] INFO: Displaying Weather: Sunny, 12°C (4 min)
+[2025-11-14 09:09:32] INFO: Cycle #3 complete in 5.05 min | UT: 00:15:40 | Mem: 11.0% | API: Total=4/350, Current=3, Forecast=1
+
+[2025-11-14 09:09:32] INFO: ## CYCLE 4 ##
+[2025-11-14 09:09:32] INFO: Starting schedule session: RAPID TEST1 (60s total)
+[2025-11-14 09:09:33] INFO: Displaying Schedule: RAPID TEST1 - Segment 1/1 (12°, 1.0 min, progress: 0%)
+[2025-11-14 09:10:38] INFO: Cycle #4 (SCHEDULED) complete in 1.09 min | UT: 00:16:46 | Mem: 9.3% | API: Total=4/350, Current=3, Forecast=1
+
+[2025-11-14 09:10:38] INFO: ## CYCLE 5 ##
+[2025-11-14 09:10:38] INFO: Starting schedule session: RAPID TEST2 (900s total)
+[2025-11-14 09:10:38] INFO: Displaying Schedule: RAPID TEST2 - Segment 1/3 (12°, 5.0 min, progress: 0%)
+[2025-11-14 09:15:39] INFO: Cycle #5 (SCHEDULED) complete in 5.03 min | UT: 00:21:47 | Mem: 9.3% | API: Total=4/350, Current=3, Forecast=1
+
+[2025-11-14 09:15:39] INFO: ## CYCLE 6 ##
+[2025-11-14 09:15:40] INFO: Displaying Schedule: RAPID TEST2 - Segment 2/3 (12°, 5.0 min, progress: 34%)
+[2025-11-14 09:20:41] INFO: Cycle #6 (SCHEDULED) complete in 5.03 min | UT: 00:26:49 | Mem: 9.3% | API: Total=4/350, Current=3, Forecast=1
+
+[2025-11-14 09:20:41] INFO: ## CYCLE 7 ##
+[2025-11-14 09:20:43] INFO: Weather: Sunny, 12.6°C
+[2025-11-14 09:20:44] INFO: Displaying Schedule: RAPID TEST2 - Segment 3/3 (13°, 4.9 min, progress: 67%)
+[2025-11-14 09:25:43] INFO: Cycle #7 (SCHEDULED) complete in 5.04 min | UT: 00:31:51 | Mem: 11.1% | API: Total=5/350, Current=4, Forecast=1
+
+[2025-11-14 09:25:43] INFO: ## CYCLE 8 ##
+[2025-11-14 09:25:43] INFO: Starting schedule session: RAPID TEST3 (900s total)
+[2025-11-14 09:25:44] INFO: Displaying Schedule: RAPID TEST3 - Segment 1/3 (13°, 5.0 min, progress: 0%)
+[2025-11-14 09:30:45] INFO: Cycle #8 (SCHEDULED) complete in 5.03 min | UT: 00:36:53 | Mem: 11.1% | API: Total=5/350, Current=4, Forecast=1
+
+[2025-11-14 09:30:45] INFO: ## CYCLE 9 ##
+[2025-11-14 09:30:46] INFO: Displaying Schedule: RAPID TEST3 - Segment 2/3 (13°, 5.0 min, progress: 34%)
+[2025-11-14 09:35:46] INFO: Cycle #9 (SCHEDULED) complete in 5.03 min | UT: 00:41:55 | Mem: 11.1% | API: Total=5/350, Current=4, Forecast=1
+
+[2025-11-14 09:35:46] INFO: ## CYCLE 10 ##
+[2025-11-14 09:35:49] INFO: Weather: Sunny, 13.5°C
+[2025-11-14 09:35:50] INFO: Displaying Schedule: RAPID TEST3 - Segment 3/3 (14°, 4.9 min, progress: 67%)
+[2025-11-14 09:40:49] INFO: Cycle #10 (SCHEDULED) complete in 5.04 min | UT: 00:46:57 | Mem: 11.2% | API: Total=6/350, Current=5, Forecast=1
+
+[2025-11-14 09:40:49] INFO: ## CYCLE 11 ##
+[2025-11-14 09:40:49] INFO: Starting schedule session: RAPID TEST4 (900s total)
+[2025-11-14 09:40:50] INFO: Displaying Schedule: RAPID TEST4 - Segment 1/3 (14°, 5.0 min, progress: 0%)
+[2025-11-14 09:45:50] INFO: Cycle #11 (SCHEDULED) complete in 5.03 min | UT: 00:51:59 | Mem: 11.2% | API: Total=6/350, Current=5, Forecast=1
+
+[2025-11-14 09:45:50] INFO: ## CYCLE 12 ##
+[2025-11-14 09:45:51] INFO: Displaying Schedule: RAPID TEST4 - Segment 2/3 (14°, 5.0 min, progress: 34%)
+[2025-11-14 09:50:52] INFO: Cycle #12 (SCHEDULED) complete in 5.03 min | UT: 00:57:00 | Mem: 11.2% | API: Total=6/350, Current=5, Forecast=1
+
+[2025-11-14 09:50:52] INFO: ## CYCLE 13 ##
+[2025-11-14 09:50:55] INFO: Weather: Sunny, 14.0°C
+[2025-11-14 09:50:56] INFO: Displaying Schedule: RAPID TEST4 - Segment 3/3 (14°, 4.9 min, progress: 67%)
+[2025-11-14 09:55:55] INFO: Cycle #13 (SCHEDULED) complete in 5.04 min | UT: 01:02:03 | Mem: 13.0% | API: Total=7/350, Current=6, Forecast=1
+
+[2025-11-14 09:55:55] INFO: ## CYCLE 14 ##
+[2025-11-14 09:55:55] INFO: Starting schedule session: RAPID TEST5 (900s total)
+[2025-11-14 09:55:56] INFO: Displaying Schedule: RAPID TEST5 - Segment 1/3 (14°, 5.0 min, progress: 0%)
+[2025-11-14 10:00:56] INFO: Cycle #14 (SCHEDULED) complete in 5.03 min | UT: 01:07:05 | Mem: 13.0% | API: Total=7/350, Current=6, Forecast=1
+
+[2025-11-14 10:00:56] INFO: ## CYCLE 15 ##
+[2025-11-14 10:00:57] INFO: Displaying Schedule: RAPID TEST5 - Segment 2/3 (14°, 5.0 min, progress: 34%)
+[2025-11-14 10:05:58] INFO: Cycle #15 (SCHEDULED) complete in 5.03 min | UT: 01:12:06 | Mem: 13.0% | API: Total=7/350, Current=6, Forecast=1
+
+[2025-11-14 10:05:58] INFO: ## CYCLE 16 ##
+[2025-11-14 10:06:01] INFO: Weather: Sunny, 14.5°C
+[2025-11-14 10:06:01] INFO: Displaying Schedule: RAPID TEST5 - Segment 3/3 (14°, 4.9 min, progress: 67%)
+[2025-11-14 10:11:01] INFO: Cycle #16 (SCHEDULED) complete in 5.04 min | UT: 01:17:09 | Mem: 14.7% | API: Total=8/350, Current=7, Forecast=1
+
+[2025-11-14 10:11:01] INFO: ## CYCLE 17 ##
+[2025-11-14 10:11:01] INFO: Starting schedule session: RAPID TEST6 (840s total)
+[2025-11-14 10:11:02] INFO: Displaying Schedule: RAPID TEST6 - Segment 1/3 (14°, 5.0 min, progress: 0%)
+[2025-11-14 10:16:02] INFO: Cycle #17 (SCHEDULED) complete in 5.03 min | UT: 01:22:11 | Mem: 14.7% | API: Total=8/350, Current=7, Forecast=1
+
+[2025-11-14 10:16:02] INFO: ## CYCLE 18 ##
+[2025-11-14 10:16:03] INFO: Displaying Schedule: RAPID TEST6 - Segment 2/3 (14°, 5.0 min, progress: 36%)
+[2025-11-14 10:21:04] INFO: Cycle #18 (SCHEDULED) complete in 5.03 min | UT: 01:27:13 | Mem: 14.7% | API: Total=8/350, Current=7, Forecast=1
+
+[2025-11-14 10:21:04] INFO: ## CYCLE 19 ##
+[2025-11-14 10:21:07] INFO: Weather: Sunny, 16.1°C
+[2025-11-14 10:21:08] INFO: Displaying Schedule: RAPID TEST6 - Segment 3/3 (16°, 3.9 min, progress: 72%)
+[2025-11-14 10:25:07] INFO: Cycle #19 (SCHEDULED) complete in 4.04 min | UT: 01:31:15 | Mem: 14.9% | API: Total=9/350, Current=8, Forecast=1
+
+[2025-11-14 10:25:07] INFO: ## CYCLE 20 ##
+[2025-11-14 10:25:07] INFO: Starting schedule session: RAPID TEST7 (900s total)
+[2025-11-14 10:25:08] INFO: Displaying Schedule: RAPID TEST7 - Segment 1/3 (16°, 5.0 min, progress: 0%)
+[2025-11-14 10:30:09] INFO: Cycle #20 (SCHEDULED) complete in 5.03 min | UT: 01:36:17 | Mem: 14.9% | API: Total=9/350, Current=8, Forecast=1
+
+[2025-11-14 10:30:09] INFO: ## CYCLE 21 ##
+[2025-11-14 10:30:10] INFO: Displaying Schedule: RAPID TEST7 - Segment 2/3 (16°, 5.0 min, progress: 34%)
+[2025-11-14 10:35:11] INFO: Cycle #21 (SCHEDULED) complete in 5.03 min | UT: 01:41:19 | Mem: 14.9% | API: Total=9/350, Current=8, Forecast=1
+
+[2025-11-14 10:35:11] INFO: ## CYCLE 22 ##
+[2025-11-14 10:35:12] INFO: Displaying Schedule: RAPID TEST7 - Segment 3/3 (16°, 4.9 min, progress: 67%)
+[2025-11-14 10:40:10] INFO: Cycle #22 (SCHEDULED) complete in 4.99 min | UT: 01:46:18 | Mem: 14.9% | API: Total=9/350, Current=8, Forecast=1
+
+[2025-11-14 10:40:10] INFO: ## CYCLE 23 ##
+[2025-11-14 10:40:10] WARNING: Current Weather: Network error on attempt 1: Out of sockets
+[2025-11-14 10:40:12] WARNING: Current Weather: Network error on attempt 2: Out of sockets
+[2025-11-14 10:40:16] WARNING: Current Weather: Network error on attempt 3: Out of sockets
+[2025-11-14 10:40:16] ERROR: Current Weather: All 3 attempts failed. Last error: Network error: Out of sockets
+[2025-11-14 10:40:16] WARNING: Current weather fetch failed
+[2025-11-14 10:40:16] WARNING: Consecutive failures: 1, System errors: 1
+[2025-11-14 10:40:16] INFO: Starting schedule session: RAPID TEST8 (900s total)
+[2025-11-14 10:40:17] WARNING: Current Weather: Network error on attempt 1: Out of sockets
+[2025-11-14 10:40:19] WARNING: Current Weather: Network error on attempt 2: Out of sockets
+[2025-11-14 10:40:23] WARNING: Current Weather: Network error on attempt 3: Out of sockets
+[2025-11-14 10:40:23] ERROR: Current Weather: All 3 attempts failed. Last error: Network error: Out of sockets
+[2025-11-14 10:40:23] WARNING: Current weather fetch failed
+[2025-11-14 10:40:23] WARNING: Consecutive failures: 2, System errors: 2
+[2025-11-14 10:40:23] WARNING: No weather data - Display schedule + clock only
+[2025-11-14 10:40:23] INFO: Displaying Schedule: RAPID TEST8 - Segment 1/3 (Weather Skipped, progress: 0%)
+[2025-11-14 10:45:24] INFO: Cycle #23 (SCHEDULED) complete in 5.23 min | UT: 01:51:32 | Mem: 14.8% | API: Total=9/350, Current=8, Forecast=1
+
+[2025-11-14 10:45:24] INFO: ## CYCLE 24 ##
+[2025-11-14 10:45:24] WARNING: Current Weather: Network error on attempt 1: Out of sockets
+[2025-11-14 10:45:26] WARNING: Current Weather: Network error on attempt 2: Out of sockets
+[2025-11-14 10:45:30] WARNING: Current Weather: Network error on attempt 3: Out of sockets
+[2025-11-14 10:45:30] ERROR: Current Weather: All 3 attempts failed. Last error: Network error: Out of sockets
+[2025-11-14 10:45:30] WARNING: Current weather fetch failed
+[2025-11-14 10:45:30] WARNING: Consecutive failures: 1, System errors: 3
+[2025-11-14 10:45:31] WARNING: Current Weather: Network error on attempt 1: Out of sockets
+[2025-11-14 10:45:33] WARNING: Current Weather: Network error on attempt 2: Out of sockets
+[2025-11-14 10:45:37] WARNING: Current Weather: Network error on attempt 3: Out of sockets
+[2025-11-14 10:45:37] ERROR: Current Weather: All 3 attempts failed. Last error: Network error: Out of sockets
+[2025-11-14 10:45:37] WARNING: Current weather fetch failed
+[2025-11-14 10:45:37] WARNING: Consecutive failures: 2, System errors: 4
+[2025-11-14 10:45:37] WARNING: No weather data - Display schedule + clock only
+[2025-11-14 10:45:37] INFO: Displaying Schedule: RAPID TEST8 - Segment 2/3 (Weather Skipped, progress: 35%)
+[2025-11-14 10:50:38] INFO: Cycle #24 (SCHEDULED) complete in 5.23 min | UT: 01:56:46 | Mem: 14.8% | API: Total=9/350, Current=8, Forecast=1
+
+[2025-11-14 10:50:38] INFO: ## CYCLE 25 ##
+[2025-11-14 10:50:38] WARNING: Current Weather: Network error on attempt 1: Out of sockets
+[2025-11-14 10:50:40] WARNING: Current Weather: Network error on attempt 2: Out of sockets
+[2025-11-14 10:50:44] WARNING: Current Weather: Network error on attempt 3: Out of sockets
+[2025-11-14 10:50:44] ERROR: Current Weather: All 3 attempts failed. Last error: Network error: Out of sockets
+[2025-11-14 10:50:44] WARNING: Current weather fetch failed
+[2025-11-14 10:50:44] WARNING: Consecutive failures: 1, System errors: 5
+[2025-11-14 10:50:45] WARNING: Current Weather: Network error on attempt 1: Out of sockets
+[2025-11-14 10:50:47] WARNING: Current Weather: Network error on attempt 2: Out of sockets
+[2025-11-14 10:50:51] WARNING: Current Weather: Network error on attempt 3: Out of sockets
+[2025-11-14 10:50:51] ERROR: Current Weather: All 3 attempts failed. Last error: Network error: Out of sockets
+[2025-11-14 10:50:51] WARNING: Current weather fetch failed
+[2025-11-14 10:50:51] WARNING: Consecutive failures: 2, System errors: 6
+[2025-11-14 10:50:51] WARNING: No weather data - Display schedule + clock only
+[2025-11-14 10:50:51] INFO: Displaying Schedule: RAPID TEST8 - Segment 3/3 (Weather Skipped, progress: 70%)
+[2025-11-14 10:55:28] INFO: Cycle #25 (SCHEDULED) complete in 4.84 min | UT: 02:01:36 | Mem: 14.8% | API: Total=9/350, Current=8, Forecast=1
