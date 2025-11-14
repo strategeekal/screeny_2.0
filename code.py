@@ -1,5 +1,6 @@
-##### PANTALLITA #####
-# == Version 2.0.0 == #
+##### PANTALLITA 2.0.1 #####
+# Stack exhaustion fix: Flattened nested try/except blocks to prevent crashes
+# See STACK_TEST_ANALYSIS.md for technical details
 
 # === LIBRARIES ===
 # Standard library
@@ -4124,7 +4125,7 @@ def main():
 		state.startup_time = time.monotonic()
 		state.last_successful_weather = state.startup_time
 		state.memory_monitor.log_report()
-		
+
 		# Log active display features
 		active_features = display_config.get_active_features()
 		formatted_features = [feature.replace("_", " ") for feature in active_features]
