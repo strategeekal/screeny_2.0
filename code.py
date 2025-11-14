@@ -1883,13 +1883,19 @@ def load_all_events():
 					image = str(parts[3])
 					color = str(parts[4]) if len(parts) > 4 else Strings.DEFAULT_EVENT_COLOR
 					
-					# Optional time window
-					try:
-						start_hour = int(parts[5]) if len(parts) > 5 and parts[5].strip() else Timing.EVENT_ALL_DAY_START
-						end_hour = int(parts[6]) if len(parts) > 6 and parts[6].strip() else Timing.EVENT_ALL_DAY_END
-					except (ValueError, IndexError):
-						start_hour = Timing.EVENT_ALL_DAY_START
-						end_hour = Timing.EVENT_ALL_DAY_END
+					# Optional time window - no try/except needed (check before parsing)
+					start_hour = Timing.EVENT_ALL_DAY_START
+					end_hour = Timing.EVENT_ALL_DAY_END
+
+					if len(parts) > 5 and parts[5].strip():
+						hour_str = parts[5].strip().lstrip('-')  # Remove minus for isdigit check
+						if hour_str.isdigit():
+							start_hour = int(parts[5])
+
+					if len(parts) > 6 and parts[6].strip():
+						hour_str = parts[6].strip().lstrip('-')  # Remove minus for isdigit check
+						if hour_str.isdigit():
+							end_hour = int(parts[6])
 					
 					# Parse MM-DD to MMDD (without zfill)
 					if '-' in date_str:
@@ -2762,20 +2768,40 @@ def _display_single_event_optimized(event_data, rtc, duration):
 	gc.collect()
 	state.memory_monitor.check_memory("single_event_start")
 	
-	try:
-		if event_data[0] == "Birthday":  # Check bottom_line (was line1)
-			# For birthday events, use the original cake image layout
+	# Load image first (sequential try blocks, not nested)
+	bitmap = None
+	palette = None
+
+	if event_data[0] == "Birthday":  # Check bottom_line (was line1)
+		# For birthday events, use the original cake image layout
+		try:
 			bitmap, palette = state.image_cache.get_image(Paths.BIRTHDAY_IMAGE)
+		except Exception as e:
+			log_warning(f"Failed to load birthday image: {e}")
+			return False
+	else:
+		# Load event-specific image (25x28 positioned at top right) - sequential fallback
+		image_file = f"{Paths.EVENT_IMAGES}/{event_data[2]}"
+		try:
+			bitmap, palette = state.image_cache.get_image(image_file)
+		except Exception as e:
+			log_warning(f"Failed to load {image_file}: {e}")
+			bitmap = None  # Mark for fallback
+
+		# Try fallback if primary failed (sequential, not nested)
+		if bitmap is None:
+			try:
+				bitmap, palette = state.image_cache.get_image(Paths.FALLBACK_EVENT_IMAGE)
+			except Exception as e2:
+				log_warning(f"Failed to load fallback event image: {e2}")
+				return False
+
+	# Now display the loaded image
+	try:
+		if event_data[0] == "Birthday":
 			image_grid = displayio.TileGrid(bitmap, pixel_shader=palette)
 			state.main_group.append(image_grid)
 		else:
-			# Load event-specific image (25x28 positioned at top right)
-			image_file = f"{Paths.EVENT_IMAGES}/{event_data[2]}"
-			try:
-				bitmap, palette = state.image_cache.get_image(image_file)
-			except Exception as e:
-				log_warning(f"Failed to load {image_file}: {e}")
-				bitmap, palette = state.image_cache.get_image(Paths.FALLBACK_EVENT_IMAGE)
 			
 			# Position 25px wide image at top right
 			image_grid = displayio.TileGrid(bitmap, pixel_shader=palette)
