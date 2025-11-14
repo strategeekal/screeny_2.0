@@ -1,4 +1,4 @@
-# Pantallita 2.0.4
+# Pantallita 2.0.5
 
 A dual RGB matrix weather display system running on MatrixPortal S3, showing real-time weather, forecasts, events, and scheduled activities for family use.
 
@@ -306,20 +306,27 @@ def __init__(self):
 
 ## Known Issues
 
-### Socket Exhaustion (FULLY FIXED in 2.0.4)
-**Symptom:** "Out of sockets" errors after extended operation, especially during rapid short schedules
+### Socket Exhaustion (FULLY FIXED in 2.0.5)
+**Symptom:** "Out of sockets" errors after extended operation (1-2 hours), even with cleanups running
 
-**Root Causes Fixed:**
+**Root Causes - Journey to the Fix:**
 1. **v2.0.2:** Runtime weather API responses not closed → Added `response.close()`
-2. **v2.0.3:** Startup HTTP requests (timezone, GitHub) not closed → Fixed 4 permanent leaks
-3. **v2.0.4:** Mid-schedule cleanup never triggered for short schedules → Global segment counter
+2. **v2.0.3:** Startup HTTP requests (timezone, GitHub) not closed → Fixed 4 startup leaks
+3. **v2.0.4:** Mid-schedule cleanup never triggered for short schedules → Added global segment counter
+4. **v2.0.5:** **THE REAL BUG:** Socket pool was recreated every cleanup, creating orphaned pools!
 
-**Final Solution (v2.0.4):**
-- Per-schedule segment counter was resetting, preventing cleanup with short schedules (< 20 min)
-- Added `global_segment_count` that persists across ALL schedules
-- Mid-schedule cleanup now runs every 4 GLOBAL segments (~20 minutes), not per-schedule
-- **Works with any schedule length:** 1-minute, 15-minute, or 2-hour schedules
-- System can now run indefinitely with rapid short schedule cycles
+**The Critical Bug (v2.0.5):**
+- `get_requests_session()` was creating `SocketPool(wifi.radio)` LOCALLY
+- Every cleanup cycle destroyed the session but created a NEW socket pool on next request
+- Old socket pools were NEVER released, accumulating system socket descriptors
+- Result: Socket exhaustion even with perfect `response.close()` and regular cleanups!
+
+**Final Solution (v2.0.5):**
+- Created `_global_socket_pool` that is initialized ONCE at first session creation
+- Session cleanup destroys sessions but PRESERVES the socket pool
+- New sessions reuse the existing socket pool instead of creating new ones
+- **Socket pool is tied to wifi.radio and should never be recreated**
+- System can now run indefinitely without socket exhaustion
 
 ### Stack Exhaustion (FIXED in 2.0.1)
 **Symptom:** "pystack exhausted" error during forecast display
@@ -824,13 +831,23 @@ See "Future Enhancements" section for implementation timeline.
 
 ## Version History
 
-### 2.0.4 (Current)
+### 2.0.5 (Current)
+- **FIXED:** CRITICAL socket pool exhaustion - the root cause of ALL socket issues!
+- Previous cleanups were creating NEW socket pools every time, never releasing them
+- Root cause: `SocketPool(wifi.radio)` was created locally in `get_requests_session()`
+- Each cleanup cycle created orphaned socket pools consuming system resources
+- Solution: Created global `_global_socket_pool` that is created ONCE and reused forever
+- Session cleanup now destroys sessions but preserves the socket pool for reuse
+- Tested: v2.0.4 crashed at 1h35m even with cleanups running, v2.0.5 should run indefinitely
+- This was the underlying issue causing socket exhaustion in v2.0.2, v2.0.3, and v2.0.4
+
+### 2.0.4
 - **FIXED:** Socket exhaustion during rapid short schedules (< 20 minutes each)
 - Root cause: Per-schedule segment counter was resetting, preventing cleanup from running
 - Solution: Added global_segment_count that persists across all schedules
 - Mid-schedule cleanup now triggers every 4 GLOBAL segments (~20 min), not per-schedule
-- Tested: 7 rapid 15-minute schedules would crash at ~1.75 hours, now runs indefinitely
-- Cleanup logs now show both per-schedule and global segment counts
+- Added socket health monitoring (HTTP request tracking)
+- NOTE: Still had socket pool bug - fixed in v2.0.5
 
 ### 2.0.3
 - **FIXED:** Socket exhaustion from startup HTTP requests (timezone API, GitHub data)

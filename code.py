@@ -1,8 +1,9 @@
-##### PANTALLITA 2.0.4 #####
+##### PANTALLITA 2.0.5 #####
 # Stack exhaustion fix: Flattened nested try/except blocks to prevent crashes (v2.0.1)
 # Socket exhaustion fix: response.close() + smart caching + mid-schedule cleanup (v2.0.2)
 # Comprehensive socket fix: Added response.close() to ALL HTTP requests - startup & runtime (v2.0.3)
 # Global segment counter: Mid-schedule cleanup now runs across schedules, not per-schedule (v2.0.4)
+# CRITICAL socket pool fix: Reuse single global socket pool instead of creating new pools every cleanup (v2.0.5)
 # See STACK_TEST_ANALYSIS.md for technical details
 
 # === LIBRARIES ===
@@ -1239,31 +1240,41 @@ def cleanup_sockets():
 		gc.collect()
 		
 # Global session management
+_global_socket_pool = None  # Socket pool created ONCE and reused
 _global_session = None
 
 def get_requests_session():
 	"""Get or create the global requests session"""
-	global _global_session
-	
+	global _global_session, _global_socket_pool
+
 	if _global_session is None:
 		try:
-			pool = socketpool.SocketPool(wifi.radio)
-			_global_session = requests.Session(pool, ssl.create_default_context())
-			log_debug("Created new global session")
+			# Create socket pool ONCE globally, reuse for all sessions
+			if _global_socket_pool is None:
+				_global_socket_pool = socketpool.SocketPool(wifi.radio)
+				log_debug("Created global socket pool")
+
+			_global_session = requests.Session(_global_socket_pool, ssl.create_default_context())
+			log_debug("Created new global session (reusing socket pool)")
 		except Exception as e:
 			log_error(f"Failed to create session: {e}")
 			return None
-	
+
 	return _global_session
 
 
 def cleanup_global_session():
-	"""Clean up the global requests session and force socket release"""
-	global _global_session  # ← Make sure this line is here!
-	
+	"""Clean up the global requests session and force socket release
+
+	IMPORTANT: We destroy the session but KEEP the socket pool.
+	The socket pool is tied to wifi.radio and should be reused.
+	Creating new pools every cleanup was causing socket exhaustion!
+	"""
+	global _global_session  # NOTE: We do NOT touch _global_socket_pool!
+
 	if _global_session is not None:
 		try:
-			log_debug("Destroying global session")
+			log_debug("Destroying global session (keeping socket pool)")
 			state.session_cleanup_count += 1  # Track cleanups
 			# Try to close gracefully first
 			try:
@@ -1271,20 +1282,17 @@ def cleanup_global_session():
 			except:
 				pass
 
-			# Force delete the session object
-			del _global_session
+			# Set to None (will be recreated with same pool)
 			_global_session = None
 
-			# Aggressive socket cleanup
+			# Aggressive garbage collection
 			cleanup_sockets()
-
-			# Force garbage collection
 			gc.collect()
 
 			# Brief pause to let sockets fully close
 			time.sleep(0.5)
-			
-			log_debug("Global session destroyed and sockets cleaned")
+
+			log_debug("Global session destroyed (socket pool preserved for reuse)")
 		except Exception as e:
 			log_debug(f"Session cleanup error (non-critical): {e}")
 			_global_session = None
