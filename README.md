@@ -1,4 +1,4 @@
-# Pantallita 2.0.2
+# Pantallita 2.0.3
 
 A dual RGB matrix weather display system running on MatrixPortal S3, showing real-time weather, forecasts, events, and scheduled activities for family use.
 
@@ -306,17 +306,23 @@ def __init__(self):
 
 ## Known Issues
 
-### Socket Exhaustion During Long Schedules (FIXED in 2.0.2)
-**Symptom:** Socket errors after 8-10 segments of 2-hour schedule displays
+### Socket Exhaustion (FULLY FIXED in 2.0.3)
+**Symptom:** "Out of sockets" errors after ~2.5 hours, especially during varied schedule cycles
 
-**Root Cause:** HTTP response objects not explicitly closed, accumulating in global session during multi-segment schedules
+**Root Cause:** HTTP response objects not explicitly closed in 4 locations:
+- Startup: timezone API (1 socket) + GitHub fetch (3 sockets) = 4 permanent leaks
+- Runtime: Weather API requests during schedule displays
 
-**Fix Applied:**
-- Added `response.close()` in `try/finally` blocks in fetch_weather_with_retries() (primary fix)
-- Implemented smart weather caching (checks cache first, only fetches if > 15 minutes old)
-- Added mid-schedule cleanup every 4 segments (~20 minutes) as safety net
-- Reduces API calls by 66% during schedules (24 calls → 8 calls for 2-hour schedule)
-- Ensures sockets are properly released even during extended operations
+**Fix Applied (v2.0.2 - partial):**
+- Added `response.close()` in `try/finally` blocks to fetch_weather_with_retries()
+- Implemented smart weather caching (15-minute refresh, 66% fewer API calls)
+- Added mid-schedule cleanup every 4 segments (~20 minutes)
+
+**Fix Completed (v2.0.3):**
+- Added `response.close()` to get_timezone_from_location_api() (1 startup socket)
+- Added `response.close()` to fetch_github_data() (3 startup sockets: events + 2 schedules)
+- **ALL HTTP requests now properly close responses**
+- Eliminates permanent socket leaks that were causing exhaustion
 
 ### Stack Exhaustion (FIXED in 2.0.1)
 **Symptom:** "pystack exhausted" error during forecast display
@@ -821,12 +827,20 @@ See "Future Enhancements" section for implementation timeline.
 
 ## Version History
 
-### 2.0.2 (Current)
-- **FIXED:** Socket exhaustion during long schedule displays
-- Added response.close() in try/finally blocks (primary fix)
+### 2.0.3 (Current)
+- **FIXED:** Socket exhaustion from startup HTTP requests (timezone API, GitHub data)
+- Added response.close() to get_timezone_from_location_api() - fixed 1 socket leak
+- Added response.close() to fetch_github_data() - fixed 3 socket leaks (events + 2 schedules)
+- All HTTP requests now properly close responses in try/finally blocks
+- Eliminates 3-4 permanent socket leaks that were causing exhaustion after 2.5 hours
+- Tested with varied schedule cycles including back-to-back 1-hour displays
+
+### 2.0.2
+- **FIXED:** Socket exhaustion during long schedule displays (partial fix)
+- Added response.close() to fetch_weather_with_retries() in try/finally blocks
 - Implemented smart weather caching (15-minute refresh, 66% reduction in API calls)
 - Added mid-schedule cleanup every 4 segments (~20 minutes)
-- Prevents socket accumulation during multi-hour schedules
+- NOTE: v2.0.2 fixed runtime leaks but missed startup leaks (completed in v2.0.3)
 
 ### 2.0.1
 - **FIXED:** Stack exhaustion crashes during forecast display

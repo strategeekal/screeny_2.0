@@ -1,6 +1,7 @@
-##### PANTALLITA 2.0.2 #####
+##### PANTALLITA 2.0.3 #####
 # Stack exhaustion fix: Flattened nested try/except blocks to prevent crashes (v2.0.1)
 # Socket exhaustion fix: response.close() + smart caching + mid-schedule cleanup (v2.0.2)
+# Comprehensive socket fix: Added response.close() to ALL HTTP requests - startup & runtime (v2.0.3)
 # See STACK_TEST_ANALYSIS.md for technical details
 
 # === LIBRARIES ===
@@ -1143,34 +1144,43 @@ def is_dst_active_for_timezone(timezone_name, utc_datetime):
 	
 def get_timezone_from_location_api():
 	"""Get timezone and location info from AccuWeather Location API"""
+	response = None
 	try:
 		api_key = get_api_key()
 		location_key = os.getenv(Strings.API_LOCATION_KEY)
 		url = f"http://dataservice.accuweather.com/locations/v1/{location_key}?apikey={api_key}"
-		
+
 		session = get_requests_session()
 		response = session.get(url)
-		
-		if response.status_code == 200:
-			data = response.json()
-			timezone_info = data.get("TimeZone", {})
-			
-			# Extract location details
-			city = data.get("LocalizedName", "Unknown")
-			state = data.get("AdministrativeArea", {}).get("ID", "")
-			
-			return {
-				"name": timezone_info.get("Name", Strings.TIMEZONE_DEFAULT),
-				"offset": int(timezone_info.get("GmtOffset", -6)),
-				"is_dst": timezone_info.get("IsDaylightSaving", False),
-				"city": city,  # NEW
-				"state": state,  # NEW
-				"location": f"{city}, {state}" if state else city  # NEW
-			}
-		else:
-			log_warning(f"Location API failed: {response.status_code}")
-			return None
-			
+
+		try:
+			if response.status_code == 200:
+				data = response.json()
+				timezone_info = data.get("TimeZone", {})
+
+				# Extract location details
+				city = data.get("LocalizedName", "Unknown")
+				state = data.get("AdministrativeArea", {}).get("ID", "")
+
+				return {
+					"name": timezone_info.get("Name", Strings.TIMEZONE_DEFAULT),
+					"offset": int(timezone_info.get("GmtOffset", -6)),
+					"is_dst": timezone_info.get("IsDaylightSaving", False),
+					"city": city,  # NEW
+					"state": state,  # NEW
+					"location": f"{city}, {state}" if state else city  # NEW
+				}
+			else:
+				log_warning(f"Location API failed: {response.status_code}")
+				return None
+		finally:
+			# CRITICAL: Always close response to release socket
+			if response:
+				try:
+					response.close()
+				except:
+					pass  # Ignore errors during cleanup
+
 	except Exception as e:
 		log_warning(f"Location API error: {e}")
 		return None
@@ -2161,57 +2171,90 @@ def fetch_github_data(rtc):
 	# ===== FETCH EVENTS =====
 	events_url = f"{Strings.GITHUB_REPO_URL}?t={cache_buster}"
 	events = {}
-	
+	response = None
+
 	try:
 		log_verbose(f"Fetching: {events_url}")
 		response = session.get(events_url, timeout=10)
-		
-		if response.status_code == 200:
-			events = parse_events_csv_content(response.text, rtc)
-			log_verbose(f"Events fetched: {len(events)} event dates")
-		else:
-			log_warning(f"Failed to fetch events: HTTP {response.status_code}")
+
+		try:
+			if response.status_code == 200:
+				events = parse_events_csv_content(response.text, rtc)
+				log_verbose(f"Events fetched: {len(events)} event dates")
+			else:
+				log_warning(f"Failed to fetch events: HTTP {response.status_code}")
+		finally:
+			# CRITICAL: Close events response to release socket
+			if response:
+				try:
+					response.close()
+				except:
+					pass  # Ignore close errors
 	except Exception as e:
 		log_warning(f"Failed to fetch events: {e}")
 	
 	# ===== FETCH SCHEDULE =====
 	now = rtc.datetime
 	date_str = f"{now.tm_year:04d}-{now.tm_mon:02d}-{now.tm_mday:02d}"
-	
+
 	schedules = {}
 	schedule_source = None
-	
+	response = None
+
 	try:
 		# Try date-specific schedule first
 		schedule_url = f"{github_base}/{Paths.GITHUB_SCHEDULE_FOLDER}/{date_str}.csv?t={cache_buster}"
 		log_verbose(f"Fetching: {schedule_url}")
-		
+
 		response = session.get(schedule_url, timeout=10)
-		
-		if response.status_code == 200:
-			schedules = parse_schedule_csv_content(response.text, rtc)
-			schedule_source = "date-specific"
-			log_verbose(f"Schedule fetched: {date_str}.csv ({len(schedules)} schedule(s))")
-			
-		elif response.status_code == 404:
-			# No date-specific file, try default
-			log_verbose(f"No schedule for {date_str}, trying default.csv")
-			default_url = f"{github_base}/{Paths.GITHUB_SCHEDULE_FOLDER}/default.csv?t={cache_buster}"
-			
-			response = session.get(default_url, timeout=10)
-			
+
+		try:
 			if response.status_code == 200:
 				schedules = parse_schedule_csv_content(response.text, rtc)
-				schedule_source = "default"
-				log_verbose(f"Schedule fetched: default.csv ({len(schedules)} schedule(s))")
+				schedule_source = "date-specific"
+				log_verbose(f"Schedule fetched: {date_str}.csv ({len(schedules)} schedule(s))")
+
+			elif response.status_code == 404:
+				# No date-specific file, try default
+				log_verbose(f"No schedule for {date_str}, trying default.csv")
+
+				# CRITICAL: Close date-specific response before making second request
+				try:
+					response.close()
+				except:
+					pass
+
+				default_url = f"{github_base}/{Paths.GITHUB_SCHEDULE_FOLDER}/default.csv?t={cache_buster}"
+				response = session.get(default_url, timeout=10)
+
+				try:
+					if response.status_code == 200:
+						schedules = parse_schedule_csv_content(response.text, rtc)
+						schedule_source = "default"
+						log_verbose(f"Schedule fetched: default.csv ({len(schedules)} schedule(s))")
+					else:
+						log_warning(f"No default schedule found: HTTP {response.status_code}")
+				finally:
+					# CRITICAL: Close default response
+					if response:
+						try:
+							response.close()
+						except:
+							pass
 			else:
-				log_warning(f"No default schedule found: HTTP {response.status_code}")
-		else:
-			log_warning(f"Failed to fetch schedule: HTTP {response.status_code}")
-			
+				log_warning(f"Failed to fetch schedule: HTTP {response.status_code}")
+		finally:
+			# CRITICAL: Ensure date-specific response is closed
+			# (May already be closed in 404 case, but safe to call again)
+			if response:
+				try:
+					response.close()
+				except:
+					pass  # Already closed or error
+
 	except Exception as e:
 		log_warning(f"Failed to fetch schedule: {e}")
-	
+
 	return events, schedules, schedule_source
 	
 def load_schedules_from_csv():
