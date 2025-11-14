@@ -30,64 +30,6 @@ import adafruit_ntp
 
 gc.collect()
 
-# === STACK CAPACITY TEST ===
-
-def test_stack_capacity():
-	"""Test maximum safe stack depth - measures development headroom"""
-	def recursive_test(depth=0):
-		if depth > 100:  # Safety limit to prevent infinite recursion
-			return depth
-
-		try:
-			# Simulate real work: local variables, nested data structures
-			local_vars = {
-				"depth": depth,
-				"data": [1, 2, 3, 4, 5],
-				"nested": {"a": 1, "b": 2, "c": 3}
-			}
-			temp_list = [x * 2 for x in range(10)]
-
-			# Recurse
-			result = recursive_test(depth + 1)
-			return result
-		except Exception as e:
-			# Stack exhausted at this depth
-			return depth
-
-	return recursive_test(0)
-
-def test_nested_exception_depth():
-	"""Test nested try/except depth - measures the ACTUAL problem pattern"""
-	def nested_exception_test(depth=0):
-		if depth > 50:  # Safety limit
-			return depth
-
-		try:
-			# Outer exception handler
-			try:
-				# Inner exception handler (the problematic pattern)
-				try:
-					# Innermost - simulate image loading with potential error
-					local_data = {"depth": depth, "image": "test.bmp"}
-
-					# Recurse to test deeper nesting
-					result = nested_exception_test(depth + 1)
-					return result
-				except:
-					# Image load fallback
-					pass
-			except:
-				# Outer fallback
-				pass
-		except Exception as e:
-			# Stack exhausted at this depth
-			return depth
-
-		# If we get here without recursing, we hit the safety limit
-		return depth
-
-	return nested_exception_test(0)
-
 # === CONSTANTS ===
 
 ## Display Hardware
@@ -4139,28 +4081,6 @@ def main():
 		state.startup_time = time.monotonic()
 		state.last_successful_weather = state.startup_time
 		state.memory_monitor.log_report()
-
-		# STACK CAPACITY TEST (FLATTENED VERSION)
-		log_info("=== STACK CAPACITY TEST (FLATTENED) ===")
-		max_depth = test_stack_capacity()
-		log_info(f"Recursion depth: {max_depth} levels")
-		if max_depth >= 20:
-			log_info(f"✅ Stack headroom: EXCELLENT ({max_depth} levels - plenty of room for features)")
-		elif max_depth >= 12:
-			log_info(f"⚠️  Stack headroom: MARGINAL ({max_depth} levels - limited room)")
-		else:
-			log_warning(f"🔴 Stack headroom: DANGER ({max_depth} levels - maxed out!)")
-
-		# NESTED EXCEPTION TEST - Tests the actual crash pattern
-		nested_depth = test_nested_exception_depth()
-		log_info(f"Nested try/except depth: {nested_depth} levels")
-		if nested_depth >= 10:
-			log_info(f"✅ Exception nesting: SAFE ({nested_depth} levels)")
-		elif nested_depth >= 6:
-			log_info(f"⚠️  Exception nesting: RISKY ({nested_depth} levels)")
-		else:
-			log_warning(f"🔴 Exception nesting: CRASH RISK ({nested_depth} levels)")
-		log_info("=== END STACK TEST ===\n")
 
 		# Log active display features
 		active_features = display_config.get_active_features()
