@@ -1,8 +1,8 @@
 # SETTINGS FILE
 
 # Device Type
-MATRIX1 = "2236c5"
-MATRIX2 = "f78b47"
+MATRIX1 = "MATRIX SERIAL"
+MATRIX2 = "MATRIX SERIAL"
 
 # Internet Credentials
 CIRCUITPY_WIFI_SSID = "o==[]:::::::::::::::::::::::::>"
@@ -16,17 +16,17 @@ ACCUWEATHER_API_KEY_TYPE2 = "YOUR_ACCUWEATHER_API_KEY_TYPE2"
 ACCUWEATHER_API_KEY = "YOUR_ACCUWEATHER_API_KEY"
 
 # Accuweather Location Keys
-ACCUWEATHER_LOCATION_KEY = "2626571"
+ACCUWEATHER_LOCATION_KEY = "YOUR_ACCUWEATHER_LOCTION_KEY"
 
 # Fallback Timezone
 TIMEZONE = "America/Chicago"
 
 # Adafruit IO
-ADAFRUIT_AIOS_USERNAME = "dcelayeta"
+ADAFRUIT_AIOS_USERNAME = "YOUR_USERNAMEY"
 ADAFRUIT_AIO_KEY = "YOUR_ADAFRUIT_AIO_KEY"
 
 # Timezone names from http://worldtimeapi.org/timezones
 TIMEZONE = "America/Chicago"
 
 #GitHub Repo URL
-GITHUB_REPO_URL = "https://raw.githubusercontent.com/strategeekal/pantallita-events/refs/heads/main/ephemeral_events.csv"
+GITHUB_REPO_URL = "YOUR_GITHUB REPO URL"
