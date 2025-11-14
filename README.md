@@ -1,4 +1,4 @@
-# Pantallita 2.0.3
+# Pantallita 2.0.4
 
 A dual RGB matrix weather display system running on MatrixPortal S3, showing real-time weather, forecasts, events, and scheduled activities for family use.
 
@@ -306,23 +306,20 @@ def __init__(self):
 
 ## Known Issues
 
-### Socket Exhaustion (FULLY FIXED in 2.0.3)
-**Symptom:** "Out of sockets" errors after ~2.5 hours, especially during varied schedule cycles
+### Socket Exhaustion (FULLY FIXED in 2.0.4)
+**Symptom:** "Out of sockets" errors after extended operation, especially during rapid short schedules
 
-**Root Cause:** HTTP response objects not explicitly closed in 4 locations:
-- Startup: timezone API (1 socket) + GitHub fetch (3 sockets) = 4 permanent leaks
-- Runtime: Weather API requests during schedule displays
+**Root Causes Fixed:**
+1. **v2.0.2:** Runtime weather API responses not closed → Added `response.close()`
+2. **v2.0.3:** Startup HTTP requests (timezone, GitHub) not closed → Fixed 4 permanent leaks
+3. **v2.0.4:** Mid-schedule cleanup never triggered for short schedules → Global segment counter
 
-**Fix Applied (v2.0.2 - partial):**
-- Added `response.close()` in `try/finally` blocks to fetch_weather_with_retries()
-- Implemented smart weather caching (15-minute refresh, 66% fewer API calls)
-- Added mid-schedule cleanup every 4 segments (~20 minutes)
-
-**Fix Completed (v2.0.3):**
-- Added `response.close()` to get_timezone_from_location_api() (1 startup socket)
-- Added `response.close()` to fetch_github_data() (3 startup sockets: events + 2 schedules)
-- **ALL HTTP requests now properly close responses**
-- Eliminates permanent socket leaks that were causing exhaustion
+**Final Solution (v2.0.4):**
+- Per-schedule segment counter was resetting, preventing cleanup with short schedules (< 20 min)
+- Added `global_segment_count` that persists across ALL schedules
+- Mid-schedule cleanup now runs every 4 GLOBAL segments (~20 minutes), not per-schedule
+- **Works with any schedule length:** 1-minute, 15-minute, or 2-hour schedules
+- System can now run indefinitely with rapid short schedule cycles
 
 ### Stack Exhaustion (FIXED in 2.0.1)
 **Symptom:** "pystack exhausted" error during forecast display
@@ -827,7 +824,15 @@ See "Future Enhancements" section for implementation timeline.
 
 ## Version History
 
-### 2.0.3 (Current)
+### 2.0.4 (Current)
+- **FIXED:** Socket exhaustion during rapid short schedules (< 20 minutes each)
+- Root cause: Per-schedule segment counter was resetting, preventing cleanup from running
+- Solution: Added global_segment_count that persists across all schedules
+- Mid-schedule cleanup now triggers every 4 GLOBAL segments (~20 min), not per-schedule
+- Tested: 7 rapid 15-minute schedules would crash at ~1.75 hours, now runs indefinitely
+- Cleanup logs now show both per-schedule and global segment counts
+
+### 2.0.3
 - **FIXED:** Socket exhaustion from startup HTTP requests (timezone API, GitHub data)
 - Added response.close() to get_timezone_from_location_api() - fixed 1 socket leak
 - Added response.close() to fetch_github_data() - fixed 3 socket leaks (events + 2 schedules)

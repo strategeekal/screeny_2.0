@@ -1,7 +1,8 @@
-##### PANTALLITA 2.0.3 #####
+##### PANTALLITA 2.0.4 #####
 # Stack exhaustion fix: Flattened nested try/except blocks to prevent crashes (v2.0.1)
 # Socket exhaustion fix: response.close() + smart caching + mid-schedule cleanup (v2.0.2)
 # Comprehensive socket fix: Added response.close() to ALL HTTP requests - startup & runtime (v2.0.3)
+# Global segment counter: Mid-schedule cleanup now runs across schedules, not per-schedule (v2.0.4)
 # See STACK_TEST_ANALYSIS.md for technical details
 
 # === LIBRARIES ===
@@ -822,7 +823,8 @@ class WeatherDisplayState:
 		self.active_schedule_name = None
 		self.active_schedule_start_time = None  # monotonic time when schedule started
 		self.active_schedule_end_time = None    # monotonic time when schedule should end
-		self.active_schedule_segment_count = 0  # Count segments for mid-schedule cleanup
+		self.active_schedule_segment_count = 0  # Count segments within current schedule (for display)
+		self.global_segment_count = 0  # GLOBAL counter across all schedules (for cleanup)
 		self.schedule_just_ended = False
 	
 	def reset_api_counters(self):
@@ -3524,13 +3526,15 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 	else:
 		log_debug(f"Continuing schedule: {schedule_name} (elapsed: {elapsed:.0f}s / {full_duration:.0f}s)")
 
-	# Increment segment count
-	state.active_schedule_segment_count += 1
-	log_debug(f"Schedule segment #{state.active_schedule_segment_count}")
+	# Increment segment counts
+	state.active_schedule_segment_count += 1  # Per-schedule counter (for display)
+	state.global_segment_count += 1  # Global counter (for cleanup)
+	log_debug(f"Schedule segment #{state.active_schedule_segment_count} (global: {state.global_segment_count})")
 
-	# Mid-schedule cleanup every 4 segments (~20 minutes) to prevent socket exhaustion
-	if state.active_schedule_segment_count % 4 == 0:
-		log_info(f"Mid-schedule cleanup at segment {state.active_schedule_segment_count}")
+	# Mid-schedule cleanup every 4 GLOBAL segments (~20 minutes) to prevent socket exhaustion
+	# This runs across ALL schedules, not just within one schedule
+	if state.global_segment_count % 4 == 0:
+		log_info(f"Mid-schedule cleanup at global segment {state.global_segment_count} (schedule segment {state.active_schedule_segment_count})")
 		cleanup_global_session()
 		gc.collect()
 
