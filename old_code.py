@@ -30,10 +30,10 @@ import adafruit_ntp
 
 gc.collect()
 
-# === STACK CAPACITY TEST ===
+# === STACK CAPACITY TEST (ORIGINAL VERSION) ===
 
 def test_stack_capacity():
-	"""Test maximum safe stack depth - measures development headroom"""
+	"""Test maximum safe stack depth - measures development headroom (ORIGINAL VERSION)"""
 	def recursive_test(depth=0):
 		if depth > 100:  # Safety limit to prevent infinite recursion
 			return depth
@@ -3160,17 +3160,18 @@ def show_forecast_display(current_data, forecast_data, display_duration, is_fres
 		col2_hours_ahead = (col2_hour - current_hour) % System.HOURS_IN_DAY
 		col3_hours_ahead = (col3_hour - current_hour) % System.HOURS_IN_DAY
 		
-		# Determine colors based on hour gaps (FLATTENED - no nested if)
-		# Default: both jumped ahead
-		col2_color = state.colors["MINT"]
-		col3_color = state.colors["MINT"]
-
-		# Override if col2 is immediate
+		# Determine colors based on hour gaps
 		if col2_hours_ahead <= 1:
-			col2_color = state.colors["DIMMEST_WHITE"]
-			# Override col3 if also immediate
+			col2_color = state.colors["DIMMEST_WHITE"]  # Immediate
+			# If col2 is immediate, check col3
 			if col3_hours_ahead <= 2:
-				col3_color = state.colors["DIMMEST_WHITE"]
+				col3_color = state.colors["DIMMEST_WHITE"]  # Also immediate
+			else:
+				col3_color = state.colors["MINT"]  # Col3 jumped ahead
+		else:
+			# Col2 jumped ahead, so col3 definitely did too
+			col2_color = state.colors["MINT"]
+			col3_color = state.colors["MINT"]
 		
 		# Generate static time labels for columns 2 and 3
 		def format_hour(hour):
@@ -3192,41 +3193,29 @@ def show_forecast_display(current_data, forecast_data, display_duration, is_fres
 		time_y = Layout.FORECAST_TIME_Y
 		temp_y = Layout.FORECAST_TEMP_Y
 		
-		# Load and position weather icon columns ONCE (FLATTENED - no nested try/except)
+		# Load and position weather icon columns ONCE
 		columns_data = [
 			{"image": col1_icon, "x": Layout.FORECAST_COL1_X, "temp": col1_temp},
 			{"image": col2_icon, "x": Layout.FORECAST_COL2_X, "temp": col2_temp},
 			{"image": col3_icon, "x": Layout.FORECAST_COL3_X, "temp": col3_temp}
 		]
-
+		
 		for i, col in enumerate(columns_data):
-			bitmap = None
-			palette = None
-
-			# Try primary weather icon
 			try:
-				bitmap, palette = state.image_cache.get_image(f"{Paths.COLUMN_IMAGES}/{col['image']}")
-			except:
-				pass  # Will try fallback
-
-			# Try fallback if primary failed
-			if bitmap is None:
+				# Try actual weather icons first
 				try:
+					bitmap, palette = state.image_cache.get_image(f"{Paths.COLUMN_IMAGES}/{col['image']}")
+				except:
+					# Fallback to column images
 					bitmap, palette = state.image_cache.get_image(f"{Paths.COLUMN_IMAGES}/{i+1}.bmp")
 					log_warning(f"Used fallback column image for column {i+1}")
-				except:
-					pass  # Will skip this column
-
-			# Skip this column if both failed
-			if bitmap is None:
-				log_warning(f"Failed to load column {i+1} image")
-				continue
-
-			# Create and add column (no exception handling needed)
-			col_img = displayio.TileGrid(bitmap, pixel_shader=palette)
-			col_img.x = col["x"]
-			col_img.y = column_y
-			state.main_group.append(col_img)
+				
+				col_img = displayio.TileGrid(bitmap, pixel_shader=palette)
+				col_img.x = col["x"]
+				col_img.y = column_y
+				state.main_group.append(col_img)
+			except Exception as e:
+				log_warning(f"Failed to load column {i+1} image: {e}")
 
 		
 		# Create time labels - only column 1 will be updated
@@ -3277,46 +3266,38 @@ def show_forecast_display(current_data, forecast_data, display_duration, is_fres
 			add_day_indicator(state.main_group, state.rtc_instance)
 		
 		
-		# Optimized display update loop - ONLY update column 1 time (FLATTENED)
+		# Optimized display update loop - ONLY update column 1 time
 		start_time = time.monotonic()
 		loop_count = 0
 		last_minute = -1
-
+		
 		while time.monotonic() - start_time < display_duration:
 			loop_count += 1
-
-			# Update first column time only when minute changes (FLATTENED - early continue)
-			if not state.rtc_instance:
-				# Memory check and continue
-				if loop_count % Timing.MEMORY_CHECK_INTERVAL == 0:
-					state.memory_monitor.check_memory(f"forecast_display_loop_{loop_count}")
-				interruptible_sleep(1)
-				continue
-
-			# RTC available - check minute change
-			current_hour = state.rtc_instance.datetime.tm_hour
-			current_minute = state.rtc_instance.datetime.tm_min
-
-			if current_minute != last_minute:
-				display_hour = current_hour % System.HOURS_IN_HALF_DAY if current_hour % System.HOURS_IN_HALF_DAY != 0 else System.HOURS_IN_HALF_DAY
-				new_time = f"{display_hour}:{current_minute:02d}"
-
-				# Update ONLY the first column time text
-				col1_time_label.text = new_time
-				# Recenter the text
-				col1_time_label.x = max(center_text(new_time, font, Layout.FORECAST_COL1_X, column_width), 1)
-
-				last_minute = current_minute
-
-			# Memory monitoring and cleanup (FLATTENED)
-			if loop_count % Timing.MEMORY_CHECK_INTERVAL == 0:
-				needs_gc = display_duration > Timing.GC_INTERVAL and loop_count % Timing.GC_INTERVAL == 0
-				if needs_gc:
+			
+			# Update first column time only when minute changes
+			if state.rtc_instance:
+				current_hour = state.rtc_instance.datetime.tm_hour
+				current_minute = state.rtc_instance.datetime.tm_min
+				
+				if current_minute != last_minute:
+					display_hour = current_hour % System.HOURS_IN_HALF_DAY if current_hour % System.HOURS_IN_HALF_DAY != 0 else System.HOURS_IN_HALF_DAY
+					new_time = f"{display_hour}:{current_minute:02d}"
+					
+					# Update ONLY the first column time text
+					col1_time_label.text = new_time
+					# Recenter the text
+					col1_time_label.x = max(center_text(new_time, font, Layout.FORECAST_COL1_X, column_width), 1)
+					
+					last_minute = current_minute
+			
+			# Memory monitoring and cleanup
+			if loop_count % Timing.MEMORY_CHECK_INTERVAL == 0:  # Every 30 seconds
+				if display_duration > Timing.GC_INTERVAL and loop_count % Timing.GC_INTERVAL == 0:  # Only GC for longer durations
 					gc.collect()
 					state.memory_monitor.check_memory(f"forecast_display_gc_{loop_count//System.SECONDS_PER_HOUR}")
 				else:
 					state.memory_monitor.check_memory(f"forecast_display_loop_{loop_count}")
-
+			
 			interruptible_sleep(1)
 	
 	except Exception as e:
@@ -4108,8 +4089,8 @@ def main():
 		state.last_successful_weather = state.startup_time
 		state.memory_monitor.log_report()
 
-		# STACK CAPACITY TEST (FLATTENED VERSION)
-		log_info("=== STACK CAPACITY TEST (FLATTENED) ===")
+		# STACK CAPACITY TEST (ORIGINAL VERSION)
+		log_info("=== STACK CAPACITY TEST (ORIGINAL) ===")
 		max_depth = test_stack_capacity()
 		log_info(f"Max recursive depth: {max_depth} levels")
 		if max_depth >= 20:
