@@ -11,7 +11,6 @@ import gc
 import time
 import ssl
 import microcontroller
-import sys
 
 # Display
 import displayio
@@ -32,22 +31,6 @@ import adafruit_ds3231
 import adafruit_ntp
 
 gc.collect()
-
-# === STACK MONITORING ===
-
-def get_stack_depth():
-	"""Get current call stack depth for monitoring (FLATTENED VERSION TRACKER)"""
-	try:
-		depth = 0
-		frame = sys._getframe()
-		while frame:
-			depth += 1
-			frame = frame.f_back
-			if depth > 50:  # Safety limit
-				break
-		return depth
-	except:
-		return -1  # Not supported on this CircuitPython version
 
 # === CONSTANTS ===
 
@@ -705,7 +688,6 @@ class MemoryMonitor:
 		self.peak_usage = 0
 		self.measurements = []
 		self.max_measurements = 5  # Reduced from 10
-		self.max_stack_depth = 0  # STACK MONITORING (FLATTENED VERSION)
 		
 	def get_memory_stats(self):
 		"""Get current memory statistics with percentages"""
@@ -730,18 +712,12 @@ class MemoryMonitor:
 		return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 	
 	def check_memory(self, checkpoint_name=""):
-		"""Check memory and log only if there's an issue (FLATTENED VERSION)"""
+		"""Check memory and log only if there's an issue"""
 		stats = self.get_memory_stats()
 		runtime = self.get_runtime()
 
 		if stats["used_bytes"] > self.peak_usage:
 			self.peak_usage = stats["used_bytes"]
-
-		# STACK DEPTH MONITORING (FLATTENED VERSION)
-		stack_depth = get_stack_depth()
-		if stack_depth > 0 and stack_depth > self.max_stack_depth:
-			self.max_stack_depth = stack_depth
-			log_info(f"[FLATTENED] Stack: {stack_depth} frames (NEW MAX) at {checkpoint_name}")
 
 		self.measurements.append({
 			"name": checkpoint_name,
@@ -760,17 +736,16 @@ class MemoryMonitor:
 		return "ok"
 	
 	def get_memory_report(self):
-		"""Generate a simplified memory report (FLATTENED VERSION)"""
+		"""Generate a simplified memory report"""
 		stats = self.get_memory_stats()
 		runtime = self.get_runtime()
 		peak_percent = (self.peak_usage / Memory.ESTIMATED_TOTAL) * 100
 
 		report = [
-			"=== MEMORY REPORT (FLATTENED VERSION) ===",
+			"=== MEMORY REPORT ===",
 			f"Runtime: {runtime}",
 			f"Current: {stats['usage_percent']:.1f}% used",
 			f"Peak usage: {peak_percent:.1f}%",
-			f"Max stack depth: {self.max_stack_depth} frames",
 		]
 		
 		if self.measurements:
@@ -1361,7 +1336,7 @@ def _process_response_status(response, context):
 		return False
 
 def fetch_weather_with_retries(url, max_retries=None, context="API"):
-	"""Flattened weather fetch - same logic, reduced nesting (Category A1)"""
+	"""Fetch weather with retries - defensive error handling"""
 	if max_retries is None:
 		max_retries = API.MAX_RETRIES
 
@@ -3046,7 +3021,7 @@ def show_forecast_display(current_data, forecast_data, display_duration, is_fres
 		log_warning(f"Skipping forecast display - insufficient data")
 		return False
 	
-	# FLATTENED precipitation analysis (same logic, less stack depth)
+	# Precipitation analysis - simple sequential logic
 	current_has_precip = current_data.get('has_precipitation', False)
 	forecast_indices = [0, 1]  # Default
 	
@@ -3151,7 +3126,7 @@ def show_forecast_display(current_data, forecast_data, display_duration, is_fres
 		col2_hours_ahead = (col2_hour - current_hour) % System.HOURS_IN_DAY
 		col3_hours_ahead = (col3_hour - current_hour) % System.HOURS_IN_DAY
 		
-		# Determine colors based on hour gaps (FLATTENED - no nested if)
+		# Determine colors based on hour gaps
 		# Default: both jumped ahead
 		col2_color = state.colors["MINT"]
 		col3_color = state.colors["MINT"]
@@ -3183,7 +3158,7 @@ def show_forecast_display(current_data, forecast_data, display_duration, is_fres
 		time_y = Layout.FORECAST_TIME_Y
 		temp_y = Layout.FORECAST_TEMP_Y
 		
-		# Load and position weather icon columns ONCE (FLATTENED - no nested try/except)
+		# Load and position weather icon columns with sequential error handling
 		columns_data = [
 			{"image": col1_icon, "x": Layout.FORECAST_COL1_X, "temp": col1_temp},
 			{"image": col2_icon, "x": Layout.FORECAST_COL2_X, "temp": col2_temp},
@@ -3268,7 +3243,7 @@ def show_forecast_display(current_data, forecast_data, display_duration, is_fres
 			add_day_indicator(state.main_group, state.rtc_instance)
 		
 		
-		# Optimized display update loop - ONLY update column 1 time (FLATTENED)
+		# Display update loop - update column 1 time only when minute changes
 		start_time = time.monotonic()
 		loop_count = 0
 		last_minute = -1
@@ -3276,7 +3251,7 @@ def show_forecast_display(current_data, forecast_data, display_duration, is_fres
 		while time.monotonic() - start_time < display_duration:
 			loop_count += 1
 
-			# Update first column time only when minute changes (FLATTENED - early continue)
+			# Update first column time only when minute changes
 			if not state.rtc_instance:
 				# Memory check and continue
 				if loop_count % Timing.MEMORY_CHECK_INTERVAL == 0:
@@ -3299,7 +3274,7 @@ def show_forecast_display(current_data, forecast_data, display_duration, is_fres
 
 				last_minute = current_minute
 
-			# Memory monitoring and cleanup (FLATTENED)
+			# Memory monitoring and cleanup
 			if loop_count % Timing.MEMORY_CHECK_INTERVAL == 0:
 				needs_gc = display_duration > Timing.GC_INTERVAL and loop_count % Timing.GC_INTERVAL == 0
 				if needs_gc:
@@ -4067,7 +4042,7 @@ def _log_cycle_complete(cycle_count, cycle_start_time, mode):
 	log_info(f"Cycle #{cycle_count} ({mode}) complete in {cycle_duration/System.SECONDS_PER_MINUTE:.2f} min\n")
 
 def run_display_cycle(rtc, cycle_count):
-	"""Flattened main cycle - delegates to helpers (Category A2)"""
+	"""Main display cycle - orchestrates weather, forecast, events, and schedules"""
 	cycle_start_time = time.monotonic()
 
 	# Early exit: rapid cycling detection
