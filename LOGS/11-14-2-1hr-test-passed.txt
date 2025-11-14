@@ -1,0 +1,119 @@
+[2025-11-14 15:22:36] INFO: === STARTUP ===
+[2025-11-14 15:22:36] INFO: Debug level: INFO (3)
+[2025-11-14 15:22:37] INFO: Hardware ready | 13 schedules (imported) | 68 events (27 imported) | Today: No events
+[2025-11-14 15:22:41] INFO: Time synced to America/Chicago (UTC-6)
+[2025-11-14 15:22:41] INFO: Fetching time and weather for: Sheffield And Depaul, IL
+[2025-11-14 15:22:41] INFO: Active displays: weather, forecast, events, weekday indicator
+[2025-11-14 15:22:41] INFO: == STARTING MAIN DISPLAY LOOP == 
+
+[2025-11-14 15:22:41] INFO: ## CYCLE 1 ##
+[2025-11-14 15:22:41] INFO: Weather: Sunny, 20.4°C
+[2025-11-14 15:22:41] INFO: Starting schedule session: HRTEST 1of2 (3480s total)
+[2025-11-14 15:22:46] INFO: Displaying Schedule: HRTEST 1of2 - Segment 1/12 (20°, 5.0 min, progress: 0%)
+[2025-11-14 15:27:48] INFO: Cycle #1 (SCHEDULED) complete in 5.12 min | UT: 00:05:12 | Mem: 9.3% | API: Total=1/350, Current=1, Forecast=0
+
+[2025-11-14 15:27:48] INFO: ## CYCLE 2 ##
+[2025-11-14 15:27:49] INFO: Displaying Schedule: HRTEST 1of2 - Segment 2/12 (20°, 5.0 min, progress: 9%)
+[2025-11-14 15:32:53] INFO: Cycle #2 (SCHEDULED) complete in 5.08 min | UT: 00:10:17 | Mem: 9.3% | API: Total=1/350, Current=1, Forecast=0
+
+[2025-11-14 15:32:53] INFO: ## CYCLE 3 ##
+[2025-11-14 15:32:53] INFO: Displaying Schedule: HRTEST 1of2 - Segment 3/12 (20°, 5.0 min, progress: 18%)
+[2025-11-14 15:37:54] INFO: Cycle #3 (SCHEDULED) complete in 5.03 min | UT: 00:15:19 | Mem: 9.3% | API: Total=1/350, Current=1, Forecast=0
+
+[2025-11-14 15:37:54] INFO: ## CYCLE 4 ##
+[2025-11-14 15:37:57] INFO: Weather: Sunny, 19.8°C
+[2025-11-14 15:37:57] INFO: Displaying Schedule: HRTEST 1of2 - Segment 4/12 (20°, 5.0 min, progress: 26%)
+[2025-11-14 15:42:58] INFO: Cycle #4 (SCHEDULED) complete in 5.07 min | UT: 00:20:22 | Mem: 9.3% | API: Total=2/350, Current=2, Forecast=0
+
+[2025-11-14 15:42:58] INFO: ## CYCLE 5 ##
+[2025-11-14 15:42:59] INFO: Displaying Schedule: HRTEST 1of2 - Segment 5/12 (20°, 5.0 min, progress: 35%)
+[2025-11-14 15:48:00] INFO: Cycle #5 (SCHEDULED) complete in 5.03 min | UT: 00:25:24 | Mem: 9.3% | API: Total=2/350, Current=2, Forecast=0
+
+[2025-11-14 15:48:00] INFO: ## CYCLE 6 ##
+[2025-11-14 15:48:01] INFO: Displaying Schedule: HRTEST 1of2 - Segment 6/12 (20°, 5.0 min, progress: 44%)
+[2025-11-14 15:53:01] INFO: Cycle #6 (SCHEDULED) complete in 5.03 min | UT: 00:30:26 | Mem: 9.3% | API: Total=2/350, Current=2, Forecast=0
+
+[2025-11-14 15:53:01] INFO: ## CYCLE 7 ##
+[2025-11-14 15:53:04] INFO: Weather: Sunny, 19.6°C
+[2025-11-14 15:53:05] INFO: Displaying Schedule: HRTEST 1of2 - Segment 7/12 (20°, 5.0 min, progress: 52%)
+[2025-11-14 15:58:05] INFO: Cycle #7 (SCHEDULED) complete in 5.07 min | UT: 00:35:30 | Mem: 9.3% | API: Total=3/350, Current=3, Forecast=0
+
+[2025-11-14 15:58:05] INFO: ## CYCLE 8 ##
+[2025-11-14 15:58:06] INFO: Displaying Schedule: HRTEST 1of2 - Segment 8/12 (20°, 5.0 min, progress: 61%)
+[2025-11-14 16:03:07] INFO: Cycle #8 (SCHEDULED) complete in 5.03 min | UT: 00:40:31 | Mem: 9.3% | API: Total=3/350, Current=3, Forecast=0
+
+[2025-11-14 16:03:07] INFO: ## CYCLE 9 ##
+[2025-11-14 16:03:08] INFO: Displaying Schedule: HRTEST 1of2 - Segment 9/12 (20°, 5.0 min, progress: 70%)
+[2025-11-14 16:08:08] INFO: Cycle #9 (SCHEDULED) complete in 5.03 min | UT: 00:45:33 | Mem: 9.3% | API: Total=3/350, Current=3, Forecast=0
+
+[2025-11-14 16:08:08] INFO: ## CYCLE 10 ##
+[2025-11-14 16:08:11] INFO: Weather: Sunny, 19.4°C
+[2025-11-14 16:08:12] INFO: Displaying Schedule: HRTEST 1of2 - Segment 10/12 (19°, 5.0 min, progress: 78%)
+[2025-11-14 16:13:13] INFO: Cycle #10 (SCHEDULED) complete in 5.07 min | UT: 00:50:37 | Mem: 9.3% | API: Total=4/350, Current=4, Forecast=0
+
+[2025-11-14 16:13:13] INFO: ## CYCLE 11 ##
+[2025-11-14 16:13:13] INFO: Displaying Schedule: HRTEST 1of2 - Segment 11/12 (19°, 5.0 min, progress: 87%)
+[2025-11-14 16:18:14] INFO: Cycle #11 (SCHEDULED) complete in 5.03 min | UT: 00:55:38 | Mem: 9.3% | API: Total=4/350, Current=4, Forecast=0
+
+[2025-11-14 16:18:14] INFO: ## CYCLE 12 ##
+[2025-11-14 16:18:15] INFO: Displaying Schedule: HRTEST 1of2 - Segment 12/12 (19°, 2.4 min, progress: 96%)
+[2025-11-14 16:20:46] INFO: Cycle #12 (SCHEDULED) complete in 2.53 min | UT: 00:58:10 | Mem: 8.6% | API: Total=4/350, Current=4, Forecast=0
+
+[2025-11-14 16:20:46] INFO: ## CYCLE 13 ##
+[2025-11-14 16:20:46] INFO: Starting schedule session: HRTEST 2of2 (3600s total)
+[2025-11-14 16:20:47] INFO: Displaying Schedule: HRTEST 2of2 - Segment 1/12 (19°, 5.0 min, progress: 0%)
+[2025-11-14 16:25:47] INFO: Cycle #13 (SCHEDULED) complete in 5.02 min | UT: 01:03:12 | Mem: 8.6% | API: Total=4/350, Current=4, Forecast=0
+
+[2025-11-14 16:25:47] INFO: ## CYCLE 14 ##
+[2025-11-14 16:25:50] INFO: Weather: Sunny, 19.0°C
+[2025-11-14 16:25:51] INFO: Displaying Schedule: HRTEST 2of2 - Segment 2/12 (19°, 5.0 min, progress: 8%)
+[2025-11-14 16:30:51] INFO: Cycle #14 (SCHEDULED) complete in 5.07 min | UT: 01:08:16 | Mem: 9.3% | API: Total=5/350, Current=5, Forecast=0
+
+[2025-11-14 16:30:51] INFO: ## CYCLE 15 ##
+[2025-11-14 16:30:52] INFO: Displaying Schedule: HRTEST 2of2 - Segment 3/12 (19°, 5.0 min, progress: 17%)
+[2025-11-14 16:35:53] INFO: Cycle #15 (SCHEDULED) complete in 5.03 min | UT: 01:13:17 | Mem: 9.3% | API: Total=5/350, Current=5, Forecast=0
+
+[2025-11-14 16:35:53] INFO: ## CYCLE 16 ##
+[2025-11-14 16:35:54] INFO: Displaying Schedule: HRTEST 2of2 - Segment 4/12 (19°, 5.0 min, progress: 25%)
+[2025-11-14 16:40:55] INFO: Cycle #16 (SCHEDULED) complete in 5.03 min | UT: 01:18:19 | Mem: 9.3% | API: Total=5/350, Current=5, Forecast=0
+
+[2025-11-14 16:40:55] INFO: ## CYCLE 17 ##
+[2025-11-14 16:40:57] INFO: Weather: Clear, 18.3°C
+[2025-11-14 16:40:58] INFO: Displaying Schedule: HRTEST 2of2 - Segment 5/12 (18°, 5.0 min, progress: 34%)
+[2025-11-14 16:45:59] INFO: Cycle #17 (SCHEDULED) complete in 5.07 min | UT: 01:23:23 | Mem: 9.6% | API: Total=6/350, Current=6, Forecast=0
+
+[2025-11-14 16:45:59] INFO: ## CYCLE 18 ##
+[2025-11-14 16:46:00] INFO: Displaying Schedule: HRTEST 2of2 - Segment 6/12 (18°, 5.0 min, progress: 42%)
+[2025-11-14 16:51:00] INFO: Cycle #18 (SCHEDULED) complete in 5.03 min | UT: 01:28:25 | Mem: 9.6% | API: Total=6/350, Current=6, Forecast=0
+
+[2025-11-14 16:51:00] INFO: ## CYCLE 19 ##
+[2025-11-14 16:51:01] INFO: Displaying Schedule: HRTEST 2of2 - Segment 7/12 (18°, 5.0 min, progress: 50%)
+[2025-11-14 16:56:02] INFO: Cycle #19 (SCHEDULED) complete in 5.03 min | UT: 01:33:26 | Mem: 9.6% | API: Total=6/350, Current=6, Forecast=0
+
+[2025-11-14 16:56:02] INFO: ## CYCLE 20 ##
+[2025-11-14 16:56:05] INFO: Weather: Clear, 17.3°C
+[2025-11-14 16:56:05] INFO: Displaying Schedule: HRTEST 2of2 - Segment 8/12 (17°, 5.0 min, progress: 59%)
+[2025-11-14 17:01:06] INFO: Cycle #20 (SCHEDULED) complete in 5.07 min | UT: 01:38:31 | Mem: 9.6% | API: Total=7/350, Current=7, Forecast=0
+
+[2025-11-14 17:01:06] INFO: ## CYCLE 21 ##
+[2025-11-14 17:01:07] INFO: Displaying Schedule: HRTEST 2of2 - Segment 9/12 (17°, 5.0 min, progress: 67%)
+[2025-11-14 17:06:08] INFO: Cycle #21 (SCHEDULED) complete in 5.03 min | UT: 01:43:32 | Mem: 9.6% | API: Total=7/350, Current=7, Forecast=0
+
+[2025-11-14 17:06:08] INFO: ## CYCLE 22 ##
+[2025-11-14 17:06:09] INFO: Displaying Schedule: HRTEST 2of2 - Segment 10/12 (17°, 5.0 min, progress: 76%)
+[2025-11-14 17:11:10] INFO: Cycle #22 (SCHEDULED) complete in 5.03 min | UT: 01:48:34 | Mem: 9.6% | API: Total=7/350, Current=7, Forecast=0
+
+[2025-11-14 17:11:10] INFO: ## CYCLE 23 ##
+[2025-11-14 17:11:12] INFO: Weather: Clear, 14.8°C
+[2025-11-14 17:11:13] INFO: Displaying Schedule: HRTEST 2of2 - Segment 11/12 (15°, 5.0 min, progress: 84%)
+[2025-11-14 17:16:14] INFO: Cycle #23 (SCHEDULED) complete in 5.07 min | UT: 01:53:38 | Mem: 9.6% | API: Total=8/350, Current=8, Forecast=0
+
+[2025-11-14 17:16:14] INFO: ## CYCLE 24 ##
+[2025-11-14 17:16:15] INFO: Displaying Schedule: HRTEST 2of2 - Segment 12/12 (15°, 4.5 min, progress: 92%)
+[2025-11-14 17:20:51] INFO: Cycle #24 (SCHEDULED) complete in 4.62 min | UT: 01:58:15 | Mem: 8.8% | API: Total=8/350, Current=8, Forecast=0
+
+[2025-11-14 17:20:51] INFO: ## CYCLE 25 ##
+[2025-11-14 17:20:53] INFO: Weather: Clear, 14.8°C
+[2025-11-14 17:20:54] INFO: Forecast: 12 hours (fresh) | Next: 15.3°C
+[2025-11-14 17:20:56] INFO: Displaying Forecast: Current 15°C → Next: 15°C, 14°C (1 min) [Fresh]
+[2025-11-14 17:22:00] INFO: Displaying Weather: Clear, 15°C (4 min)
