@@ -1,0 +1,372 @@
+[2025-11-14 17:32:06] INFO: === STARTUP ===
+[2025-11-14 17:32:06] INFO: Debug level: INFO (3)
+[2025-11-14 17:32:07] INFO: Hardware ready | 12 schedules (imported) | 68 events (27 imported) | Today: No events
+[2025-11-14 17:32:12] INFO: Time synced to America/Chicago (UTC-6)
+[2025-11-14 17:32:12] INFO: Fetching time and weather for: Sheffield And Depaul, IL
+[2025-11-14 17:32:12] INFO: Active displays: weather, forecast, events, weekday indicator
+[2025-11-14 17:32:12] INFO: == STARTING MAIN DISPLAY LOOP == 
+
+[2025-11-14 17:32:12] INFO: ## CYCLE 1 ##
+[2025-11-14 17:32:12] INFO: Weather: Clear, 16.3°C
+[2025-11-14 17:32:13] INFO: Forecast: 12 hours (fresh) | Next: 15.3°C
+[2025-11-14 17:32:14] INFO: Displaying Forecast: Current 16°C → Next: 15°C, 14°C (1 min) [Fresh]
+[2025-11-14 17:33:36] INFO: Displaying Weather: Clear, 16°C (4 min)
+[2025-11-14 17:37:43] INFO: Cycle #1 complete in 5.53 min | UT: 00:05:37 | Mem: 13.0% | API: Total=2/350, Current=1, Forecast=1
+
+[2025-11-14 17:37:43] INFO: ## CYCLE 2 ##
+[2025-11-14 17:37:43] INFO: Starting schedule session: RAPID TEST1 (780s total)
+[2025-11-14 17:37:45] INFO: Displaying Schedule: RAPID TEST1 - Segment 1/3 (16°, 5.0 min, progress: 0%)
+[2025-11-14 17:42:51] INFO: Cycle #2 (SCHEDULED) complete in 5.12 min | UT: 00:10:44 | Mem: 12.0% | API: Total=2/350, Current=1, Forecast=1
+
+[2025-11-14 17:42:51] INFO: ## CYCLE 3 ##
+[2025-11-14 17:42:52] INFO: Displaying Schedule: RAPID TEST1 - Segment 2/3 (16°, 5.0 min, progress: 39%)
+[2025-11-14 17:47:53] INFO: Cycle #3 (SCHEDULED) complete in 5.05 min | UT: 00:15:47 | Mem: 12.0% | API: Total=2/350, Current=1, Forecast=1
+
+[2025-11-14 17:47:53] INFO: ## CYCLE 4 ##
+[2025-11-14 17:47:56] INFO: Weather: Clear, 16.8°C
+[2025-11-14 17:47:57] INFO: Displaying Schedule: RAPID TEST1 - Segment 3/3 (17°, 2.8 min, progress: 79%)
+[2025-11-14 17:50:49] INFO: Cycle #4 (SCHEDULED) complete in 2.92 min | UT: 00:18:42 | Mem: 9.3% | API: Total=3/350, Current=2, Forecast=1
+
+[2025-11-14 17:50:49] INFO: ## CYCLE 5 ##
+[2025-11-14 17:50:49] INFO: Starting schedule session: RAPID TEST2 (900s total)
+[2025-11-14 17:50:50] INFO: Displaying Schedule: RAPID TEST2 - Segment 1/3 (17°, 5.0 min, progress: 0%)
+[2025-11-14 17:55:51] INFO: Cycle #5 (SCHEDULED) complete in 5.03 min | UT: 00:23:44 | Mem: 9.3% | API: Total=3/350, Current=2, Forecast=1
+
+[2025-11-14 17:55:51] INFO: ## CYCLE 6 ##
+[2025-11-14 17:55:51] INFO: Displaying Schedule: RAPID TEST2 - Segment 2/3 (17°, 5.0 min, progress: 34%)
+[2025-11-14 18:00:52] INFO: Cycle #6 (SCHEDULED) complete in 5.03 min | UT: 00:28:46 | Mem: 9.3% | API: Total=3/350, Current=2, Forecast=1
+
+[2025-11-14 18:00:52] INFO: ## CYCLE 7 ##
+[2025-11-14 18:00:53] INFO: Displaying Schedule: RAPID TEST2 - Segment 3/3 (17°, 4.9 min, progress: 67%)
+[2025-11-14 18:05:52] INFO: Cycle #7 (SCHEDULED) complete in 4.99 min | UT: 00:33:45 | Mem: 9.3% | API: Total=3/350, Current=2, Forecast=1
+
+[2025-11-14 18:05:52] INFO: ## CYCLE 8 ##
+[2025-11-14 18:05:54] INFO: Weather: Clear, 16.3°C
+[2025-11-14 18:05:54] INFO: Starting schedule session: RAPID TEST3 (900s total)
+[2025-11-14 18:05:55] INFO: Displaying Schedule: RAPID TEST3 - Segment 1/3 (16°, 5.0 min, progress: 0%)
+[2025-11-14 18:10:56] INFO: Cycle #8 (SCHEDULED) complete in 5.07 min | UT: 00:38:49 | Mem: 10.0% | API: Total=4/350, Current=3, Forecast=1
+
+[2025-11-14 18:10:56] INFO: ## CYCLE 9 ##
+[2025-11-14 18:10:57] INFO: Displaying Schedule: RAPID TEST3 - Segment 2/3 (16°, 5.0 min, progress: 34%)
+[2025-11-14 18:15:58] INFO: Cycle #9 (SCHEDULED) complete in 5.03 min | UT: 00:43:51 | Mem: 10.0% | API: Total=4/350, Current=3, Forecast=1
+
+[2025-11-14 18:15:58] INFO: ## CYCLE 10 ##
+[2025-11-14 18:15:58] INFO: Displaying Schedule: RAPID TEST3 - Segment 3/3 (16°, 4.9 min, progress: 67%)
+[2025-11-14 18:21:00] INFO: Cycle #10 (SCHEDULED) complete in 5.03 min | UT: 00:48:53 | Mem: 9.3% | API: Total=4/350, Current=3, Forecast=1
+
+[2025-11-14 18:21:00] INFO: ## CYCLE 11 ##
+[2025-11-14 18:21:02] INFO: Weather: Clear, 17.2°C
+[2025-11-14 18:21:02] INFO: Starting schedule session: RAPID TEST4 (540s total)
+[2025-11-14 18:21:03] INFO: Displaying Schedule: RAPID TEST4 - Segment 1/2 (17°, 5.0 min, progress: 0%)
+[2025-11-14 18:26:04] INFO: Cycle #11 (SCHEDULED) complete in 5.07 min | UT: 00:53:57 | Mem: 10.0% | API: Total=5/350, Current=4, Forecast=1
+
+[2025-11-14 18:26:04] INFO: ## CYCLE 12 ##
+[2025-11-14 18:26:05] INFO: Displaying Schedule: RAPID TEST4 - Segment 2/2 (17°, 4.0 min, progress: 56%)
+[2025-11-14 18:30:08] INFO: Cycle #12 (SCHEDULED) complete in 4.06 min | UT: 00:58:01 | Mem: 9.3% | API: Total=5/350, Current=4, Forecast=1
+
+[2025-11-14 18:30:08] INFO: ## CYCLE 13 ##
+[2025-11-14 18:30:08] INFO: Starting schedule session: RAPID TEST5 (900s total)
+[2025-11-14 18:30:09] INFO: Displaying Schedule: RAPID TEST5 - Segment 1/3 (17°, 5.0 min, progress: 0%)
+[2025-11-14 18:35:09] INFO: Cycle #13 (SCHEDULED) complete in 5.03 min | UT: 01:03:03 | Mem: 9.3% | API: Total=5/350, Current=4, Forecast=1
+
+[2025-11-14 18:35:09] INFO: ## CYCLE 14 ##
+[2025-11-14 18:35:10] INFO: Displaying Schedule: RAPID TEST5 - Segment 2/3 (17°, 5.0 min, progress: 34%)
+[2025-11-14 18:40:11] INFO: Cycle #14 (SCHEDULED) complete in 5.03 min | UT: 01:08:04 | Mem: 9.3% | API: Total=5/350, Current=4, Forecast=1
+
+[2025-11-14 18:40:11] INFO: ## CYCLE 15 ##
+[2025-11-14 18:40:14] INFO: Weather: Clear, 15.5°C
+[2025-11-14 18:40:14] INFO: Displaying Schedule: RAPID TEST5 - Segment 3/3 (16°, 4.9 min, progress: 67%)
+[2025-11-14 18:45:13] INFO: Cycle #15 (SCHEDULED) complete in 5.04 min | UT: 01:13:07 | Mem: 9.3% | API: Total=6/350, Current=5, Forecast=1
+
+[2025-11-14 18:45:13] INFO: ## CYCLE 16 ##
+[2025-11-14 18:45:13] INFO: Starting schedule session: RAPID TEST6 (900s total)
+[2025-11-14 18:45:14] INFO: Displaying Schedule: RAPID TEST6 - Segment 1/3 (16°, 5.0 min, progress: 0%)
+[2025-11-14 18:50:15] INFO: Cycle #16 (SCHEDULED) complete in 5.03 min | UT: 01:18:08 | Mem: 9.3% | API: Total=6/350, Current=5, Forecast=1
+
+[2025-11-14 18:50:15] INFO: ## CYCLE 17 ##
+[2025-11-14 18:50:16] INFO: Displaying Schedule: RAPID TEST6 - Segment 2/3 (16°, 5.0 min, progress: 34%)
+[2025-11-14 18:55:17] INFO: Cycle #17 (SCHEDULED) complete in 5.03 min | UT: 01:23:10 | Mem: 9.3% | API: Total=6/350, Current=5, Forecast=1
+
+[2025-11-14 18:55:17] INFO: ## CYCLE 18 ##
+[2025-11-14 18:55:19] INFO: Weather: Clear, 14.7°C
+[2025-11-14 18:55:20] INFO: Displaying Schedule: RAPID TEST6 - Segment 3/3 (15°, 4.9 min, progress: 67%)
+[2025-11-14 19:00:19] INFO: Cycle #18 (SCHEDULED) complete in 5.04 min | UT: 01:28:12 | Mem: 9.3% | API: Total=7/350, Current=6, Forecast=1
+
+[2025-11-14 19:00:19] INFO: ## CYCLE 19 ##
+[2025-11-14 19:00:19] INFO: Starting schedule session: RAPID TEST7 (900s total)
+[2025-11-14 19:00:20] INFO: Displaying Schedule: RAPID TEST7 - Segment 1/3 (15°, 5.0 min, progress: 0%)
+[2025-11-14 19:05:21] INFO: Cycle #19 (SCHEDULED) complete in 5.03 min | UT: 01:33:14 | Mem: 9.3% | API: Total=7/350, Current=6, Forecast=1
+
+[2025-11-14 19:05:21] INFO: ## CYCLE 20 ##
+[2025-11-14 19:05:21] INFO: Displaying Schedule: RAPID TEST7 - Segment 2/3 (15°, 5.0 min, progress: 34%)
+[2025-11-14 19:10:22] INFO: Cycle #20 (SCHEDULED) complete in 5.03 min | UT: 01:38:16 | Mem: 9.3% | API: Total=7/350, Current=6, Forecast=1
+
+[2025-11-14 19:10:22] INFO: ## CYCLE 21 ##
+[2025-11-14 19:10:25] INFO: Weather: Clear, 14.7°C
+[2025-11-14 19:10:26] INFO: Displaying Schedule: RAPID TEST7 - Segment 3/3 (15°, 4.9 min, progress: 67%)
+[2025-11-14 19:15:24] INFO: Cycle #21 (SCHEDULED) complete in 5.04 min | UT: 01:43:18 | Mem: 9.3% | API: Total=8/350, Current=7, Forecast=1
+
+[2025-11-14 19:15:24] INFO: ## CYCLE 22 ##
+[2025-11-14 19:15:25] INFO: Starting schedule session: RAPID TEST8 (900s total)
+[2025-11-14 19:15:25] INFO: Displaying Schedule: RAPID TEST8 - Segment 1/3 (15°, 5.0 min, progress: 0%)
+[2025-11-14 19:20:26] INFO: Cycle #22 (SCHEDULED) complete in 5.03 min | UT: 01:48:19 | Mem: 9.3% | API: Total=8/350, Current=7, Forecast=1
+
+[2025-11-14 19:20:26] INFO: ## CYCLE 23 ##
+[2025-11-14 19:20:27] INFO: Displaying Schedule: RAPID TEST8 - Segment 2/3 (15°, 5.0 min, progress: 34%)
+[2025-11-14 19:25:28] INFO: Cycle #23 (SCHEDULED) complete in 5.03 min | UT: 01:53:21 | Mem: 9.3% | API: Total=8/350, Current=7, Forecast=1
+
+[2025-11-14 19:25:28] INFO: ## CYCLE 24 ##
+[2025-11-14 19:25:30] INFO: Weather: Clear, 15.2°C
+[2025-11-14 19:25:31] INFO: Displaying Schedule: RAPID TEST8 - Segment 3/3 (15°, 4.9 min, progress: 67%)
+[2025-11-14 19:30:30] INFO: Cycle #24 (SCHEDULED) complete in 5.04 min | UT: 01:58:23 | Mem: 9.3% | API: Total=9/350, Current=8, Forecast=1
+
+[2025-11-14 19:30:30] INFO: ## CYCLE 25 ##
+[2025-11-14 19:30:30] INFO: Starting schedule session: RAPID TEST9 (900s total)
+[2025-11-14 19:30:31] INFO: Displaying Schedule: RAPID TEST9 - Segment 1/3 (15°, 5.0 min, progress: 0%)
+[2025-11-14 19:35:32] INFO: Cycle #25 (SCHEDULED) complete in 5.03 min | UT: 02:03:25 | Mem: 9.3% | API: Total=9/350, Current=8, Forecast=1
+
+[2025-11-14 19:35:32] INFO: ## CYCLE 26 ##
+[2025-11-14 19:35:32] INFO: Displaying Schedule: RAPID TEST9 - Segment 2/3 (15°, 5.0 min, progress: 34%)
+[2025-11-14 19:40:33] INFO: Cycle #26 (SCHEDULED) complete in 5.03 min | UT: 02:08:27 | Mem: 9.3% | API: Total=9/350, Current=8, Forecast=1
+
+[2025-11-14 19:40:33] INFO: ## CYCLE 27 ##
+[2025-11-14 19:40:36] INFO: Weather: Mostly cloudy, 15.1°C
+[2025-11-14 19:40:37] INFO: Displaying Schedule: RAPID TEST9 - Segment 3/3 (15°, 4.9 min, progress: 67%)
+[2025-11-14 19:45:36] INFO: Cycle #27 (SCHEDULED) complete in 5.04 min | UT: 02:13:29 | Mem: 9.5% | API: Total=10/350, Current=9, Forecast=1
+
+[2025-11-14 19:45:36] INFO: ## CYCLE 28 ##
+[2025-11-14 19:45:36] INFO: Starting schedule session: RAPID TEST10 (900s total)
+[2025-11-14 19:45:37] INFO: Displaying Schedule: RAPID TEST10 - Segment 1/3 (15°, 5.0 min, progress: 0%)
+[2025-11-14 19:50:37] INFO: Cycle #28 (SCHEDULED) complete in 5.03 min | UT: 02:18:31 | Mem: 9.5% | API: Total=10/350, Current=9, Forecast=1
+
+[2025-11-14 19:50:37] INFO: ## CYCLE 29 ##
+[2025-11-14 19:50:38] INFO: Displaying Schedule: RAPID TEST10 - Segment 2/3 (15°, 5.0 min, progress: 34%)
+[2025-11-14 19:55:39] INFO: Cycle #29 (SCHEDULED) complete in 5.03 min | UT: 02:23:32 | Mem: 9.5% | API: Total=10/350, Current=9, Forecast=1
+
+[2025-11-14 19:55:39] INFO: ## CYCLE 30 ##
+[2025-11-14 19:55:42] INFO: Weather: Partly cloudy, 15.0°C
+[2025-11-14 19:55:43] INFO: Displaying Schedule: RAPID TEST10 - Segment 3/3 (15°, 4.9 min, progress: 67%)
+[2025-11-14 20:00:42] INFO: Cycle #30 (SCHEDULED) complete in 5.04 min | UT: 02:28:35 | Mem: 9.7% | API: Total=11/350, Current=10, Forecast=1
+
+[2025-11-14 20:00:42] INFO: ## CYCLE 31 ##
+[2025-11-14 20:00:42] INFO: Weather: Mostly clear, 14.7°C
+[2025-11-14 20:00:43] INFO: Forecast: 12 hours (fresh) | Next: 11.7°C
+[2025-11-14 20:00:45] INFO: Displaying Forecast: Current 15°C → Next: 12°C, 12°C (1 min) [Fresh]
+[2025-11-14 20:01:47] INFO: Displaying Weather: Mostly clear, 15°C (4 min)
+[2025-11-14 20:05:50] INFO: Cycle #31 complete in 5.13 min | UT: 02:33:43 | Mem: 13.9% | API: Total=13/350, Current=11, Forecast=2
+
+[2025-11-14 20:05:50] INFO: ## CYCLE 32 ##
+[2025-11-14 20:05:50] INFO: Weather: Mostly clear, 14.7°C
+[2025-11-14 20:05:52] INFO: Displaying Forecast: Current 15°C → Next: 12°C, 12°C (1 min) [Cached]
+[2025-11-14 20:06:53] INFO: Displaying Weather: Mostly clear, 15°C (4 min)
+[2025-11-14 20:10:53] INFO: Cycle #32 complete in 5.06 min | UT: 02:38:47 | Mem: 11.9% | API: Total=14/350, Current=12, Forecast=2
+
+[2025-11-14 20:10:53] INFO: ## CYCLE 33 ##
+[2025-11-14 20:10:54] INFO: Weather: Partly cloudy, 12.8°C
+[2025-11-14 20:10:55] INFO: Displaying Forecast: Current 13°C → Next: 12°C, 12°C (1 min) [Cached]
+[2025-11-14 20:11:56] INFO: Displaying Weather: Partly cloudy, 13°C (4 min)
+[2025-11-14 20:15:58] INFO: Cycle #33 complete in 5.08 min | UT: 02:43:51 | Mem: 12.2% | API: Total=15/350, Current=13, Forecast=2
+
+[2025-11-14 20:15:58] INFO: ## CYCLE 34 ##
+[2025-11-14 20:15:59] INFO: Weather: Partly cloudy, 12.8°C
+[2025-11-14 20:15:59] INFO: Forecast: 12 hours (fresh) | Next: 11.7°C
+[2025-11-14 20:16:02] INFO: Displaying Forecast: Current 13°C → Next: 12°C, 12°C (1 min) [Fresh]
+[2025-11-14 20:17:04] INFO: Displaying Weather: Partly cloudy, 13°C (4 min)
+[2025-11-14 20:21:04] INFO: Cycle #34 complete in 5.10 min | UT: 02:48:58 | Mem: 14.3% | API: Total=17/350, Current=14, Forecast=3
+
+[2025-11-14 20:21:04] INFO: ## CYCLE 35 ##
+[2025-11-14 20:21:04] INFO: Starting schedule session: 2HR TEST (7140s total)
+[2025-11-14 20:21:06] INFO: Displaying Schedule: 2HR TEST - Segment 1/24 (13°, 5.0 min, progress: 0%)
+[2025-11-14 20:26:07] INFO: Cycle #35 (SCHEDULED) complete in 5.05 min | UT: 02:54:01 | Mem: 13.2% | API: Total=17/350, Current=14, Forecast=3
+
+[2025-11-14 20:26:08] INFO: ## CYCLE 36 ##
+[2025-11-14 20:26:09] INFO: Displaying Schedule: 2HR TEST - Segment 2/24 (13°, 5.0 min, progress: 4%)
+[2025-11-14 20:31:11] INFO: Cycle #36 (SCHEDULED) complete in 5.05 min | UT: 02:59:04 | Mem: 13.2% | API: Total=17/350, Current=14, Forecast=3
+
+[2025-11-14 20:31:11] INFO: ## CYCLE 37 ##
+[2025-11-14 20:31:13] INFO: Weather: Mostly clear, 12.4°C
+[2025-11-14 20:31:14] INFO: Displaying Schedule: 2HR TEST - Segment 3/24 (12°, 5.0 min, progress: 9%)
+[2025-11-14 20:36:15] INFO: Cycle #37 (SCHEDULED) complete in 5.07 min | UT: 03:04:08 | Mem: 11.2% | API: Total=18/350, Current=15, Forecast=3
+
+[2025-11-14 20:36:15] INFO: ## CYCLE 38 ##
+[2025-11-14 20:36:16] INFO: Displaying Schedule: 2HR TEST - Segment 4/24 (12°, 5.0 min, progress: 13%)
+[2025-11-14 20:41:17] INFO: Cycle #38 (SCHEDULED) complete in 5.03 min | UT: 03:09:10 | Mem: 11.2% | API: Total=18/350, Current=15, Forecast=3
+
+[2025-11-14 20:41:17] INFO: ## CYCLE 39 ##
+[2025-11-14 20:41:18] INFO: Displaying Schedule: 2HR TEST - Segment 5/24 (12°, 5.0 min, progress: 17%)
+[2025-11-14 20:46:19] INFO: Cycle #39 (SCHEDULED) complete in 5.03 min | UT: 03:14:12 | Mem: 11.2% | API: Total=18/350, Current=15, Forecast=3
+
+[2025-11-14 20:46:19] INFO: ## CYCLE 40 ##
+[2025-11-14 20:46:21] INFO: Weather: Clear, 16.1°C
+[2025-11-14 20:46:22] INFO: Displaying Schedule: 2HR TEST - Segment 6/24 (16°, 5.0 min, progress: 21%)
+[2025-11-14 20:51:23] INFO: Cycle #40 (SCHEDULED) complete in 5.07 min | UT: 03:19:17 | Mem: 11.2% | API: Total=19/350, Current=16, Forecast=3
+
+[2025-11-14 20:51:23] INFO: ## CYCLE 41 ##
+[2025-11-14 20:51:24] INFO: Displaying Schedule: 2HR TEST - Segment 7/24 (16°, 5.0 min, progress: 25%)
+[2025-11-14 20:56:25] INFO: Cycle #41 (SCHEDULED) complete in 5.03 min | UT: 03:24:19 | Mem: 11.2% | API: Total=19/350, Current=16, Forecast=3
+
+[2025-11-14 20:56:25] INFO: ## CYCLE 42 ##
+[2025-11-14 20:56:26] INFO: Displaying Schedule: 2HR TEST - Segment 8/24 (16°, 5.0 min, progress: 30%)
+[2025-11-14 21:01:27] INFO: Cycle #42 (SCHEDULED) complete in 5.03 min | UT: 03:29:21 | Mem: 11.2% | API: Total=19/350, Current=16, Forecast=3
+
+[2025-11-14 21:01:27] INFO: ## CYCLE 43 ##
+[2025-11-14 21:01:30] INFO: Weather: Clear, 16.1°C
+[2025-11-14 21:01:31] INFO: Displaying Schedule: 2HR TEST - Segment 9/24 (16°, 5.0 min, progress: 34%)
+[2025-11-14 21:06:32] INFO: Cycle #43 (SCHEDULED) complete in 5.07 min | UT: 03:34:25 | Mem: 11.2% | API: Total=20/350, Current=17, Forecast=3
+
+[2025-11-14 21:06:32] INFO: ## CYCLE 44 ##
+[2025-11-14 21:06:33] INFO: Displaying Schedule: 2HR TEST - Segment 10/24 (16°, 5.0 min, progress: 38%)
+[2025-11-14 21:11:34] INFO: Cycle #44 (SCHEDULED) complete in 5.03 min | UT: 03:39:27 | Mem: 11.2% | API: Total=20/350, Current=17, Forecast=3
+
+[2025-11-14 21:11:34] INFO: ## CYCLE 45 ##
+[2025-11-14 21:11:35] INFO: Displaying Schedule: 2HR TEST - Segment 11/24 (16°, 5.0 min, progress: 42%)
+[2025-11-14 21:16:36] INFO: Cycle #45 (SCHEDULED) complete in 5.03 min | UT: 03:44:29 | Mem: 11.2% | API: Total=20/350, Current=17, Forecast=3
+
+[2025-11-14 21:16:36] INFO: ## CYCLE 46 ##
+[2025-11-14 21:16:38] INFO: Weather: Mostly clear, 14.3°C
+[2025-11-14 21:16:39] INFO: Displaying Schedule: 2HR TEST - Segment 12/24 (14°, 5.0 min, progress: 47%)
+[2025-11-14 21:21:40] INFO: Cycle #46 (SCHEDULED) complete in 5.07 min | UT: 03:49:33 | Mem: 11.2% | API: Total=21/350, Current=18, Forecast=3
+
+[2025-11-14 21:21:40] INFO: ## CYCLE 47 ##
+[2025-11-14 21:21:41] INFO: Displaying Schedule: 2HR TEST - Segment 13/24 (14°, 5.0 min, progress: 51%)
+[2025-11-14 21:26:42] INFO: Cycle #47 (SCHEDULED) complete in 5.03 min | UT: 03:54:35 | Mem: 11.2% | API: Total=21/350, Current=18, Forecast=3
+
+[2025-11-14 21:26:42] INFO: ## CYCLE 48 ##
+[2025-11-14 21:26:43] INFO: Displaying Schedule: 2HR TEST - Segment 14/24 (14°, 5.0 min, progress: 55%)
+[2025-11-14 21:31:44] INFO: Cycle #48 (SCHEDULED) complete in 5.03 min | UT: 03:59:37 | Mem: 11.2% | API: Total=21/350, Current=18, Forecast=3
+
+[2025-11-14 21:31:44] INFO: ## CYCLE 49 ##
+[2025-11-14 21:31:46] INFO: Weather: Mostly cloudy, 15.9°C
+[2025-11-14 21:31:47] INFO: Displaying Schedule: 2HR TEST - Segment 15/24 (16°, 5.0 min, progress: 59%)
+[2025-11-14 21:36:48] INFO: Cycle #49 (SCHEDULED) complete in 5.07 min | UT: 04:04:42 | Mem: 11.2% | API: Total=22/350, Current=19, Forecast=3
+
+[2025-11-14 21:36:48] INFO: ## CYCLE 50 ##
+[2025-11-14 21:36:49] INFO: Displaying Schedule: 2HR TEST - Segment 16/24 (16°, 5.0 min, progress: 64%)
+[2025-11-14 21:41:50] INFO: Cycle #50 (SCHEDULED) complete in 5.03 min | UT: 04:09:44 | Mem: 11.2% | API: Total=22/350, Current=19, Forecast=3
+
+[2025-11-14 21:41:50] INFO: ## CYCLE 51 ##
+[2025-11-14 21:41:51] INFO: Displaying Schedule: 2HR TEST - Segment 17/24 (16°, 5.0 min, progress: 68%)
+[2025-11-14 21:46:52] INFO: Cycle #51 (SCHEDULED) complete in 5.03 min | UT: 04:14:46 | Mem: 11.2% | API: Total=22/350, Current=19, Forecast=3
+
+[2025-11-14 21:46:52] INFO: ## CYCLE 52 ##
+[2025-11-14 21:46:55] INFO: Weather: Mostly cloudy, 15.8°C
+[2025-11-14 21:46:56] INFO: Displaying Schedule: 2HR TEST - Segment 18/24 (16°, 5.0 min, progress: 72%)
+[2025-11-14 21:51:57] INFO: Cycle #52 (SCHEDULED) complete in 5.07 min | UT: 04:19:50 | Mem: 11.2% | API: Total=23/350, Current=20, Forecast=3
+
+[2025-11-14 21:51:57] INFO: ## CYCLE 53 ##
+[2025-11-14 21:51:58] INFO: Displaying Schedule: 2HR TEST - Segment 19/24 (16°, 5.0 min, progress: 76%)
+[2025-11-14 21:56:59] INFO: Cycle #53 (SCHEDULED) complete in 5.03 min | UT: 04:24:52 | Mem: 11.2% | API: Total=23/350, Current=20, Forecast=3
+
+[2025-11-14 21:56:59] INFO: ## CYCLE 54 ##
+[2025-11-14 21:57:00] INFO: Displaying Schedule: 2HR TEST - Segment 20/24 (16°, 5.0 min, progress: 81%)
+[2025-11-14 22:02:01] INFO: Cycle #54 (SCHEDULED) complete in 5.03 min | UT: 04:29:54 | Mem: 11.2% | API: Total=23/350, Current=20, Forecast=3
+
+[2025-11-14 22:02:01] INFO: ## CYCLE 55 ##
+[2025-11-14 22:02:03] INFO: Weather: Mostly cloudy, 12.8°C
+[2025-11-14 22:02:04] INFO: Displaying Schedule: 2HR TEST - Segment 21/24 (13°, 5.0 min, progress: 85%)
+[2025-11-14 22:07:05] INFO: Cycle #55 (SCHEDULED) complete in 5.07 min | UT: 04:34:58 | Mem: 11.2% | API: Total=24/350, Current=21, Forecast=3
+
+[2025-11-14 22:07:05] INFO: ## CYCLE 56 ##
+[2025-11-14 22:07:06] INFO: Displaying Schedule: 2HR TEST - Segment 22/24 (13°, 5.0 min, progress: 89%)
+[2025-11-14 22:12:07] INFO: Cycle #56 (SCHEDULED) complete in 5.03 min | UT: 04:40:00 | Mem: 11.2% | API: Total=24/350, Current=21, Forecast=3
+
+[2025-11-14 22:12:07] INFO: ## CYCLE 57 ##
+[2025-11-14 22:12:08] INFO: Displaying Schedule: 2HR TEST - Segment 23/24 (13°, 5.0 min, progress: 93%)
+[2025-11-14 22:17:09] INFO: Cycle #57 (SCHEDULED) complete in 5.03 min | UT: 04:45:02 | Mem: 11.2% | API: Total=24/350, Current=21, Forecast=3
+
+[2025-11-14 22:17:09] INFO: ## CYCLE 58 ##
+[2025-11-14 22:17:11] INFO: Weather: Cloudy, 15.5°C
+[2025-11-14 22:17:12] INFO: Displaying Schedule: 2HR TEST - Segment 24/24 (16°, 2.9 min, progress: 98%)
+[2025-11-14 22:20:11] INFO: Cycle #58 (SCHEDULED) complete in 3.04 min | UT: 04:48:04 | Mem: 10.6% | API: Total=25/350, Current=22, Forecast=3
+
+[2025-11-14 22:20:11] INFO: ## CYCLE 59 ##
+[2025-11-14 22:20:12] INFO: Weather: Cloudy, 16.1°C
+[2025-11-14 22:20:12] INFO: Forecast: 12 hours (fresh) | Next: 11.7°C
+[2025-11-14 22:20:15] INFO: Displaying Forecast: Current 16°C → Next: 12°C, 12°C (1 min) [Fresh]
+[2025-11-14 22:21:20] INFO: Displaying Weather: Cloudy, 16°C (4 min)
+[2025-11-14 22:25:21] INFO: Cycle #59 complete in 5.16 min | UT: 04:53:14 | Mem: 14.8% | API: Total=27/350, Current=23, Forecast=4
+
+[2025-11-14 22:25:21] INFO: ## CYCLE 60 ##
+[2025-11-14 22:25:21] INFO: Weather: Cloudy, 16.1°C
+[2025-11-14 22:25:23] INFO: Displaying Forecast: Current 16°C → Next: 12°C, 12°C (1 min) [Cached]
+[2025-11-14 22:26:24] INFO: Displaying Weather: Cloudy, 16°C (4 min)
+[2025-11-14 22:30:25] INFO: Cycle #60 complete in 5.07 min | UT: 04:58:18 | Mem: 12.8% | API: Total=28/350, Current=24, Forecast=4
+
+[2025-11-14 22:30:25] INFO: ## CYCLE 61 ##
+[2025-11-14 22:30:25] INFO: Weather: Mostly cloudy, 16.1°C
+[2025-11-14 22:30:27] INFO: Displaying Forecast: Current 16°C → Next: 12°C, 12°C (1 min) [Cached]
+[2025-11-14 22:31:28] INFO: Displaying Weather: Mostly cloudy, 16°C (4 min)
+[2025-11-14 22:35:29] INFO: Cycle #61 complete in 5.07 min | UT: 05:03:23 | Mem: 13.1% | API: Total=29/350, Current=25, Forecast=4
+
+[2025-11-14 22:35:29] INFO: ## CYCLE 62 ##
+[2025-11-14 22:35:30] INFO: Weather: Mostly cloudy, 16.1°C
+[2025-11-14 22:35:31] INFO: Forecast: 12 hours (fresh) | Next: 12.4°C
+[2025-11-14 22:35:34] INFO: Displaying Forecast: Current 16°C → Next: 12°C, 12°C (1 min) [Fresh]
+[2025-11-14 22:36:35] INFO: Displaying Weather: Mostly cloudy, 16°C (4 min)
+[2025-11-14 22:40:36] INFO: Cycle #62 complete in 5.11 min | UT: 05:08:29 | Mem: 15.1% | API: Total=31/350, Current=26, Forecast=5
+
+[2025-11-14 22:40:36] INFO: ## CYCLE 63 ##
+[2025-11-14 22:40:36] INFO: Starting schedule session: 1HR TEST (3600s total)
+[2025-11-14 22:40:38] INFO: Displaying Schedule: 1HR TEST - Segment 1/12 (16°, 5.0 min, progress: 0%)
+[2025-11-14 22:45:40] INFO: Cycle #63 (SCHEDULED) complete in 5.06 min | UT: 05:13:33 | Mem: 14.1% | API: Total=31/350, Current=26, Forecast=5
+
+[2025-11-14 22:45:40] INFO: ## CYCLE 64 ##
+[2025-11-14 22:45:42] INFO: Displaying Schedule: 1HR TEST - Segment 2/12 (16°, 5.0 min, progress: 8%)
+[2025-11-14 22:50:43] INFO: Cycle #64 (SCHEDULED) complete in 5.06 min | UT: 05:18:37 | Mem: 14.1% | API: Total=31/350, Current=26, Forecast=5
+
+[2025-11-14 22:50:43] INFO: ## CYCLE 65 ##
+[2025-11-14 22:50:46] INFO: Weather: Mostly cloudy, 15.9°C
+[2025-11-14 22:50:47] INFO: Displaying Schedule: 1HR TEST - Segment 3/12 (16°, 5.0 min, progress: 17%)
+[2025-11-14 22:55:48] INFO: Cycle #65 (SCHEDULED) complete in 5.07 min | UT: 05:23:41 | Mem: 12.1% | API: Total=32/350, Current=27, Forecast=5
+
+[2025-11-14 22:55:48] INFO: ## CYCLE 66 ##
+[2025-11-14 22:55:49] INFO: Displaying Schedule: 1HR TEST - Segment 4/12 (16°, 5.0 min, progress: 25%)
+[2025-11-14 23:00:50] INFO: Cycle #66 (SCHEDULED) complete in 5.04 min | UT: 05:28:43 | Mem: 12.1% | API: Total=32/350, Current=27, Forecast=5
+
+[2025-11-14 23:00:50] INFO: ## CYCLE 67 ##
+[2025-11-14 23:00:51] INFO: Displaying Schedule: 1HR TEST - Segment 5/12 (16°, 5.0 min, progress: 34%)
+[2025-11-14 23:05:52] INFO: Cycle #67 (SCHEDULED) complete in 5.04 min | UT: 05:33:46 | Mem: 12.1% | API: Total=32/350, Current=27, Forecast=5
+
+[2025-11-14 23:05:52] INFO: ## CYCLE 68 ##
+[2025-11-14 23:05:55] INFO: Weather: Cloudy, 16.0°C
+[2025-11-14 23:05:56] INFO: Displaying Schedule: 1HR TEST - Segment 6/12 (16°, 5.0 min, progress: 42%)
+[2025-11-14 23:10:57] INFO: Cycle #68 (SCHEDULED) complete in 5.08 min | UT: 05:38:50 | Mem: 12.0% | API: Total=33/350, Current=28, Forecast=5
+
+[2025-11-14 23:10:57] INFO: ## CYCLE 69 ##
+[2025-11-14 23:10:58] INFO: Displaying Schedule: 1HR TEST - Segment 7/12 (16°, 5.0 min, progress: 51%)
+[2025-11-14 23:15:59] INFO: Cycle #69 (SCHEDULED) complete in 5.04 min | UT: 05:43:53 | Mem: 12.0% | API: Total=33/350, Current=28, Forecast=5
+
+[2025-11-14 23:15:59] INFO: ## CYCLE 70 ##
+[2025-11-14 23:16:01] INFO: Displaying Schedule: 1HR TEST - Segment 8/12 (16°, 5.0 min, progress: 59%)
+[2025-11-14 23:21:02] INFO: Cycle #70 (SCHEDULED) complete in 5.04 min | UT: 05:48:55 | Mem: 12.0% | API: Total=33/350, Current=28, Forecast=5
+
+[2025-11-14 23:21:02] INFO: ## CYCLE 71 ##
+[2025-11-14 23:21:04] INFO: Weather: Cloudy, 13.9°C
+[2025-11-14 23:21:05] INFO: Displaying Schedule: 1HR TEST - Segment 9/12 (14°, 5.0 min, progress: 67%)
+[2025-11-14 23:26:06] INFO: Cycle #71 (SCHEDULED) complete in 5.08 min | UT: 05:53:59 | Mem: 12.0% | API: Total=34/350, Current=29, Forecast=5
+
+[2025-11-14 23:26:06] INFO: ## CYCLE 72 ##
+[2025-11-14 23:26:07] INFO: Displaying Schedule: 1HR TEST - Segment 10/12 (14°, 5.0 min, progress: 76%)
+[2025-11-14 23:31:08] INFO: Cycle #72 (SCHEDULED) complete in 5.04 min | UT: 05:59:02 | Mem: 12.0% | API: Total=34/350, Current=29, Forecast=5
+
+[2025-11-14 23:31:08] INFO: ## CYCLE 73 ##
+[2025-11-14 23:31:10] INFO: Displaying Schedule: 1HR TEST - Segment 11/12 (14°, 5.0 min, progress: 84%)
+[2025-11-14 23:36:11] INFO: Cycle #73 (SCHEDULED) complete in 5.04 min | UT: 06:04:04 | Mem: 12.0% | API: Total=34/350, Current=29, Forecast=5
+
+[2025-11-14 23:36:11] INFO: ## CYCLE 74 ##
+[2025-11-14 23:36:13] INFO: Weather: Mostly cloudy, 15.2°C
+[2025-11-14 23:36:14] INFO: Displaying Schedule: 1HR TEST - Segment 12/12 (15°, 4.4 min, progress: 93%)
+[2025-11-14 23:40:44] INFO: Cycle #74 (SCHEDULED) complete in 4.55 min | UT: 06:08:37 | Mem: 11.3% | API: Total=35/350, Current=30, Forecast=5
+
+[2025-11-14 23:40:44] INFO: ## CYCLE 75 ##
+[2025-11-14 23:40:44] INFO: Weather: Mostly cloudy, 15.0°C
+[2025-11-14 23:40:45] INFO: Forecast: 12 hours (fresh) | Next: 10.4°C
+[2025-11-14 23:40:48] INFO: Displaying Forecast: Current 15°C → Next: 10°C, 10°C (1 min) [Fresh]
+[2025-11-14 23:41:50] INFO: Displaying Weather: Mostly cloudy, 15°C (4 min)
+[2025-11-14 23:45:51] INFO: Cycle #75 complete in 5.13 min | UT: 06:13:45 | Mem: 15.4% | API: Total=37/350, Current=31, Forecast=6
+
+[2025-11-14 23:45:51] INFO: ## CYCLE 76 ##
+[2025-11-14 23:45:52] INFO: Weather: Mostly cloudy, 15.0°C
+[2025-11-14 23:45:54] INFO: Displaying Forecast: Current 15°C → Next: 10°C, 10°C (1 min) [Cached]
+[2025-11-14 23:46:55] INFO: Displaying Weather: Mostly cloudy, 15°C (4 min)
+[2025-11-14 23:50:56] INFO: Cycle #76 complete in 5.08 min | UT: 06:18:49 | Mem: 13.4% | API: Total=38/350, Current=32, Forecast=6
