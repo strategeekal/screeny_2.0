@@ -58,7 +58,7 @@ from network import (
 )
 
 # Import cache classes
-from cache import WeatherCache, ImageCache
+from cache import ImageCache
 
 # Import event functions
 from events import (
