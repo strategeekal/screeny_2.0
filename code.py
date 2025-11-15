@@ -3903,12 +3903,14 @@ def update_rtc_datetime(rtc, new_year=None, new_month=None, new_day=None, new_ho
 		
 def initialize_system(rtc):
 	"""Initialize all hardware and load configuration"""
+	global state, font, bg_font, display_config
+
 	log_info("=== STARTUP ===")
-	
+
 	# Log debug level
 	level_names = {0: "NONE", 1: "ERROR", 2: "WARNING", 3: "INFO", 4: "DEBUG", 5: "VERBOSE"}
 	log_info(f"Debug level: {level_names.get(CURRENT_DEBUG_LEVEL, 'UNKNOWN')} ({CURRENT_DEBUG_LEVEL})")
-	
+
 	# Initialize hardware
 	initialize_display(state)
 
@@ -4010,6 +4012,7 @@ def setup_network_and_time(rtc):
 
 def handle_extended_failure_mode(rtc, time_since_success):
 	"""Handle extended failure mode with periodic recovery attempts"""
+	global state, font, bg_font, display_config
 	# Log entry into extended failure mode (only once)
 	if not state.in_extended_failure_mode:
 		log_warning(f"ENTERING extended failure mode after {int(time_since_success/System.SECONDS_PER_MINUTE)} minutes without success")
@@ -4085,6 +4088,7 @@ def _ensure_wifi_available(rtc):
 
 def _check_failure_mode(rtc):
 	"""Helper: Check and handle extended failure mode (Category A2)"""
+    global state, font, bg_font, display_config
 	time_since_success = time.monotonic() - state.last_successful_weather
 	in_failure_mode = time_since_success > Timing.EXTENDED_FAILURE_THRESHOLD
 
@@ -4102,6 +4106,7 @@ def _check_failure_mode(rtc):
 
 def _run_scheduled_cycle(rtc, cycle_count, cycle_start_time):
 	"""Helper: Handle scheduled display if active (Category A2)"""
+    global state, font, bg_font, display_config
 	if not display_config.show_scheduled_displays:
 		log_debug("Scheduled displays disabled due to errors")
 		return False
@@ -4152,6 +4157,7 @@ def _run_scheduled_cycle(rtc, cycle_count, cycle_start_time):
 
 def _run_normal_cycle(rtc, cycle_count, cycle_start_time):
 	"""Helper: Run normal display cycle (Category A2)"""
+	global state, font, bg_font, display_config
 	something_displayed = False
 
 	# Fetch data once
@@ -4320,7 +4326,7 @@ def main():
 	finally:
 		log_debug("Cleaning up before exit...")
 		state.memory_monitor.log_report()
-		clear_display()
+		clear_display(state)
 		cleanup_global_session()
 
 # Program entry point
