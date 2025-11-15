@@ -3908,10 +3908,10 @@ def initialize_system(rtc):
 	log_info(f"Debug level: {level_names.get(CURRENT_DEBUG_LEVEL, 'UNKNOWN')} ({CURRENT_DEBUG_LEVEL})")
 	
 	# Initialize hardware
-	initialize_display()
-	
+	initialize_display(state)
+
 	# Detect matrix type and initialize colors
-	matrix_type = detect_matrix_type()
+	matrix_type = detect_matrix_type(state)
 	state.colors = get_matrix_colors()
 	state.memory_monitor.check_memory("hardware_init_complete")
 	
@@ -4014,7 +4014,7 @@ def handle_extended_failure_mode(rtc, time_since_success):
 		state.in_extended_failure_mode = True
 	
 	log_debug(f"Extended failure mode active ({int(time_since_success/System.SECONDS_PER_MINUTE)}min since success) - showing clock only")
-	show_clock_display(rtc, Timing.CLOCK_DISPLAY_DURATION)
+	show_clock_display(rtc, Timing.CLOCK_DISPLAY_DURATION, state, font, bg_font, display_config)
 	
 	# Periodically retry (every ~30 minutes)
 	if int(time_since_success) % Timing.API_RECOVERY_RETRY_INTERVAL < Timing.DEFAULT_CYCLE:
@@ -4078,7 +4078,7 @@ def _ensure_wifi_available(rtc):
 		return True
 
 	log_warning("No WiFi - showing clock")
-	show_clock_display(rtc, Timing.CLOCK_DISPLAY_DURATION)
+	show_clock_display(rtc, Timing.CLOCK_DISPLAY_DURATION, state, font, bg_font, display_config)
 	return False
 
 def _check_failure_mode(rtc):
@@ -4125,7 +4125,7 @@ def _run_scheduled_cycle(rtc, cycle_count, cycle_start_time):
 	display_duration = get_remaining_schedule_time(rtc, schedule_config)
 	segment_start = time.monotonic()
 
-	show_scheduled_display(rtc, schedule_name, schedule_config, display_duration, current_data)
+	show_scheduled_display(rtc, schedule_name, schedule_config, display_duration, current_data, state, font, display_config)
 
 	# Fast cycle protection
 	segment_elapsed = time.monotonic() - segment_start
@@ -4138,7 +4138,7 @@ def _run_scheduled_cycle(rtc, cycle_count, cycle_start_time):
 	if state.schedule_just_ended and display_config.show_events_in_between_schedules and display_config.show_events:
 		cleanup_global_session()
 		gc.collect()
-		show_event_display(rtc, 30)
+		show_event_display(rtc, 30, state, font, display_config, get_today_events_info, get_today_all_events_info)
 		cleanup_global_session()
 		gc.collect()
 
@@ -4159,7 +4159,7 @@ def _run_normal_cycle(rtc, cycle_count, cycle_start_time):
 	# Forecast display
 	forecast_shown = False
 	if display_config.show_forecast and current_data and forecast_data:
-		forecast_shown = show_forecast_display(current_data, forecast_data, forecast_duration, forecast_is_fresh)
+		forecast_shown = show_forecast_display(current_data, forecast_data, forecast_duration, forecast_is_fresh, state, font, display_config)
 		something_displayed = something_displayed or forecast_shown
 
 	if not forecast_shown:
@@ -4167,29 +4167,29 @@ def _run_normal_cycle(rtc, cycle_count, cycle_start_time):
 
 	# Weather display
 	if display_config.show_weather and current_data:
-		show_weather_display(rtc, current_duration, current_data)
+		show_weather_display(rtc, current_duration, current_data, state, font, bg_font, display_config)
 		something_displayed = True
 
 	# Events display
 	if display_config.show_events and event_duration > 0:
-		event_shown = show_event_display(rtc, event_duration)
+		event_shown = show_event_display(rtc, event_duration, state, font, display_config, get_today_events_info, get_today_all_events_info)
 		something_displayed = something_displayed or event_shown
 		if not event_shown:
 			interruptible_sleep(1)
 
 	# Test modes
 	if display_config.show_color_test:
-		show_color_test_display(Timing.COLOR_TEST)
+		show_color_test_display(Timing.COLOR_TEST, state, font)
 		something_displayed = True
 
 	if display_config.show_icon_test:
-		show_icon_test_display(icon_numbers=TestData.TEST_ICONS)
+		show_icon_test_display(icon_numbers=TestData.TEST_ICONS, state=state, font=font)
 		something_displayed = True
 
 	# Fallback: show clock if nothing displayed
 	if not something_displayed:
 		log_warning("No displays active - showing clock as fallback")
-		show_clock_display(rtc, Timing.CLOCK_DISPLAY_DURATION)
+		show_clock_display(rtc, Timing.CLOCK_DISPLAY_DURATION, state, font, bg_font, display_config)
 		something_displayed = True
 
 	# Cache stats logging
@@ -4263,7 +4263,7 @@ def main():
 		if display_config.delayed_start:
 			STARTUP_DELAY = System.STARTUP_DELAY_TIME
 			log_info(f"Startup delay: {STARTUP_DELAY}s")
-			show_clock_display(rtc, STARTUP_DELAY)
+			show_clock_display(rtc, STARTUP_DELAY, state, font, bg_font, display_config)
 		
 		# Network setup - CAPTURE the return value!
 		location_info = setup_network_and_time(rtc)  # ← ADD location_info =
