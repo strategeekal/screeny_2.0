@@ -1021,9 +1021,11 @@ def format_datetime(iso_string):
 	return f"{MONTHS[month]} {day}, {time_str}"
 
 ### HARDWARE INITIALIZATION ###
+# NOTE: These functions are now imported from display.py
+# Old code preserved below with _OLD suffix for reference
 
-def initialize_display():
-	"""Initialize RGB matrix display"""
+def initialize_display_OLD():
+	"""Initialize RGB matrix display - OLD VERSION (use display.py version)"""
 	
 	displayio.release_displays()
 	
@@ -1785,8 +1787,8 @@ def get_today_all_events_info(rtc):
 
 ### DISPLAY UTILITIES ###
 
-def detect_matrix_type():
-	"""Auto-detect matrix wiring type (cached for performance)"""
+def detect_matrix_type_OLD():
+	"""Auto-detect matrix wiring type - OLD VERSION (use display.py version)"""
 	if state.matrix_type_cache is not None:
 		return state.matrix_type_cache
 	
@@ -1803,8 +1805,8 @@ def detect_matrix_type():
 	return state.matrix_type_cache
 	
 # Function to get corrected colors for current matrix
-def get_matrix_colors():
-	"""Get color constants with corrections applied"""
+def get_matrix_colors_OLD():
+	"""Get color constants - OLD VERSION (use display.py version)"""
 	matrix_type = detect_matrix_type()
 	bit_depth = Display.BIT_DEPTH
 	
@@ -2593,8 +2595,8 @@ def add_indicator_bars(main_group, x_start, uv_index, humidity):
 				main_group.append(Line(x_start + i, Layout.HUMIDITY_BAR_Y, x_start + i, Layout.HUMIDITY_BAR_Y, state.colors["BLACK"]))
 
 
-def show_weather_display(rtc, duration, weather_data=None):
-	"""Optimized weather display - only update time text in loop"""
+def show_weather_display_OLD(rtc, duration, weather_data=None):
+	"""OLD VERSION (use display.py version)"""
 	state.memory_monitor.check_memory("weather_display_start")
 	
 	# Require weather_data to be provided
@@ -2751,7 +2753,7 @@ def show_weather_display(rtc, duration, weather_data=None):
 	
 	state.memory_monitor.check_memory("weather_display_complete")
 				
-def show_clock_display(rtc, duration=Timing.CLOCK_DISPLAY_DURATION):
+def show_clock_display_OLD(rtc, duration=Timing.CLOCK_DISPLAY_DURATION):
 	"""Display clock as fallback when weather unavailable"""
 	log_warning(f"Displaying clock for {duration_message(duration)}...")
 	clear_display()
@@ -2819,7 +2821,7 @@ def show_clock_display(rtc, duration=Timing.CLOCK_DISPLAY_DURATION):
 		elif time_since_success > System.SECONDS_HALF_HOUR and state.consecutive_failures >= System.MAX_LOG_FAILURES_BEFORE_RESTART:
 			log_warning(f"Extended failure: {int(time_since_success/System.SECONDS_PER_MINUTE)}min without success, {state.consecutive_failures} consecutive failures")
 		
-def show_event_display(rtc, duration):
+def show_event_display_OLD(rtc, duration):
 	"""Display special calendar events - cycles through multiple events if present"""
 	state.memory_monitor.check_memory("event_display_start")
 	
@@ -2999,7 +3001,7 @@ def _display_single_event_optimized(event_data, rtc, duration):
 	gc.collect()
 	state.memory_monitor.check_memory("single_event_complete")
 			
-def show_color_test_display(duration=Timing.COLOR_TEST):
+def show_color_test_display_OLD(duration=Timing.COLOR_TEST):
 	log_debug(f"Displaying Color Test for {duration_message(Timing.COLOR_TEST)}")
 	clear_display()
 	gc.collect()
@@ -3032,7 +3034,7 @@ def show_color_test_display(duration=Timing.COLOR_TEST):
 	gc.collect()
 	return True
 	
-def show_icon_test_display(icon_numbers=None, duration=Timing.ICON_TEST):
+def show_icon_test_display_OLD(icon_numbers=None, duration=Timing.ICON_TEST):
 	"""
 	Test display for weather icon columns
 	
@@ -3152,7 +3154,7 @@ def _display_icon_batch(icon_numbers, batch_num=None, total_batches=None, manual
 	except Exception as e:
 		log_error(f"Icon display error: {e}")
 	
-def show_forecast_display(current_data, forecast_data, display_duration, is_fresh=False):
+def show_forecast_display_OLD(current_data, forecast_data, display_duration, is_fresh=False):
 	"""Optimized forecast display with smart precipitation detection"""
 	
 	# CRITICAL: Aggressive cleanup
@@ -3564,7 +3566,7 @@ def get_schedule_progress():
 	
 	return elapsed, total_duration, progress_ratio
 
-def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, current_data=None):
+def show_scheduled_display_OLD(rtc, schedule_name, schedule_config, total_duration, current_data=None):
 	"""
 	Display scheduled message for one segment (max 5 minutes)
 	Supports multi-segment schedules by tracking overall progress
