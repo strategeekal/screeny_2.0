@@ -43,10 +43,8 @@ from network import is_wifi_connected, get_cached_weather_if_fresh, fetch_curren
 # HARDWARE INITIALIZATION
 # ===========================
 
-def initialize_display():
+def initialize_display(state=None):
 	"""Initialize RGB matrix display"""
-	from code import state
-	
 	displayio.release_displays()
 	
 	matrix = rgbmatrix.RGBMatrix(
@@ -72,10 +70,8 @@ def initialize_display():
 # MATRIX DETECTION & COLORS
 # ===========================
 
-def detect_matrix_type():
+def detect_matrix_type(state=None):
 	"""Auto-detect matrix wiring type (cached for performance)"""
-	from code import state
-	
 	if state.matrix_type_cache is not None:
 		return state.matrix_type_cache
 	
@@ -153,9 +149,8 @@ def load_bmp_image(filepath):
 # TEXT UTILITIES
 # ===========================
 
-def get_text_width(text, font):
+def get_text_width(text, font, state=None):
 	"""Get text width using cache"""
-	from code import state
 	return state.text_cache.get_text_width(text, font)
 
 
@@ -211,10 +206,8 @@ def calculate_bottom_aligned_positions(font, line1_text, line2_text, display_hei
 # DISPLAY UTILITIES
 # ===========================
 
-def clear_display():
+def clear_display(state=None):
 	"""Clear the display"""
-	from code import state
-	
 	while len(state.main_group) > 0:
 		state.main_group.pop()
 
@@ -230,10 +223,8 @@ def center_text(text, font, area_x, area_width):
 	return area_x + (area_width - text_width) // 2
 
 
-def get_day_color(rtc):
+def get_day_color(rtc, state=None):
 	"""Get color for current day of week"""
-	from code import state
-	
 	day_colors = [
 		state.colors["LIME"],      # Monday
 		state.colors["BUGAMBILIA"],  # Tuesday
@@ -247,15 +238,14 @@ def get_day_color(rtc):
 	return day_colors[rtc.datetime.tm_wday]
 
 
-def add_day_indicator(main_group, rtc):
+def add_day_indicator(main_group, rtc, state=None):
 	"""Add colored day-of-week indicator to display"""
-	from code import state
 	import displayio
-	
+
 	# Day indicator square (top right)
 	day_palette = displayio.Palette(2)
 	day_palette[0] = state.colors["BLACK"]
-	day_palette[1] = get_day_color(rtc)
+	day_palette[1] = get_day_color(rtc, state)
 	
 	day_bitmap = displayio.Bitmap(DayIndicator.SIZE, DayIndicator.SIZE, 2)
 	for y in range(DayIndicator.SIZE):
@@ -291,10 +281,8 @@ def calculate_humidity_bar_length(humidity):
 	return min(humidity // Visual.HUMIDITY_PERCENT_PER_PIXEL, 14)
 
 
-def add_indicator_bars(main_group, x_start, uv_index, humidity):
+def add_indicator_bars(main_group, x_start, uv_index, humidity, state=None):
 	"""Add UV and humidity indicator bars to display"""
-	from code import state
-	
 	# UV bar
 	uv_length = calculate_uv_bar_length(uv_index)
 	for i in range(uv_length):
@@ -316,10 +304,8 @@ def add_indicator_bars(main_group, x_start, uv_index, humidity):
 # ERROR STATE HELPERS
 # ===========================
 
-def get_current_error_state():
+def get_current_error_state(state=None):
 	"""Determine current error state based on system status"""
-	from code import state
-
 	# During startup (before first weather attempt), show OK
 	if state.startup_time == 0:
 		return None
@@ -358,15 +344,13 @@ def get_current_error_state():
 # DISPLAY FUNCTIONS
 # ===========================
 
-def show_clock_display(rtc, duration=Timing.CLOCK_DISPLAY_DURATION):
+def show_clock_display(rtc, duration=Timing.CLOCK_DISPLAY_DURATION, state=None, font=None, bg_font=None, display_config=None):
 	"""Display clock as fallback when weather unavailable"""
-	from code import state, font, bg_font, display_config
-
 	log_warning(f"Displaying clock for {duration_message(duration)}...")
-	clear_display()
+	clear_display(state)
 
 	# Determine clock color based on error state
-	error_state = get_current_error_state()
+	error_state = get_current_error_state(state)
 
 	clock_colors = {
 		None: state.colors[Strings.DEFAULT_EVENT_COLOR],  # MINT = All OK
@@ -396,7 +380,7 @@ def show_clock_display(rtc, duration=Timing.CLOCK_DISPLAY_DURATION):
 
 	# Add day indicator after other elements
 	if display_config.show_weekday_indicator:
-		add_day_indicator(state.main_group, rtc)
+		add_day_indicator(state.main_group, rtc, state)
 		log_verbose(f"Showing Weekday Color Indicator on Clock Display")
 	else:
 		log_verbose("Weekday Color Indicator Disabled")
@@ -449,10 +433,8 @@ def show_clock_display(rtc, duration=Timing.CLOCK_DISPLAY_DURATION):
 # Each function is 50-200+ lines and requires careful extraction
 # to maintain all functionality, error handling, and logging.
 
-def show_weather_display(rtc, duration, weather_data=None):
+def show_weather_display(rtc, duration, weather_data=None, state=None, font=None, bg_font=None, display_config=None):
 	"""Optimized weather display - only update time text in loop"""
-	from code import state, font, bg_font, display_config
-
 	state.memory_monitor.check_memory("weather_display_start")
 
 	# Require weather_data to be provided
@@ -473,7 +455,7 @@ def show_weather_display(rtc, duration, weather_data=None):
 	log_debug(f"Displaying weather for {duration_message(duration)}")
 
 	# Clear display and setup static elements ONCE
-	clear_display()
+	clear_display(state)
 
 	# LOG what we're displaying
 	temp = round(weather_data["feels_like"])
@@ -561,11 +543,11 @@ def show_weather_display(rtc, duration, weather_data=None):
 		state.main_group.append(feels_shade_text)
 
 	# Add UV and humidity indicator bars ONCE (they're static)
-	add_indicator_bars(state.main_group, temp_text.x, weather_data['uv_index'], weather_data['humidity'])
+	add_indicator_bars(state.main_group, temp_text.x, weather_data['uv_index'], weather_data['humidity'], state)
 
 	# Add day indicator ONCE
 	if display_config.show_weekday_indicator:
-		add_day_indicator(state.main_group, rtc)
+		add_day_indicator(state.main_group, rtc, state)
 		log_verbose(f"Showing Weekday Color Indicator on Weather Display")
 	else:
 		log_verbose("Weekday Color Indicator Disabled")
@@ -610,10 +592,8 @@ def show_weather_display(rtc, duration, weather_data=None):
 	state.memory_monitor.check_memory("weather_display_complete")
 
 
-def show_event_display(rtc, duration):
+def show_event_display(rtc, duration, state=None, font=None, display_config=None, get_today_events_info=None, get_today_all_events_info=None):
 	"""Display special calendar events - cycles through multiple events if present"""
-	from code import state, get_today_events_info, get_today_all_events_info
-
 	state.memory_monitor.check_memory("event_display_start")
 
 	# Get currently active events
@@ -657,7 +637,7 @@ def show_event_display(rtc, duration):
 		event_data = event_list[0]
 		log_info(f"Showing event: {event_data[0]} {event_data[1]}")
 		log_debug(f"Showing event display for {duration_message(duration)}")
-		_display_single_event_optimized(event_data, rtc, duration)
+		_display_single_event_optimized(event_data, rtc, duration, state, font, display_config)
 	else:
 		# Multiple events - split time between them
 		event_duration = max(duration // num_events, Timing.MIN_EVENT_DURATION)
@@ -666,17 +646,15 @@ def show_event_display(rtc, duration):
 		for i, event_data in enumerate(event_list):
 			state.memory_monitor.check_memory(f"event_{i+1}_start")
 			log_info(f"Event {i+1}/{num_events}: {event_data[0]} {event_data[1]}")
-			_display_single_event_optimized(event_data, rtc, event_duration)
+			_display_single_event_optimized(event_data, rtc, event_duration, state, font, display_config)
 
 	state.memory_monitor.check_memory("event_display_complete")
 	return True
 
 
-def _display_single_event_optimized(event_data, rtc, duration):
+def _display_single_event_optimized(event_data, rtc, duration, state=None, font=None, display_config=None):
 	"""Optimized helper function to display a single event"""
-	from code import state, font, display_config
-
-	clear_display()
+	clear_display(state)
 
 	# Force garbage collection before loading images
 	gc.collect()
@@ -764,7 +742,7 @@ def _display_single_event_optimized(event_data, rtc, duration):
 
 			# Add day indicator
 			if display_config.show_weekday_indicator:
-				add_day_indicator(state.main_group, rtc)
+				add_day_indicator(state.main_group, rtc, state)
 				log_debug("Showing Weekday Color Indicator on Event Display")
 
 		# Simple strategy optimized for usage patterns
@@ -796,12 +774,10 @@ def _display_single_event_optimized(event_data, rtc, duration):
 	state.memory_monitor.check_memory("single_event_complete")
 
 
-def show_forecast_display(current_data, forecast_data, display_duration, is_fresh=False):
+def show_forecast_display(current_data, forecast_data, display_duration, is_fresh=False, state=None, font=None, display_config=None):
 	"""Optimized forecast display with smart precipitation detection"""
-	from code import state, font, display_config
-
 	# CRITICAL: Aggressive cleanup
-	clear_display()
+	clear_display(state)
 	gc.collect()
 	state.memory_monitor.check_memory("forecast_display_start")
 
@@ -854,7 +830,7 @@ def show_forecast_display(current_data, forecast_data, display_duration, is_fres
 
 	log_debug(f"Will show hours: {forecast_indices[0]+1} and {forecast_indices[1]+1}")
 
-	clear_display()
+	clear_display(state)
 	gc.collect()
 
 	# LOG what we're about to display
@@ -1034,7 +1010,7 @@ def show_forecast_display(current_data, forecast_data, display_duration, is_fres
 
 		# Add day indicator if enabled
 		if display_config.show_weekday_indicator:
-			add_day_indicator(state.main_group, state.rtc_instance)
+			add_day_indicator(state.main_group, state.rtc_instance, state)
 
 
 		# Display update loop - update column 1 time only when minute changes
@@ -1089,15 +1065,13 @@ def show_forecast_display(current_data, forecast_data, display_duration, is_fres
 	return True
 
 
-def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, current_data=None):
+def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, current_data=None, state=None, font=None, display_config=None):
 	"""
 	Display scheduled message for one segment (max 5 minutes)
 	Supports multi-segment schedules by tracking overall progress
 	"""
-	from code import state, font, display_config
-
 	# Calculate how long this segment should display
-	elapsed, full_duration, progress = get_schedule_progress()
+	elapsed, full_duration, progress = get_schedule_progress(state)
 
 	if elapsed is None:
 		# First segment of schedule - initialize session
@@ -1126,7 +1100,7 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 
 	# Light cleanup before segment (keep session alive for connection reuse)
 	gc.collect()
-	clear_display()
+	clear_display(state)
 
 	# Fetch weather data (separate try block for data fetching)
 	try:
@@ -1235,7 +1209,7 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 
 		# === WEEKDAY INDICATOR (IF ENABLED) ===
 		if display_config.show_weekday_indicator:
-			add_day_indicator(state.main_group, rtc)
+			add_day_indicator(state.main_group, rtc, state)
 			log_verbose("Showing Weekday Color Indicator on Schedule Display")
 
 		# LOG what's being displayed this segment
@@ -1257,7 +1231,7 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 		# === PROGRESS BAR ===
 		## Progress bar - based on FULL schedule progress, not segment
 		if schedule_config.get("progressbar", True):
-			progress_grid, progress_bitmap = create_progress_bar_tilegrid()
+			progress_grid, progress_bitmap = create_progress_bar_tilegrid(state)
 
 			# Pre-fill progress bar based on elapsed time using existing function
 			if progress > 0:
@@ -1327,12 +1301,10 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 		# return is_last_segment # Boolean - is this last segment of schedule display
 
 
-def show_color_test_display(duration=Timing.COLOR_TEST):
+def show_color_test_display(duration=Timing.COLOR_TEST, state=None, font=None):
 	"""Display color test grid to verify color accuracy"""
-	from code import state, font
-
 	log_debug(f"Displaying Color Test for {duration_message(Timing.COLOR_TEST)}")
-	clear_display()
+	clear_display(state)
 	gc.collect()
 
 	try:
@@ -1364,7 +1336,7 @@ def show_color_test_display(duration=Timing.COLOR_TEST):
 	return True
 
 
-def show_icon_test_display(icon_numbers=None, duration=Timing.ICON_TEST):
+def show_icon_test_display(icon_numbers=None, duration=Timing.ICON_TEST, state=None, font=None):
 	"""
 	Test display for weather icon columns
 
@@ -1373,8 +1345,6 @@ def show_icon_test_display(icon_numbers=None, duration=Timing.ICON_TEST):
 					 If None, cycles through all icons
 		duration: How long to display (only used when cycling all icons)
 	"""
-	from code import state
-
 	if icon_numbers is None:
 		# Original behavior - cycle through all icons
 		log_info("Starting Icon Test Display - All Icons (Ctrl+C to exit)")
@@ -1397,7 +1367,7 @@ def show_icon_test_display(icon_numbers=None, duration=Timing.ICON_TEST):
 				end_idx = min(start_idx + icons_per_batch, total_icons)
 				batch_icons = all_icons[start_idx:end_idx]
 
-				_display_icon_batch(batch_icons, batch_num + 1, num_batches)
+				_display_icon_batch(batch_icons, batch_num + 1, num_batches, False, state, font)
 
 				# Shorter sleep intervals for better interrupt response
 				for _ in range(int(duration * 10)):
@@ -1405,7 +1375,7 @@ def show_icon_test_display(icon_numbers=None, duration=Timing.ICON_TEST):
 
 		except KeyboardInterrupt:
 			log_info("Icon test interrupted by user")
-			clear_display()
+			clear_display(state)
 			raise
 	else:
 		# Manual mode - display specific icons indefinitely
@@ -1414,7 +1384,7 @@ def show_icon_test_display(icon_numbers=None, duration=Timing.ICON_TEST):
 			icon_numbers = icon_numbers[:3]
 
 		log_info(f"Displaying icons: {icon_numbers} (Ctrl+C to exit)")
-		_display_icon_batch(icon_numbers, manual_mode=True)
+		_display_icon_batch(icon_numbers, None, None, True, state, font)
 
 		# Loop indefinitely until interrupted
 		try:
@@ -1422,7 +1392,7 @@ def show_icon_test_display(icon_numbers=None, duration=Timing.ICON_TEST):
 				time.sleep(0.1)  # Keep display active, check for interrupt
 		except KeyboardInterrupt:
 			log_info("Icon test interrupted")
-			clear_display()
+			clear_display(state)
 			raise
 
 	log_info("Icon Test Display complete")
@@ -1430,14 +1400,12 @@ def show_icon_test_display(icon_numbers=None, duration=Timing.ICON_TEST):
 	return True
 
 
-def _display_icon_batch(icon_numbers, batch_num=None, total_batches=None, manual_mode=False):
+def _display_icon_batch(icon_numbers, batch_num=None, total_batches=None, manual_mode=False, state=None, font=None):
 	"""Helper function to display a batch of icons"""
-	from code import state, font
-
 	if not manual_mode:
 		log_info(f"Batch {batch_num}/{total_batches}: Icons {icon_numbers}")
 
-	clear_display()
+	clear_display(state)
 	gc.collect()
 
 	try:
@@ -1487,10 +1455,8 @@ def _display_icon_batch(icon_numbers, batch_num=None, total_batches=None, manual
 		log_error(f"Icon display error: {e}")
 
 
-def create_progress_bar_tilegrid():
+def create_progress_bar_tilegrid(state=None):
 	"""Create a TileGrid-based progress bar with tick marks"""
-	from code import state
-
 	# Progress bar dimensions
 	bar_width = Layout.PROGRESS_BAR_HORIZONTAL_WIDTH
 	bar_height = Layout.PROGRESS_BAR_HORIZONTAL_HEIGHT
@@ -1569,12 +1535,11 @@ def update_progress_bar_bitmap(progress_bitmap, elapsed_seconds, total_seconds):
 				progress_bitmap[x, y] = 2  # Remaining (MINT)
 
 
-def get_schedule_progress():
+def get_schedule_progress(state=None):
 	"""
 	Calculate progress for active schedule session
 	Returns: (elapsed_seconds, total_duration, progress_ratio) or (None, None, None)
 	"""
-	from code import state
 
 	if not state.active_schedule_name or not state.active_schedule_start_time:
 		return None, None, None
