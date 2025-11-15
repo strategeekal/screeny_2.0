@@ -111,14 +111,30 @@ def main():
         },
         'display.py': {
             'classes': [],
-            'functions': ['initialize_display', 'detect_matrix_type', 'get_matrix_colors',
-                         'convert_bmp_palette', 'load_bmp_image', 'get_text_width',
-                         'get_font_metrics', 'calculate_bottom_aligned_positions',
-                         'clear_display', 'right_align_text', 'center_text',
-                         'get_day_color', 'add_day_indicator', 'calculate_uv_bar_length',
-                         'calculate_humidity_bar_length', 'add_indicator_bars',
-                         'show_weather_display', 'show_clock_display', 'show_event_display',
-                         'show_forecast_display', 'show_scheduled_display'],
+            'functions': [
+                # Hardware initialization
+                'initialize_display', 'detect_matrix_type', 'get_matrix_colors',
+                # Image utilities
+                'convert_bmp_palette', 'load_bmp_image',
+                # Text utilities
+                'get_text_width', 'get_font_metrics', 'calculate_bottom_aligned_positions',
+                # Display utilities
+                'clear_display', 'right_align_text', 'center_text',
+                # Weather indicators
+                'get_day_color', 'add_day_indicator', 'calculate_uv_bar_length',
+                'calculate_humidity_bar_length', 'add_indicator_bars',
+                # Error state helpers (Phase 4A)
+                'get_current_error_state',
+                # Main display functions (Phase 4A & 4B)
+                'show_clock_display', 'show_weather_display', 'show_event_display',
+                'show_forecast_display', 'show_scheduled_display',
+                # Test display functions (Phase 4A)
+                'show_color_test_display', 'show_icon_test_display',
+                # Helper functions (Phase 4A & 4B)
+                '_display_icon_batch', '_display_single_event_optimized',
+                # Progress bar utilities (Phase 4A)
+                'create_progress_bar_tilegrid', 'update_progress_bar_bitmap', 'get_schedule_progress',
+            ],
         },
     }
 
