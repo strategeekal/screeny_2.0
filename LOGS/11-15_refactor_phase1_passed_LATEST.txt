@@ -1,0 +1,556 @@
+[2025-11-15 01:04:04] INFO: === STARTUP ===
+[2025-11-15 01:04:04] INFO: Debug level: INFO (3)
+[2025-11-15 01:04:06] INFO: Hardware ready | 11 schedules (default) | 68 events (27 imported) | Today: 1 event (0 active now)
+[2025-11-15 01:04:10] INFO: Time synced to America/Chicago (UTC-6)
+[2025-11-15 01:04:10] INFO: Fetching time and weather for: Sheffield And Depaul, IL
+[2025-11-15 01:04:10] INFO: Active displays: weather, forecast, events, weekday indicator
+[2025-11-15 01:04:10] INFO: == STARTING MAIN DISPLAY LOOP == 
+
+[2025-11-15 01:04:10] INFO: ## CYCLE 1 ##
+[2025-11-15 01:04:10] INFO: Weather: Mostly clear, 15.5°C
+[2025-11-15 01:04:11] INFO: Forecast: 12 hours (fresh) | Next: 12.0°C
+[2025-11-15 01:04:12] INFO: Displaying Forecast: Current 16°C → Next: 12°C, 12°C (1 min) [Fresh]
+[2025-11-15 01:05:31] INFO: Displaying Weather: Mostly clear, 16°C (4 min)
+[2025-11-15 01:09:38] INFO: Cycle #1 complete in 5.47 min | UT: 00:05:33 | Mem: 12.0% | API: Total=2/350, Current=1, Forecast=1
+
+[2025-11-15 01:09:38] INFO: ## CYCLE 2 ##
+[2025-11-15 01:09:38] INFO: Weather: Clear, 16.0°C
+[2025-11-15 01:09:39] INFO: Displaying Forecast: Current 16°C → Next: 12°C, 12°C (1 min) [Cached]
+[2025-11-15 01:10:41] INFO: Displaying Weather: Clear, 16°C (4 min)
+[2025-11-15 01:14:41] INFO: Cycle #2 complete in 5.06 min | UT: 00:10:37 | Mem: 11.4% | API: Total=3/350, Current=2, Forecast=1
+
+[2025-11-15 01:14:41] INFO: ## CYCLE 3 ##
+[2025-11-15 01:14:42] INFO: Weather: Clear, 16.0°C
+[2025-11-15 01:14:43] INFO: Displaying Forecast: Current 16°C → Next: 12°C, 12°C (1 min) [Cached]
+[2025-11-15 01:15:44] INFO: Displaying Weather: Clear, 16°C (4 min)
+[2025-11-15 01:19:45] INFO: Cycle #3 complete in 5.05 min | UT: 00:15:40 | Mem: 11.4% | API: Total=4/350, Current=3, Forecast=1
+
+[2025-11-15 01:19:45] INFO: ## CYCLE 4 ##
+[2025-11-15 01:19:45] INFO: Weather: Partly cloudy, 16.0°C
+[2025-11-15 01:19:46] INFO: Forecast: 12 hours (fresh) | Next: 11.6°C
+[2025-11-15 01:19:48] INFO: Displaying Forecast: Current 16°C → Next: 12°C, 12°C (1 min) [Fresh]
+[2025-11-15 01:20:51] INFO: Displaying Weather: Partly cloudy, 16°C (4 min)
+[2025-11-15 01:24:51] INFO: Cycle #4 complete in 5.11 min | UT: 00:20:47 | Mem: 14.0% | API: Total=6/350, Current=4, Forecast=2
+
+[2025-11-15 01:24:51] INFO: ## CYCLE 5 ##
+[2025-11-15 01:24:52] INFO: Weather: Partly cloudy, 16.0°C
+[2025-11-15 01:24:53] INFO: Displaying Forecast: Current 16°C → Next: 12°C, 12°C (1 min) [Cached]
+[2025-11-15 01:25:54] INFO: Displaying Weather: Partly cloudy, 16°C (4 min)
+[2025-11-15 01:29:55] INFO: Cycle #5 complete in 5.07 min | UT: 00:25:51 | Mem: 11.9% | API: Total=7/350, Current=5, Forecast=2
+
+[2025-11-15 01:29:55] INFO: ## CYCLE 6 ##
+[2025-11-15 01:29:56] INFO: Weather: Partly cloudy, 16.0°C
+[2025-11-15 01:29:57] INFO: Displaying Forecast: Current 16°C → Next: 12°C, 12°C (1 min) [Cached]
+[2025-11-15 01:30:58] INFO: Displaying Weather: Partly cloudy, 16°C (4 min)
+[2025-11-15 01:34:58] INFO: Cycle #6 complete in 5.05 min | UT: 00:30:54 | Mem: 12.0% | API: Total=8/350, Current=6, Forecast=2
+
+[2025-11-15 01:34:58] INFO: ## CYCLE 7 ##
+[2025-11-15 01:34:59] INFO: Weather: Partly cloudy, 16.0°C
+[2025-11-15 01:35:00] INFO: Forecast: 12 hours (fresh) | Next: 11.6°C
+[2025-11-15 01:35:02] INFO: Displaying Forecast: Current 16°C → Next: 12°C, 12°C (1 min) [Fresh]
+[2025-11-15 01:36:04] INFO: Displaying Weather: Partly cloudy, 16°C (4 min)
+[2025-11-15 01:40:04] INFO: Cycle #7 complete in 5.10 min | UT: 00:36:00 | Mem: 14.0% | API: Total=10/350, Current=7, Forecast=3
+
+[2025-11-15 01:40:04] INFO: ## CYCLE 8 ##
+[2025-11-15 01:40:05] INFO: Weather: Partly cloudy, 15.0°C
+[2025-11-15 01:40:06] INFO: Displaying Forecast: Current 15°C → Next: 12°C, 12°C (1 min) [Cached]
+[2025-11-15 01:41:07] INFO: Displaying Weather: Partly cloudy, 15°C (4 min)
+[2025-11-15 01:45:08] INFO: Cycle #8 complete in 5.06 min | UT: 00:41:03 | Mem: 12.0% | API: Total=11/350, Current=8, Forecast=3
+
+[2025-11-15 01:45:08] INFO: ## CYCLE 9 ##
+[2025-11-15 01:45:08] INFO: Weather: Partly cloudy, 15.0°C
+[2025-11-15 01:45:09] INFO: Displaying Forecast: Current 15°C → Next: 12°C, 12°C (1 min) [Cached]
+[2025-11-15 01:46:11] INFO: Displaying Weather: Partly cloudy, 15°C (4 min)
+[2025-11-15 01:50:12] INFO: Cycle #9 complete in 5.07 min | UT: 00:46:08 | Mem: 12.1% | API: Total=12/350, Current=9, Forecast=3
+
+[2025-11-15 01:50:12] INFO: ## CYCLE 10 ##
+[2025-11-15 01:50:13] INFO: Weather: Mostly cloudy, 15.2°C
+[2025-11-15 01:50:13] INFO: Forecast: 12 hours (fresh) | Next: 11.6°C
+[2025-11-15 01:50:16] INFO: Displaying Forecast: Current 15°C → Next: 12°C, 12°C (1 min) [Fresh]
+[2025-11-15 01:51:17] INFO: Displaying Weather: Mostly cloudy, 15°C (4 min)
+[2025-11-15 01:55:19] INFO: Cycle #10 complete in 5.11 min | UT: 00:51:14 | Mem: 14.6% | API: Total=14/350, Current=10, Forecast=4
+
+[2025-11-15 01:55:19] INFO: ## CYCLE 11 ##
+[2025-11-15 01:55:19] INFO: Weather: Mostly cloudy, 15.2°C
+[2025-11-15 01:55:20] INFO: Displaying Forecast: Current 15°C → Next: 12°C, 12°C (1 min) [Cached]
+[2025-11-15 01:56:22] INFO: Displaying Weather: Mostly cloudy, 15°C (4 min)
+[2025-11-15 02:00:23] INFO: Cycle #11 complete in 5.08 min | UT: 00:56:19 | Mem: 12.6% | API: Total=15/350, Current=11, Forecast=4
+
+[2025-11-15 02:00:23] INFO: ## CYCLE 12 ##
+[2025-11-15 02:00:24] INFO: Weather: Mostly cloudy, 15.5°C
+[2025-11-15 02:00:25] INFO: Displaying Forecast: Current 16°C → Next: 12°C, 12°C (1 min) [Cached]
+[2025-11-15 02:01:27] INFO: Displaying Weather: Mostly cloudy, 16°C (4 min)
+[2025-11-15 02:05:27] INFO: Cycle #12 complete in 5.07 min | UT: 01:01:23 | Mem: 12.5% | API: Total=16/350, Current=12, Forecast=4
+
+[2025-11-15 02:05:27] INFO: ## CYCLE 13 ##
+[2025-11-15 02:05:28] INFO: Weather: Mostly cloudy, 15.5°C
+[2025-11-15 02:05:28] INFO: Forecast: 12 hours (fresh) | Next: 11.7°C
+[2025-11-15 02:05:31] INFO: Displaying Forecast: Current 16°C → Next: 12°C, 12°C (1 min) [Fresh]
+[2025-11-15 02:06:33] INFO: Displaying Weather: Mostly cloudy, 16°C (4 min)
+[2025-11-15 02:10:33] INFO: Cycle #13 complete in 5.10 min | UT: 01:06:29 | Mem: 14.6% | API: Total=18/350, Current=13, Forecast=5
+
+[2025-11-15 02:10:33] INFO: ## CYCLE 14 ##
+[2025-11-15 02:10:34] INFO: Weather: Partly cloudy, 14.8°C
+[2025-11-15 02:10:35] INFO: Displaying Forecast: Current 15°C → Next: 12°C, 12°C (1 min) [Cached]
+[2025-11-15 02:11:37] INFO: Displaying Weather: Partly cloudy, 15°C (4 min)
+[2025-11-15 02:15:38] INFO: Cycle #14 complete in 5.07 min | UT: 01:11:33 | Mem: 12.6% | API: Total=19/350, Current=14, Forecast=5
+
+[2025-11-15 02:15:38] INFO: ## CYCLE 15 ##
+[2025-11-15 02:15:38] INFO: Weather: Partly cloudy, 14.8°C
+[2025-11-15 02:15:40] INFO: Displaying Forecast: Current 15°C → Next: 12°C, 12°C (1 min) [Cached]
+[2025-11-15 02:16:42] INFO: Displaying Weather: Partly cloudy, 15°C (4 min)
+[2025-11-15 02:20:42] INFO: Cycle #15 complete in 5.07 min | UT: 01:16:37 | Mem: 12.6% | API: Total=20/350, Current=15, Forecast=5
+
+[2025-11-15 02:20:42] INFO: ## CYCLE 16 ##
+[2025-11-15 02:20:42] INFO: Weather: Mostly cloudy, 15.1°C
+[2025-11-15 02:20:43] INFO: Forecast: 12 hours (fresh) | Next: 11.7°C
+[2025-11-15 02:20:46] INFO: Displaying Forecast: Current 15°C → Next: 12°C, 12°C (1 min) [Fresh]
+[2025-11-15 02:21:48] INFO: Displaying Weather: Mostly cloudy, 15°C (4 min)
+[2025-11-15 02:25:51] INFO: Cycle #16 complete in 5.16 min | UT: 01:21:47 | Mem: 14.6% | API: Total=22/350, Current=16, Forecast=6
+
+[2025-11-15 02:25:51] INFO: ## CYCLE 17 ##
+[2025-11-15 02:25:52] INFO: Weather: Mostly cloudy, 15.1°C
+[2025-11-15 02:25:53] INFO: Displaying Forecast: Current 15°C → Next: 12°C, 12°C (1 min) [Cached]
+[2025-11-15 02:26:54] INFO: Displaying Weather: Mostly cloudy, 15°C (4 min)
+[2025-11-15 02:30:55] INFO: Cycle #17 complete in 5.06 min | UT: 01:26:50 | Mem: 12.5% | API: Total=23/350, Current=17, Forecast=6
+
+[2025-11-15 02:30:55] INFO: ## CYCLE 18 ##
+[2025-11-15 02:30:55] INFO: Weather: Mostly cloudy, 15.2°C
+[2025-11-15 02:30:57] INFO: Displaying Forecast: Current 15°C → Next: 12°C, 12°C (1 min) [Cached]
+[2025-11-15 02:31:58] INFO: Displaying Weather: Mostly cloudy, 15°C (4 min)
+[2025-11-15 02:35:58] INFO: Cycle #18 complete in 5.06 min | UT: 01:31:54 | Mem: 12.6% | API: Total=24/350, Current=18, Forecast=6
+
+[2025-11-15 02:35:58] INFO: ## CYCLE 19 ##
+[2025-11-15 02:35:59] INFO: Weather: Mostly cloudy, 15.2°C
+[2025-11-15 02:35:59] INFO: Forecast: 12 hours (fresh) | Next: 11.7°C
+[2025-11-15 02:36:02] INFO: Displaying Forecast: Current 15°C → Next: 12°C, 12°C (1 min) [Fresh]
+[2025-11-15 02:37:04] INFO: Displaying Weather: Mostly cloudy, 15°C (4 min)
+[2025-11-15 02:41:05] INFO: Cycle #19 complete in 5.11 min | UT: 01:37:00 | Mem: 14.6% | API: Total=26/350, Current=19, Forecast=7
+
+[2025-11-15 02:41:05] INFO: ## CYCLE 20 ##
+[2025-11-15 02:41:05] INFO: Weather: Mostly cloudy, 15.0°C
+[2025-11-15 02:41:06] INFO: Displaying Forecast: Current 15°C → Next: 12°C, 12°C (1 min) [Cached]
+[2025-11-15 02:42:07] INFO: Displaying Weather: Mostly cloudy, 15°C (4 min)
+[2025-11-15 02:46:08] INFO: Cycle #20 complete in 5.06 min | UT: 01:42:03 | Mem: 12.6% | API: Total=27/350, Current=20, Forecast=7
+
+[2025-11-15 02:46:08] INFO: ## CYCLE 21 ##
+[2025-11-15 02:46:08] INFO: Weather: Mostly cloudy, 15.0°C
+[2025-11-15 02:46:10] INFO: Displaying Forecast: Current 15°C → Next: 12°C, 12°C (1 min) [Cached]
+[2025-11-15 02:47:12] INFO: Displaying Weather: Mostly cloudy, 15°C (4 min)
+[2025-11-15 02:51:13] INFO: Cycle #21 complete in 5.08 min | UT: 01:47:08 | Mem: 12.6% | API: Total=28/350, Current=21, Forecast=7
+
+[2025-11-15 02:51:13] INFO: ## CYCLE 22 ##
+[2025-11-15 02:51:13] INFO: Weather: Mostly cloudy, 15.0°C
+[2025-11-15 02:51:14] INFO: Forecast: 12 hours (fresh) | Next: 11.7°C
+[2025-11-15 02:51:17] INFO: Displaying Forecast: Current 15°C → Next: 12°C, 12°C (1 min) [Fresh]
+[2025-11-15 02:52:18] INFO: Displaying Weather: Mostly cloudy, 15°C (4 min)
+[2025-11-15 02:56:19] INFO: Cycle #22 complete in 5.10 min | UT: 01:52:14 | Mem: 14.6% | API: Total=30/350, Current=22, Forecast=8
+
+[2025-11-15 02:56:19] INFO: ## CYCLE 23 ##
+[2025-11-15 02:56:19] INFO: Weather: Mostly cloudy, 15.0°C
+[2025-11-15 02:56:21] INFO: Displaying Forecast: Current 15°C → Next: 12°C, 12°C (1 min) [Cached]
+[2025-11-15 02:57:22] INFO: Displaying Weather: Mostly cloudy, 15°C (4 min)
+[2025-11-15 03:01:23] INFO: Cycle #23 complete in 5.06 min | UT: 01:57:18 | Mem: 12.6% | API: Total=31/350, Current=23, Forecast=8
+
+[2025-11-15 03:01:23] INFO: ## CYCLE 24 ##
+[2025-11-15 03:01:23] INFO: Daily restart triggered (2.0h runtime)
+
+Code done running.
+soft reboot
+
+Auto-reload is on. Simply save files over USB to run them or enter REPL to disable.
+code.py output:
+[2025-11-15 03:01:33] INFO: === STARTUP ===
+[2025-11-15 03:01:33] INFO: Debug level: INFO (3)
+[2025-11-15 03:01:35] INFO: Hardware ready | 11 schedules (default) | 68 events (27 imported) | Today: 1 event (0 active now)
+[2025-11-15 03:01:39] INFO: Time synced to America/Chicago (UTC-6)
+[2025-11-15 03:01:39] INFO: Fetching time and weather for: Sheffield And Depaul, IL
+[2025-11-15 03:01:39] INFO: Active displays: weather, forecast, events, weekday indicator
+[2025-11-15 03:01:39] INFO: == STARTING MAIN DISPLAY LOOP == 
+
+[2025-11-15 03:01:39] INFO: ## CYCLE 1 ##
+[2025-11-15 03:01:39] INFO: Weather: Mostly cloudy, 15.0°C
+[2025-11-15 03:01:40] INFO: Forecast: 12 hours (fresh) | Next: 11.7°C
+[2025-11-15 03:01:41] INFO: Displaying Forecast: Current 15°C → Next: 12°C, 12°C (1 min) [Fresh]
+[2025-11-15 03:03:01] INFO: Displaying Weather: Mostly cloudy, 15°C (4 min)
+[2025-11-15 03:07:07] INFO: Cycle #1 complete in 5.48 min | UT: 00:05:34 | Mem: 11.9% | API: Total=2/350, Current=1, Forecast=1
+
+[2025-11-15 03:07:07] INFO: ## CYCLE 2 ##
+[2025-11-15 03:07:08] INFO: Weather: Mostly cloudy, 15.0°C
+[2025-11-15 03:07:09] INFO: Displaying Forecast: Current 15°C → Next: 12°C, 12°C (1 min) [Cached]
+[2025-11-15 03:08:10] INFO: Displaying Weather: Mostly cloudy, 15°C (4 min)
+[2025-11-15 03:12:12] INFO: Cycle #2 complete in 5.07 min | UT: 00:10:38 | Mem: 11.1% | API: Total=3/350, Current=2, Forecast=1
+
+[2025-11-15 03:12:12] INFO: ## CYCLE 3 ##
+[2025-11-15 03:12:12] INFO: Weather: Mostly cloudy, 15.0°C
+[2025-11-15 03:12:13] INFO: Displaying Forecast: Current 15°C → Next: 12°C, 12°C (1 min) [Cached]
+[2025-11-15 03:13:15] INFO: Displaying Weather: Mostly cloudy, 15°C (4 min)
+[2025-11-15 03:17:15] INFO: Cycle #3 complete in 5.06 min | UT: 00:15:42 | Mem: 11.1% | API: Total=4/350, Current=3, Forecast=1
+
+[2025-11-15 03:17:15] INFO: ## CYCLE 4 ##
+[2025-11-15 03:17:16] INFO: Weather: Cloudy, 15.0°C
+[2025-11-15 03:17:17] INFO: Forecast: 12 hours (fresh) | Next: 11.8°C
+[2025-11-15 03:17:19] INFO: Displaying Forecast: Current 15°C → Next: 12°C, 12°C (1 min) [Fresh]
+[2025-11-15 03:18:21] INFO: Displaying Weather: Cloudy, 15°C (4 min)
+[2025-11-15 03:22:22] INFO: Cycle #4 complete in 5.11 min | UT: 00:20:49 | Mem: 13.7% | API: Total=6/350, Current=4, Forecast=2
+
+[2025-11-15 03:22:22] INFO: ## CYCLE 5 ##
+[2025-11-15 03:22:22] INFO: Weather: Cloudy, 15.0°C
+[2025-11-15 03:22:24] INFO: Displaying Forecast: Current 15°C → Next: 12°C, 12°C (1 min) [Cached]
+[2025-11-15 03:23:25] INFO: Displaying Weather: Cloudy, 15°C (4 min)
+[2025-11-15 03:27:26] INFO: Cycle #5 complete in 5.07 min | UT: 00:25:53 | Mem: 11.7% | API: Total=7/350, Current=5, Forecast=2
+
+[2025-11-15 03:27:26] INFO: ## CYCLE 6 ##
+[2025-11-15 03:27:27] INFO: Weather: Cloudy, 15.0°C
+[2025-11-15 03:27:28] INFO: Displaying Forecast: Current 15°C → Next: 12°C, 12°C (1 min) [Cached]
+[2025-11-15 03:28:29] INFO: Displaying Weather: Cloudy, 15°C (4 min)
+[2025-11-15 03:32:30] INFO: Cycle #6 complete in 5.07 min | UT: 00:30:57 | Mem: 11.7% | API: Total=8/350, Current=6, Forecast=2
+
+[2025-11-15 03:32:30] INFO: ## CYCLE 7 ##
+[2025-11-15 03:32:31] INFO: Weather: Cloudy, 15.0°C
+[2025-11-15 03:32:31] INFO: Forecast: 12 hours (fresh) | Next: 11.8°C
+[2025-11-15 03:32:34] INFO: Displaying Forecast: Current 15°C → Next: 12°C, 12°C (1 min) [Fresh]
+[2025-11-15 03:33:36] INFO: Displaying Weather: Cloudy, 15°C (4 min)
+[2025-11-15 03:37:37] INFO: Cycle #7 complete in 5.11 min | UT: 00:36:04 | Mem: 13.8% | API: Total=10/350, Current=7, Forecast=3
+
+[2025-11-15 03:37:37] INFO: ## CYCLE 8 ##
+[2025-11-15 03:37:37] INFO: Weather: Cloudy, 15.0°C
+[2025-11-15 03:37:39] INFO: Displaying Forecast: Current 15°C → Next: 12°C, 12°C (1 min) [Cached]
+[2025-11-15 03:38:40] INFO: Displaying Weather: Cloudy, 15°C (4 min)
+[2025-11-15 03:42:41] INFO: Cycle #8 complete in 5.07 min | UT: 00:41:08 | Mem: 11.8% | API: Total=11/350, Current=8, Forecast=3
+
+[2025-11-15 03:42:41] INFO: ## CYCLE 9 ##
+[2025-11-15 03:42:42] INFO: Weather: Cloudy, 15.0°C
+[2025-11-15 03:42:43] INFO: Displaying Forecast: Current 15°C → Next: 12°C, 12°C (1 min) [Cached]
+[2025-11-15 03:43:45] INFO: Displaying Weather: Cloudy, 15°C (4 min)
+[2025-11-15 03:47:45] INFO: Cycle #9 complete in 5.06 min | UT: 00:46:12 | Mem: 11.7% | API: Total=12/350, Current=9, Forecast=3
+
+[2025-11-15 03:47:45] INFO: ## CYCLE 10 ##
+[2025-11-15 03:47:45] INFO: Weather: Cloudy, 15.0°C
+[2025-11-15 03:47:46] INFO: Forecast: 12 hours (fresh) | Next: 11.8°C
+[2025-11-15 03:47:48] INFO: Displaying Forecast: Current 15°C → Next: 12°C, 12°C (1 min) [Fresh]
+[2025-11-15 03:48:51] INFO: Displaying Weather: Cloudy, 15°C (4 min)
+[2025-11-15 03:52:51] INFO: Cycle #10 complete in 5.10 min | UT: 00:51:18 | Mem: 13.8% | API: Total=14/350, Current=10, Forecast=4
+
+[2025-11-15 03:52:51] INFO: ## CYCLE 11 ##
+[2025-11-15 03:52:52] INFO: Weather: Cloudy, 15.0°C
+[2025-11-15 03:52:53] INFO: Displaying Forecast: Current 15°C → Next: 12°C, 12°C (1 min) [Cached]
+[2025-11-15 03:53:54] INFO: Displaying Weather: Cloudy, 15°C (4 min)
+[2025-11-15 03:57:55] INFO: Cycle #11 complete in 5.07 min | UT: 00:56:22 | Mem: 11.8% | API: Total=15/350, Current=11, Forecast=4
+
+[2025-11-15 03:57:55] INFO: ## CYCLE 12 ##
+[2025-11-15 03:57:56] INFO: Weather: Cloudy, 15.0°C
+[2025-11-15 03:57:57] INFO: Displaying Forecast: Current 15°C → Next: 12°C, 12°C (1 min) [Cached]
+[2025-11-15 03:58:59] INFO: Displaying Weather: Cloudy, 15°C (4 min)
+[2025-11-15 04:02:59] INFO: Cycle #12 complete in 5.06 min | UT: 01:01:26 | Mem: 11.8% | API: Total=16/350, Current=12, Forecast=4
+
+[2025-11-15 04:02:59] INFO: ## CYCLE 13 ##
+[2025-11-15 04:03:00] INFO: Weather: Cloudy, 15.0°C
+[2025-11-15 04:03:00] INFO: Forecast: 12 hours (fresh) | Next: 11.8°C
+[2025-11-15 04:03:03] INFO: Displaying Forecast: Current 15°C → Next: 12°C, 12°C (1 min) [Fresh]
+[2025-11-15 04:04:05] INFO: Displaying Weather: Cloudy, 15°C (4 min)
+[2025-11-15 04:07:35] INFO: Showing event: Fiesta Nico Coshi
+[2025-11-15 04:08:38] INFO: Cycle #13 complete in 5.64 min | UT: 01:07:05 | Mem: 12.8% | API: Total=18/350, Current=13, Forecast=5
+
+[2025-11-15 04:08:38] INFO: ## CYCLE 14 ##
+[2025-11-15 04:08:38] INFO: Weather: Cloudy, 15.0°C
+[2025-11-15 04:08:40] INFO: Displaying Forecast: Current 15°C → Next: 12°C, 12°C (1 min) [Cached]
+[2025-11-15 04:09:41] INFO: Displaying Weather: Cloudy, 15°C (4 min)
+[2025-11-15 04:13:12] INFO: Showing event: Fiesta Nico Coshi
+[2025-11-15 04:13:43] INFO: Cycle #14 complete in 5.09 min | UT: 01:12:10 | Mem: 10.7% | API: Total=19/350, Current=14, Forecast=5
+
+[2025-11-15 04:13:43] INFO: ## CYCLE 15 ##
+[2025-11-15 04:13:44] INFO: Weather: Cloudy, 15.0°C
+[2025-11-15 04:13:45] INFO: Displaying Forecast: Current 15°C → Next: 12°C, 12°C (1 min) [Cached]
+[2025-11-15 04:14:47] INFO: Displaying Weather: Cloudy, 15°C (4 min)
+[2025-11-15 04:18:17] INFO: Showing event: Fiesta Nico Coshi
+[2025-11-15 04:18:48] INFO: Cycle #15 complete in 5.09 min | UT: 01:17:15 | Mem: 10.7% | API: Total=20/350, Current=15, Forecast=5
+
+[2025-11-15 04:18:48] INFO: ## CYCLE 16 ##
+[2025-11-15 04:18:49] INFO: Weather: Cloudy, 14.8°C
+[2025-11-15 04:18:50] INFO: Forecast: 12 hours (fresh) | Next: 11.9°C
+[2025-11-15 04:18:52] INFO: Displaying Forecast: Current 15°C → Next: 12°C, 12°C (1 min) [Fresh]
+[2025-11-15 04:19:54] INFO: Displaying Weather: Cloudy, 15°C (4 min)
+[2025-11-15 04:23:25] INFO: Showing event: Fiesta Nico Coshi
+[2025-11-15 04:23:57] INFO: Cycle #16 complete in 5.15 min | UT: 01:22:24 | Mem: 12.8% | API: Total=22/350, Current=16, Forecast=6
+
+[2025-11-15 04:23:57] INFO: ## CYCLE 17 ##
+[2025-11-15 04:23:58] INFO: Weather: Cloudy, 14.8°C
+[2025-11-15 04:23:59] INFO: Displaying Forecast: Current 15°C → Next: 12°C, 12°C (1 min) [Cached]
+[2025-11-15 04:25:01] INFO: Displaying Weather: Cloudy, 15°C (4 min)
+[2025-11-15 04:28:32] INFO: Showing event: Fiesta Nico Coshi
+[2025-11-15 04:29:03] INFO: Cycle #17 complete in 5.10 min | UT: 01:27:30 | Mem: 10.7% | API: Total=23/350, Current=17, Forecast=6
+
+[2025-11-15 04:29:03] INFO: ## CYCLE 18 ##
+[2025-11-15 04:29:04] INFO: Weather: Cloudy, 14.5°C
+[2025-11-15 04:29:05] INFO: Displaying Forecast: Current 14°C → Next: 12°C, 12°C (1 min) [Cached]
+[2025-11-15 04:30:06] INFO: Displaying Weather: Cloudy, 14°C (4 min)
+[2025-11-15 04:33:37] INFO: Showing event: Fiesta Nico Coshi
+[2025-11-15 04:34:09] INFO: Cycle #18 complete in 5.09 min | UT: 01:32:35 | Mem: 10.7% | API: Total=24/350, Current=18, Forecast=6
+
+[2025-11-15 04:34:09] INFO: ## CYCLE 19 ##
+[2025-11-15 04:34:09] INFO: Weather: Cloudy, 14.5°C
+[2025-11-15 04:34:10] INFO: Forecast: 12 hours (fresh) | Next: 11.9°C
+[2025-11-15 04:34:12] INFO: Displaying Forecast: Current 14°C → Next: 12°C, 12°C (1 min) [Fresh]
+[2025-11-15 04:35:14] INFO: Displaying Weather: Cloudy, 14°C (4 min)
+[2025-11-15 04:38:45] INFO: Showing event: Fiesta Nico Coshi
+[2025-11-15 04:39:17] INFO: Cycle #19 complete in 5.14 min | UT: 01:37:44 | Mem: 12.8% | API: Total=26/350, Current=19, Forecast=7
+
+[2025-11-15 04:39:17] INFO: ## CYCLE 20 ##
+[2025-11-15 04:39:18] INFO: Weather: Cloudy, 14.8°C
+[2025-11-15 04:39:19] INFO: Displaying Forecast: Current 15°C → Next: 12°C, 12°C (1 min) [Cached]
+[2025-11-15 04:40:21] INFO: Displaying Weather: Cloudy, 15°C (4 min)
+[2025-11-15 04:43:52] INFO: Showing event: Fiesta Nico Coshi
+[2025-11-15 04:44:23] INFO: Cycle #20 complete in 5.10 min | UT: 01:42:50 | Mem: 10.7% | API: Total=27/350, Current=20, Forecast=7
+
+[2025-11-15 04:44:23] INFO: ## CYCLE 21 ##
+[2025-11-15 04:44:24] INFO: Weather: Cloudy, 14.8°C
+[2025-11-15 04:44:25] INFO: Displaying Forecast: Current 15°C → Next: 12°C, 12°C (1 min) [Cached]
+[2025-11-15 04:45:27] INFO: Displaying Weather: Cloudy, 15°C (4 min)
+[2025-11-15 04:48:57] INFO: Showing event: Fiesta Nico Coshi
+[2025-11-15 04:49:29] INFO: Cycle #21 complete in 5.10 min | UT: 01:47:56 | Mem: 10.7% | API: Total=28/350, Current=21, Forecast=7
+
+[2025-11-15 04:49:29] INFO: ## CYCLE 22 ##
+[2025-11-15 04:49:30] INFO: Weather: Cloudy, 14.8°C
+[2025-11-15 04:49:30] INFO: Forecast: 12 hours (fresh) | Next: 11.9°C
+[2025-11-15 04:49:33] INFO: Displaying Forecast: Current 15°C → Next: 12°C, 12°C (1 min) [Fresh]
+[2025-11-15 04:50:35] INFO: Displaying Weather: Cloudy, 15°C (4 min)
+[2025-11-15 04:54:05] INFO: Showing event: Fiesta Nico Coshi
+[2025-11-15 04:54:38] INFO: Cycle #22 complete in 5.15 min | UT: 01:53:05 | Mem: 13.0% | API: Total=30/350, Current=22, Forecast=8
+
+[2025-11-15 04:54:38] INFO: ## CYCLE 23 ##
+[2025-11-15 04:54:38] INFO: Weather: Cloudy, 14.8°C
+[2025-11-15 04:54:39] INFO: Displaying Forecast: Current 15°C → Next: 12°C, 12°C (1 min) [Cached]
+[2025-11-15 04:55:41] INFO: Displaying Weather: Cloudy, 15°C (4 min)
+[2025-11-15 04:59:12] INFO: Showing event: Fiesta Nico Coshi
+[2025-11-15 04:59:44] INFO: Cycle #23 complete in 5.10 min | UT: 01:58:10 | Mem: 10.9% | API: Total=31/350, Current=23, Forecast=8
+
+[2025-11-15 04:59:44] INFO: ## CYCLE 24 ##
+[2025-11-15 04:59:44] INFO: Weather: Cloudy, 15.5°C
+[2025-11-15 04:59:45] INFO: Displaying Forecast: Current 16°C → Next: 12°C, 12°C (1 min) [Cached]
+[2025-11-15 05:00:47] INFO: Displaying Weather: Cloudy, 16°C (4 min)
+[2025-11-15 05:04:18] INFO: Showing event: Fiesta Nico Coshi
+[2025-11-15 05:04:50] INFO: Cycle #24 complete in 5.10 min | UT: 02:03:16 | Mem: 10.9% | API: Total=32/350, Current=24, Forecast=8
+
+[2025-11-15 05:04:50] INFO: ## CYCLE 25 ##
+[2025-11-15 05:04:50] INFO: Weather: Cloudy, 15.5°C
+[2025-11-15 05:04:51] INFO: Forecast: 12 hours (fresh) | Next: 11.9°C
+[2025-11-15 05:04:53] INFO: Displaying Forecast: Current 16°C → Next: 12°C, 12°C (1 min) [Fresh]
+[2025-11-15 05:05:55] INFO: Displaying Weather: Cloudy, 16°C (4 min)
+[2025-11-15 05:09:26] INFO: Showing event: Fiesta Nico Coshi
+[2025-11-15 05:09:59] INFO: Cycle #25 complete in 5.15 min | UT: 02:08:26 | Mem: 13.2% | API: Total=34/350, Current=25, Forecast=9
+
+[2025-11-15 05:09:59] INFO: ## CYCLE 26 ##
+[2025-11-15 05:09:59] INFO: Weather: Cloudy, 11.8°C
+[2025-11-15 05:10:01] INFO: Displaying Forecast: Current 12°C → Next: 12°C, 12°C (1 min) [Cached]
+[2025-11-15 05:11:02] INFO: Displaying Weather: Cloudy, 12°C (4 min)
+[2025-11-15 05:14:35] INFO: Showing event: Fiesta Nico Coshi
+[2025-11-15 05:15:06] INFO: Cycle #26 complete in 5.13 min | UT: 02:13:33 | Mem: 11.1% | API: Total=35/350, Current=26, Forecast=9
+
+[2025-11-15 05:15:06] INFO: ## CYCLE 27 ##
+[2025-11-15 05:15:07] INFO: Weather: Cloudy, 11.8°C
+[2025-11-15 05:15:08] INFO: Displaying Forecast: Current 12°C → Next: 12°C, 12°C (1 min) [Cached]
+[2025-11-15 05:16:10] INFO: Displaying Weather: Cloudy, 12°C (4 min)
+[2025-11-15 05:19:41] INFO: Showing event: Fiesta Nico Coshi
+[2025-11-15 05:20:12] INFO: Cycle #27 complete in 5.10 min | UT: 02:18:39 | Mem: 11.1% | API: Total=36/350, Current=27, Forecast=9
+
+[2025-11-15 05:20:12] INFO: ## CYCLE 28 ##
+[2025-11-15 05:20:13] INFO: Weather: Cloudy, 15.0°C
+[2025-11-15 05:20:13] INFO: Forecast: 12 hours (fresh) | Next: 12.1°C
+[2025-11-15 05:20:16] INFO: Displaying Forecast: Current 15°C → Next: 12°C, 12°C (1 min) [Fresh]
+[2025-11-15 05:21:18] INFO: Displaying Weather: Cloudy, 15°C (4 min)
+[2025-11-15 05:24:49] INFO: Showing event: Fiesta Nico Coshi
+[2025-11-15 05:25:22] INFO: Cycle #28 complete in 5.17 min | UT: 02:23:49 | Mem: 13.2% | API: Total=38/350, Current=28, Forecast=10
+
+[2025-11-15 05:25:22] INFO: ## CYCLE 29 ##
+[2025-11-15 05:25:22] INFO: Weather: Cloudy, 15.0°C
+[2025-11-15 05:25:24] INFO: Displaying Forecast: Current 15°C → Next: 12°C, 12°C (1 min) [Cached]
+[2025-11-15 05:26:25] INFO: Displaying Weather: Cloudy, 15°C (4 min)
+[2025-11-15 05:29:56] INFO: Showing event: Fiesta Nico Coshi
+[2025-11-15 05:30:28] INFO: Cycle #29 complete in 5.10 min | UT: 02:28:55 | Mem: 11.1% | API: Total=39/350, Current=29, Forecast=10
+
+[2025-11-15 05:30:28] INFO: ## CYCLE 30 ##
+[2025-11-15 05:30:29] INFO: Weather: Cloudy, 14.8°C
+[2025-11-15 05:30:30] INFO: Displaying Forecast: Current 15°C → Next: 12°C, 12°C (1 min) [Cached]
+[2025-11-15 05:31:32] INFO: Displaying Weather: Cloudy, 15°C (4 min)
+[2025-11-15 05:35:03] INFO: Showing event: Fiesta Nico Coshi
+[2025-11-15 05:35:34] INFO: Cycle #30 complete in 5.10 min | UT: 02:34:01 | Mem: 11.1% | API: Total=40/350, Current=30, Forecast=10
+
+[2025-11-15 05:35:34] INFO: ## CYCLE 31 ##
+[2025-11-15 05:35:35] INFO: Weather: Cloudy, 14.8°C
+[2025-11-15 05:35:35] INFO: Forecast: 12 hours (fresh) | Next: 12.1°C
+[2025-11-15 05:35:38] INFO: Displaying Forecast: Current 15°C → Next: 12°C, 12°C (1 min) [Fresh]
+[2025-11-15 05:36:40] INFO: Displaying Weather: Cloudy, 15°C (4 min)
+[2025-11-15 05:40:11] INFO: Showing event: Fiesta Nico Coshi
+[2025-11-15 05:40:44] INFO: Cycle #31 complete in 5.16 min | UT: 02:39:10 | Mem: 13.2% | API: Total=42/350, Current=31, Forecast=11
+
+[2025-11-15 05:40:44] INFO: ## CYCLE 32 ##
+[2025-11-15 05:40:44] INFO: Weather: Cloudy, 12.9°C
+[2025-11-15 05:40:46] INFO: Displaying Forecast: Current 13°C → Next: 12°C, 12°C (1 min) [Cached]
+[2025-11-15 05:41:47] INFO: Displaying Weather: Cloudy, 13°C (4 min)
+[2025-11-15 05:45:19] INFO: Showing event: Fiesta Nico Coshi
+[2025-11-15 05:45:51] INFO: Cycle #32 complete in 5.12 min | UT: 02:44:18 | Mem: 11.2% | API: Total=43/350, Current=32, Forecast=11
+
+[2025-11-15 05:45:51] INFO: ## CYCLE 33 ##
+[2025-11-15 05:45:51] INFO: Weather: Cloudy, 12.9°C
+[2025-11-15 05:45:53] INFO: Displaying Forecast: Current 13°C → Next: 12°C, 12°C (1 min) [Cached]
+[2025-11-15 05:46:54] INFO: Displaying Weather: Cloudy, 13°C (4 min)
+[2025-11-15 05:50:25] INFO: Showing event: Fiesta Nico Coshi
+[2025-11-15 05:50:57] INFO: Cycle #33 complete in 5.10 min | UT: 02:49:24 | Mem: 11.2% | API: Total=44/350, Current=33, Forecast=11
+
+[2025-11-15 05:50:57] INFO: ## CYCLE 34 ##
+[2025-11-15 05:50:58] INFO: Weather: Cloudy, 14.5°C
+[2025-11-15 05:50:58] INFO: Forecast: 12 hours (fresh) | Next: 13.9°C
+[2025-11-15 05:51:01] INFO: Displaying Forecast: Current 14°C → Next: 14°C, 14°C (1 min) [Fresh]
+[2025-11-15 05:52:03] INFO: Displaying Weather: Cloudy, 14°C (4 min)
+[2025-11-15 05:55:34] INFO: Showing event: Fiesta Nico Coshi
+[2025-11-15 05:56:06] INFO: Cycle #34 complete in 5.15 min | UT: 02:54:33 | Mem: 13.2% | API: Total=46/350, Current=34, Forecast=12
+
+[2025-11-15 05:56:06] INFO: ## CYCLE 35 ##
+[2025-11-15 05:56:07] INFO: Weather: Cloudy, 14.5°C
+[2025-11-15 05:56:08] INFO: Displaying Forecast: Current 14°C → Next: 14°C, 14°C (1 min) [Cached]
+[2025-11-15 05:57:10] INFO: Displaying Weather: Cloudy, 14°C (4 min)
+[2025-11-15 06:00:40] INFO: Showing event: Fiesta Nico Coshi
+[2025-11-15 06:01:12] INFO: Cycle #35 complete in 5.10 min | UT: 02:59:39 | Mem: 11.2% | API: Total=47/350, Current=35, Forecast=12
+
+[2025-11-15 06:01:12] INFO: ## CYCLE 36 ##
+[2025-11-15 06:01:13] INFO: Weather: Cloudy, 15.2°C
+[2025-11-15 06:01:14] INFO: Displaying Forecast: Current 15°C → Next: 14°C, 14°C (1 min) [Cached]
+[2025-11-15 06:02:16] INFO: Displaying Weather: Cloudy, 15°C (4 min)
+[2025-11-15 06:05:47] INFO: Showing event: Fiesta Nico Coshi
+[2025-11-15 06:06:18] INFO: Cycle #36 complete in 5.11 min | UT: 03:04:45 | Mem: 11.2% | API: Total=48/350, Current=36, Forecast=12
+
+[2025-11-15 06:06:18] INFO: ## CYCLE 37 ##
+[2025-11-15 06:06:19] INFO: Weather: Cloudy, 15.2°C
+[2025-11-15 06:06:19] INFO: Forecast: 12 hours (fresh) | Next: 13.9°C
+[2025-11-15 06:06:22] INFO: Displaying Forecast: Current 15°C → Next: 14°C, 14°C (1 min) [Fresh]
+[2025-11-15 06:07:24] INFO: Displaying Weather: Cloudy, 15°C (4 min)
+[2025-11-15 06:10:55] INFO: Showing event: Fiesta Nico Coshi
+[2025-11-15 06:11:28] INFO: Cycle #37 complete in 5.16 min | UT: 03:09:55 | Mem: 13.2% | API: Total=50/350, Current=37, Forecast=13
+
+[2025-11-15 06:11:28] INFO: ## CYCLE 38 ##
+[2025-11-15 06:11:28] INFO: Weather: Cloudy, 15.2°C
+[2025-11-15 06:11:30] INFO: Displaying Forecast: Current 15°C → Next: 14°C, 14°C (1 min) [Cached]
+[2025-11-15 06:12:31] INFO: Displaying Weather: Cloudy, 15°C (4 min)
+[2025-11-15 06:16:02] INFO: Showing event: Fiesta Nico Coshi
+[2025-11-15 06:16:33] INFO: Cycle #38 complete in 5.09 min | UT: 03:15:00 | Mem: 11.2% | API: Total=51/350, Current=38, Forecast=13
+
+[2025-11-15 06:16:33] INFO: ## CYCLE 39 ##
+[2025-11-15 06:16:34] INFO: Weather: Cloudy, 15.2°C
+[2025-11-15 06:16:35] INFO: Displaying Forecast: Current 15°C → Next: 14°C, 14°C (1 min) [Cached]
+[2025-11-15 06:17:36] INFO: Displaying Weather: Cloudy, 15°C (4 min)
+[2025-11-15 06:21:07] INFO: Showing event: Fiesta Nico Coshi
+[2025-11-15 06:21:39] INFO: Cycle #39 complete in 5.10 min | UT: 03:20:06 | Mem: 11.2% | API: Total=52/350, Current=39, Forecast=13
+
+[2025-11-15 06:21:39] INFO: ## CYCLE 40 ##
+[2025-11-15 06:21:40] INFO: Weather: Cloudy, 15.3°C
+[2025-11-15 06:21:40] INFO: Forecast: 12 hours (fresh) | Next: 14.5°C
+[2025-11-15 06:21:43] INFO: Displaying Forecast: Current 15°C → Next: 14°C, 15°C (1 min) [Fresh]
+[2025-11-15 06:22:45] INFO: Displaying Weather: Cloudy, 15°C (4 min)
+[2025-11-15 06:26:16] INFO: Showing event: Fiesta Nico Coshi
+[2025-11-15 06:26:48] INFO: Cycle #40 complete in 5.16 min | UT: 03:25:15 | Mem: 13.2% | API: Total=54/350, Current=40, Forecast=14
+
+[2025-11-15 06:26:48] INFO: ## CYCLE 41 ##
+[2025-11-15 06:26:49] INFO: Weather: Cloudy, 15.3°C
+[2025-11-15 06:26:50] INFO: Displaying Forecast: Current 15°C → Next: 14°C, 15°C (1 min) [Cached]
+[2025-11-15 06:27:52] INFO: Displaying Weather: Cloudy, 15°C (4 min)
+[2025-11-15 06:31:23] INFO: Showing event: Fiesta Nico Coshi
+[2025-11-15 06:31:54] INFO: Cycle #41 complete in 5.10 min | UT: 03:30:21 | Mem: 11.2% | API: Total=55/350, Current=41, Forecast=14
+
+[2025-11-15 06:31:54] INFO: ## CYCLE 42 ##
+[2025-11-15 06:31:55] INFO: Weather: Cloudy, 14.9°C
+[2025-11-15 06:31:56] INFO: Displaying Forecast: Current 15°C → Next: 14°C, 15°C (1 min) [Cached]
+[2025-11-15 06:32:58] INFO: Displaying Weather: Cloudy, 15°C (4 min)
+[2025-11-15 06:36:29] INFO: Showing event: Fiesta Nico Coshi
+[2025-11-15 06:37:00] INFO: Cycle #42 complete in 5.10 min | UT: 03:35:27 | Mem: 11.2% | API: Total=56/350, Current=42, Forecast=14
+
+[2025-11-15 06:37:00] INFO: ## CYCLE 43 ##
+[2025-11-15 06:37:01] INFO: Weather: Cloudy, 14.9°C
+[2025-11-15 06:37:01] INFO: Forecast: 12 hours (fresh) | Next: 14.5°C
+[2025-11-15 06:37:04] INFO: Displaying Forecast: Current 15°C → Next: 14°C, 15°C (1 min) [Fresh]
+[2025-11-15 06:38:06] INFO: Displaying Weather: Cloudy, 15°C (4 min)
+[2025-11-15 06:41:37] INFO: Showing event: Fiesta Nico Coshi
+[2025-11-15 06:42:10] INFO: Cycle #43 complete in 5.16 min | UT: 03:40:37 | Mem: 13.2% | API: Total=58/350, Current=43, Forecast=15
+
+[2025-11-15 06:42:10] INFO: ## CYCLE 44 ##
+[2025-11-15 06:42:10] INFO: Weather: Cloudy, 14.9°C
+[2025-11-15 06:42:12] INFO: Displaying Forecast: Current 15°C → Next: 14°C, 15°C (1 min) [Cached]
+[2025-11-15 06:43:13] INFO: Displaying Weather: Cloudy, 15°C (4 min)
+[2025-11-15 06:46:44] INFO: Showing event: Fiesta Nico Coshi
+[2025-11-15 06:47:16] INFO: Cycle #44 complete in 5.10 min | UT: 03:45:43 | Mem: 11.2% | API: Total=59/350, Current=44, Forecast=15
+
+[2025-11-15 06:47:16] INFO: ## CYCLE 45 ##
+[2025-11-15 06:47:16] INFO: Weather: Cloudy, 14.9°C
+[2025-11-15 06:47:18] INFO: Displaying Forecast: Current 15°C → Next: 14°C, 15°C (1 min) [Cached]
+[2025-11-15 06:48:19] INFO: Displaying Weather: Cloudy, 15°C (4 min)
+[2025-11-15 06:51:50] INFO: Showing event: Fiesta Nico Coshi
+[2025-11-15 06:52:22] INFO: Cycle #45 complete in 5.10 min | UT: 03:50:49 | Mem: 11.2% | API: Total=60/350, Current=45, Forecast=15
+
+[2025-11-15 06:52:22] INFO: ## CYCLE 46 ##
+[2025-11-15 06:52:22] INFO: Weather: Cloudy, 14.7°C
+[2025-11-15 06:52:23] INFO: Forecast: 12 hours (fresh) | Next: 14.5°C
+[2025-11-15 06:52:25] INFO: Displaying Forecast: Current 15°C → Next: 14°C, 15°C (1 min) [Fresh]
+[2025-11-15 06:53:28] INFO: Displaying Weather: Cloudy, 15°C (4 min)
+[2025-11-15 06:56:58] INFO: Showing event: Fiesta Nico Coshi
+[2025-11-15 06:57:31] INFO: Cycle #46 complete in 5.15 min | UT: 03:55:57 | Mem: 13.2% | API: Total=62/350, Current=46, Forecast=16
+
+[2025-11-15 06:57:31] INFO: ## CYCLE 47 ##
+[2025-11-15 06:57:31] INFO: Weather: Cloudy, 14.7°C
+[2025-11-15 06:57:32] INFO: Displaying Forecast: Current 15°C → Next: 14°C, 15°C (1 min) [Cached]
+[2025-11-15 06:58:34] INFO: Displaying Weather: Cloudy, 15°C (4 min)
+[2025-11-15 07:02:05] INFO: Showing event: Fiesta Nico Coshi
+[2025-11-15 07:02:37] INFO: Cycle #47 complete in 5.10 min | UT: 04:01:03 | Mem: 11.2% | API: Total=63/350, Current=47, Forecast=16
+
+[2025-11-15 07:02:37] INFO: ## CYCLE 48 ##
+[2025-11-15 07:02:37] INFO: Starting schedule session: Get Dressed (780s total)
+[2025-11-15 07:02:38] INFO: Displaying Schedule: Get Dressed - Segment 1/3 (15°, 5.0 min, progress: 0%)
+[2025-11-15 07:07:39] INFO: Cycle #48 (SCHEDULED) complete in 5.03 min | UT: 04:06:05 | Mem: 11.4% | API: Total=63/350, Current=47, Forecast=16
+
+[2025-11-15 07:07:39] INFO: ## CYCLE 49 ##
+[2025-11-15 07:07:40] INFO: Displaying Schedule: Get Dressed - Segment 2/3 (15°, 5.0 min, progress: 39%)
+[2025-11-15 07:12:41] INFO: Cycle #49 (SCHEDULED) complete in 5.03 min | UT: 04:11:08 | Mem: 11.4% | API: Total=63/350, Current=47, Forecast=16
+
+[2025-11-15 07:12:41] INFO: ## CYCLE 50 ##
+[2025-11-15 07:12:43] INFO: Weather: Cloudy, 15.1°C
+[2025-11-15 07:12:44] INFO: Displaying Schedule: Get Dressed - Segment 3/3 (15°, 2.9 min, progress: 78%)
+[2025-11-15 07:15:43] INFO: Showing event: Fiesta Nico Coshi
+[2025-11-15 07:16:15] INFO: Cycle #50 (SCHEDULED) complete in 3.57 min | UT: 04:14:42 | Mem: 10.4% | API: Total=64/350, Current=48, Forecast=16
+
+[2025-11-15 07:16:15] INFO: ## CYCLE 51 ##
+[2025-11-15 07:16:15] INFO: Starting schedule session: Eat Breakfast (1440s total)
+[2025-11-15 07:16:16] INFO: Displaying Schedule: Eat Breakfast - Segment 1/5 (15°, 5.0 min, progress: 0%)
+[2025-11-15 07:21:17] INFO: Cycle #51 (SCHEDULED) complete in 5.03 min | UT: 04:19:44 | Mem: 10.7% | API: Total=64/350, Current=48, Forecast=16
+
+[2025-11-15 07:21:17] INFO: ## CYCLE 52 ##
+[2025-11-15 07:21:18] INFO: Displaying Schedule: Eat Breakfast - Segment 2/5 (15°, 5.0 min, progress: 21%)
+[2025-11-15 07:26:19] INFO: Cycle #52 (SCHEDULED) complete in 5.03 min | UT: 04:24:46 | Mem: 10.7% | API: Total=64/350, Current=48, Forecast=16
+
+[2025-11-15 07:26:19] INFO: ## CYCLE 53 ##
+[2025-11-15 07:26:20] INFO: Displaying Schedule: Eat Breakfast - Segment 3/5 (15°, 5.0 min, progress: 42%)
+[2025-11-15 07:31:21] INFO: Cycle #53 (SCHEDULED) complete in 5.03 min | UT: 04:29:48 | Mem: 10.7% | API: Total=64/350, Current=48, Forecast=16
+
+[2025-11-15 07:31:21] INFO: ## CYCLE 54 ##
+[2025-11-15 07:31:23] INFO: Weather: Cloudy, 15.4°C
+[2025-11-15 07:31:24] INFO: Displaying Schedule: Eat Breakfast - Segment 4/5 (15°, 5.0 min, progress: 63%)
+[2025-11-15 07:36:25] INFO: Cycle #54 (SCHEDULED) complete in 5.07 min | UT: 04:34:52 | Mem: 11.4% | API: Total=65/350, Current=49, Forecast=16
+
+[2025-11-15 07:36:25] INFO: ## CYCLE 55 ##
+[2025-11-15 07:36:26] INFO: Displaying Schedule: Eat Breakfast - Segment 5/5 (15°, 3.8 min, progress: 84%)
+[2025-11-15 07:40:21] INFO: Showing event: Fiesta Nico Coshi
+[2025-11-15 07:40:53] INFO: Cycle #55 (SCHEDULED) complete in 4.47 min | UT: 04:39:20 | Mem: 10.4% | API: Total=65/350, Current=49, Forecast=16
+
+[2025-11-15 07:40:53] INFO: ## CYCLE 56 ##
+[2025-11-15 07:40:53] INFO: Starting schedule session: Toilet and Teeth AM (600s total)
+[2025-11-15 07:40:54] INFO: Displaying Schedule: Toilet and Teeth AM - Segment 1/2 (15°, 5.0 min, progress: 0%)
+[2025-11-15 07:45:55] INFO: Cycle #56 (SCHEDULED) complete in 5.03 min | UT: 04:44:22 | Mem: 10.7% | API: Total=65/350, Current=49, Forecast=16
+
+[2025-11-15 07:45:55] INFO: ## CYCLE 57 ##
+[2025-11-15 07:45:56] INFO: Displaying Schedule: Toilet and Teeth AM - Segment 2/2 (15°, 5.0 min, progress: 50%)
+[2025-11-15 07:50:56] INFO: Showing event: Fiesta Nico Coshi
+[2025-11-15 07:51:28] INFO: Cycle #57 (SCHEDULED) complete in 5.55 min | UT: 04:49:55 | Mem: 10.4% | API: Total=65/350, Current=49, Forecast=16
+
+[2025-11-15 07:51:28] INFO: ## CYCLE 58 ##
+[2025-11-15 07:51:31] INFO: Weather: Cloudy, 13.5°C
+[2025-11-15 07:51:31] INFO: Forecast: 12 hours (fresh) | Next: 15.3°C
+[2025-11-15 07:51:34] INFO: Displaying Forecast: Current 14°C → Next: 15°C, 16°C (1 min) [Fresh]
+[2025-11-15 07:52:36] INFO: Displaying Weather: Cloudy, 14°C (4 min)
