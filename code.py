@@ -48,16 +48,13 @@ from config import (
 # Import utility functions
 from utils import (
 	log_info, log_error, log_warning, log_debug, log_verbose,
-	duration_message, interruptible_sleep,
-	MemoryMonitor, calculate_text_width, center_text, right_align_text,
-	calculate_bottom_aligned_positions
+	duration_message, interruptible_sleep, MemoryMonitor
 )
 
 # Import network functions
 from network import (
-	is_wifi_connected, connect_to_wifi,
-	fetch_weather, fetch_current_weather_only,
-	get_cached_weather_if_fresh
+	is_wifi_connected, fetch_current_and_forecast_weather,
+	fetch_current_weather_only, get_cached_weather_if_fresh
 )
 
 # Import cache classes
@@ -65,14 +62,15 @@ from cache import WeatherCache, ImageCache
 
 # Import event functions
 from events import (
-	load_events, get_today_events_info, get_today_all_events_info,
-	load_schedules, get_active_schedule
+	load_all_events, get_events, load_schedules_from_csv,
+	scheduled_display
 )
 
 # Import display functions
 from display import (
 	initialize_display, detect_matrix_type, get_matrix_colors,
 	load_bmp_image, clear_display,
+	get_text_width, center_text, right_align_text, calculate_bottom_aligned_positions,
 	calculate_uv_bar_length, add_day_indicator, add_indicator_bars,
 	get_current_error_state,
 	show_clock_display, show_weather_display, show_event_display,
