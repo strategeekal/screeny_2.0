@@ -1,4 +1,6 @@
-##### PANTALLITA 2.0.6 #####
+##### PANTALLITA 2.1.0 #####
+# Major refactoring: Split monolithic code into 6 modules for better maintainability (v2.1.0)
+# See REFACTORING_SUMMARY.md for details on modular architecture
 # Stack exhaustion fix: Flattened nested try/except blocks to prevent crashes (v2.0.1)
 # Socket exhaustion fix: response.close() + smart caching (v2.0.2)
 # Comprehensive socket fix: Added response.close() to ALL HTTP requests - startup & runtime (v2.0.3)
