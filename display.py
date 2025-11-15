@@ -21,6 +21,9 @@ import displayio
 import framebufferio
 import rgbmatrix
 import microcontroller
+import time
+import supervisor
+import gc
 import adafruit_imageload
 from adafruit_display_text import bitmap_label
 from adafruit_display_shapes.line import Line
@@ -29,7 +32,11 @@ from config import (
     Display, Layout, DayIndicator, Visual, System, Timing, Paths,
     Strings, ColorManager, MONTHS
 )
-from utils import log_info, log_error, log_warning, log_debug, log_verbose
+from utils import (
+    log_info, log_error, log_warning, log_debug, log_verbose,
+    duration_message, interruptible_sleep
+)
+from network import is_wifi_connected
 
 
 # ===========================
@@ -306,11 +313,127 @@ def add_indicator_bars(main_group, x_start, uv_index, humidity):
 
 
 # ===========================
-# STUB: DISPLAY FUNCTIONS
+# ERROR STATE HELPERS
+# ===========================
+
+def get_current_error_state():
+	"""Determine current error state based on system status"""
+	from code import state
+
+	# During startup (before first weather attempt), show OK
+	if state.startup_time == 0:
+		return None
+
+	# Extended failure mode takes priority over permanent errors
+	# (shows system is degraded, even if error is permanent)
+	if state.in_extended_failure_mode:
+		return "extended"  # PURPLE
+
+	# Check for permanent configuration errors
+	if hasattr(state, 'has_permanent_error') and state.has_permanent_error:
+		return "general"  # WHITE
+
+	# Check for WiFi issues
+	if not is_wifi_connected():
+		return "wifi"  # RED
+
+	# Check for schedule display errors (file system issues)
+	if state.scheduled_display_error_count >= 3:
+		return "general"  # WHITE
+
+	# Check for weather API failures (only after startup)
+	time_since_success = time.monotonic() - state.last_successful_weather
+	if state.last_successful_weather > 0 and time_since_success > 600:
+		return "weather"  # YELLOW
+
+	# Check for consecutive failures
+	if state.consecutive_failures >= 3:
+		return "weather"  # YELLOW
+
+	# All OK
+	return None  # MINT
+
+
+# ===========================
+# DISPLAY FUNCTIONS
+# ===========================
+
+def show_clock_display(rtc, duration=Timing.CLOCK_DISPLAY_DURATION):
+	"""Display clock as fallback when weather unavailable"""
+	from code import state, font, bg_font, display_config
+
+	log_warning(f"Displaying clock for {duration_message(duration)}...")
+	clear_display()
+
+	# Determine clock color based on error state
+	error_state = get_current_error_state()
+
+	clock_colors = {
+		None: state.colors[Strings.DEFAULT_EVENT_COLOR],  # MINT = All OK
+		"wifi": state.colors["RED"],                      # WiFi failure
+		"weather": state.colors["YELLOW"],                # Weather API failure
+		"extended": state.colors["PURPLE"],               # Extended failure
+		"general": state.colors["WHITE"]                  # Unknown error
+	}
+
+	clock_color = clock_colors.get(error_state, state.colors["MINT"])
+
+	date_text = bitmap_label.Label(
+		font,
+		color=state.colors["DIMMEST_WHITE"],
+		x=Layout.CLOCK_DATE_X,
+		y=Layout.CLOCK_DATE_Y
+	)
+	time_text = bitmap_label.Label(
+		bg_font,
+		color=clock_color,  # Use error-based color
+		x=Layout.CLOCK_TIME_X,
+		y=Layout.CLOCK_TIME_Y
+	)
+
+	state.main_group.append(date_text)
+	state.main_group.append(time_text)
+
+	# Add day indicator after other elements
+	if display_config.show_weekday_indicator:
+		add_day_indicator(state.main_group, rtc)
+		log_verbose(f"Showing Weekday Color Indicator on Clock Display")
+	else:
+		log_verbose("Weekday Color Indicator Disabled")
+
+	start_time = time.monotonic()
+	while time.monotonic() - start_time < duration:
+		dt = rtc.datetime
+		date_str = f"{MONTHS[dt.tm_mon].upper()} {dt.tm_mday:02d}"
+
+		hour = dt.tm_hour
+		display_hour = hour % System.HOURS_IN_HALF_DAY if hour % System.HOURS_IN_HALF_DAY != 0 else System.HOURS_IN_HALF_DAY
+		time_str = f"{display_hour}:{dt.tm_min:02d}:{dt.tm_sec:02d}"
+
+		date_text.text = date_str
+		time_text.text = time_str
+		interruptible_sleep(1)
+
+	# Check for restart conditions ONLY if not in startup phase
+	if state.startup_time > 0:  # Only check if we've completed initialization
+		time_since_success = time.monotonic() - state.last_successful_weather
+
+		# Hard reset after 1 hour of failures
+		if time_since_success > System.SECONDS_PER_HOUR:
+			log_error(f"Hard reset after {int(time_since_success/System.SECONDS_PER_MINUTE)} minutes without successful weather fetch")
+			interruptible_sleep(Timing.RESTART_DELAY)
+			supervisor.reload()
+
+		# Warn after 30 minutes
+		elif time_since_success > System.SECONDS_HALF_HOUR and state.consecutive_failures >= System.MAX_LOG_FAILURES_BEFORE_RESTART:
+			log_warning(f"Extended failure: {int(time_since_success/System.SECONDS_PER_MINUTE)}min without success, {state.consecutive_failures} consecutive failures")
+
+
+# ===========================
+# STUB: REMAINING DISPLAY FUNCTIONS
 # ===========================
 # The following functions need to be extracted from code.py:
 # - show_weather_display() (lines ~2551-2708)
-# - show_clock_display() (lines ~2709-2776)
 # - show_event_display() (lines ~2777-2956)
 # - _display_single_event_optimized() (lines ~2836-2956)
 # - show_color_test_display() (lines ~2957-2989)
@@ -332,12 +455,6 @@ def show_weather_display(rtc, duration, weather_data=None):
 	raise NotImplementedError("Display functions require full extraction")
 
 
-def show_clock_display(rtc, duration=Timing.CLOCK_DISPLAY_DURATION):
-	"""STUB: Clock display function - needs extraction from code.py"""
-	log_error("show_clock_display() not yet implemented - requires extraction from code.py:2709-2776")
-	raise NotImplementedError("Display functions require full extraction")
-
-
 def show_event_display(rtc, duration):
 	"""STUB: Event display function - needs extraction from code.py"""
 	log_error("show_event_display() not yet implemented - requires extraction from code.py:2777-2956")
@@ -356,27 +473,272 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 	raise NotImplementedError("Display functions require full extraction")
 
 
-# Additional stub functions
 def show_color_test_display(duration=Timing.COLOR_TEST):
-	"""STUB: Color test display"""
-	raise NotImplementedError("Display functions require full extraction")
+	"""Display color test grid to verify color accuracy"""
+	from code import state, font
+
+	log_debug(f"Displaying Color Test for {duration_message(Timing.COLOR_TEST)}")
+	clear_display()
+	gc.collect()
+
+	try:
+		# Get test colors dynamically from COLORS dictionary
+		test_color_names = ["MINT", "BUGAMBILIA", "LILAC", "RED", "GREEN", "BLUE",
+						   "ORANGE", "YELLOW", "CYAN", "PURPLE", "PINK", "BROWN"]
+		texts = ["Aa", "Bb", "Cc", "Dd", "Ee", "Ff", "Gg", "Hh", "Ii", "Jj", "Kk", "Ll"]
+
+		key_text = "Color Key: "
+
+		for i, (color_name, text) in enumerate(zip(test_color_names, texts)):
+			color = state.colors[color_name]
+			col = i // Visual.COLOR_TEST_GRID_COLS
+			row = i % Visual.COLOR_TEST_GRID_COLS
+
+			label = bitmap_label.Label(
+				font, color=color, text=text,
+				x=Layout.COLOR_TEST_TEXT_X + col * Visual.COLOR_TEST_COL_SPACING, y=Layout.COLOR_TEST_TEXT_Y + row * Visual.COLOR_TEST_ROW_SPACING
+			)
+			state.main_group.append(label)
+			key_text += f"{text}={color_name}(0x{color:06X}) | "
+
+	except Exception as e:
+		log_error(f"Color Test display error: {e}")
+
+	log_info(key_text)
+	interruptible_sleep(duration)
+	gc.collect()
+	return True
 
 
 def show_icon_test_display(icon_numbers=None, duration=Timing.ICON_TEST):
-	"""STUB: Icon test display"""
-	raise NotImplementedError("Display functions require full extraction")
+	"""
+	Test display for weather icon columns
+
+	Args:
+		icon_numbers: List of up to 3 icon numbers to display, e.g. [1, 5, 33]
+					 If None, cycles through all icons
+		duration: How long to display (only used when cycling all icons)
+	"""
+	from code import state
+
+	if icon_numbers is None:
+		# Original behavior - cycle through all icons
+		log_info("Starting Icon Test Display - All Icons (Ctrl+C to exit)")
+
+		# AccuWeather icon numbers (skipping 9, 10, 27, 28)
+		all_icons = []
+		for i in range(1, 45):
+			if i not in [9, 10, 27, 28]:
+				all_icons.append(i)
+
+		total_icons = len(all_icons)
+		icons_per_batch = 3
+		num_batches = (total_icons + icons_per_batch - 1) // icons_per_batch
+
+		log_info(f"Testing {total_icons} icons in {num_batches} batches")
+
+		try:
+			for batch_num in range(num_batches):
+				start_idx = batch_num * icons_per_batch
+				end_idx = min(start_idx + icons_per_batch, total_icons)
+				batch_icons = all_icons[start_idx:end_idx]
+
+				_display_icon_batch(batch_icons, batch_num + 1, num_batches)
+
+				# Shorter sleep intervals for better interrupt response
+				for _ in range(int(duration * 10)):
+					time.sleep(0.1)
+
+		except KeyboardInterrupt:
+			log_info("Icon test interrupted by user")
+			clear_display()
+			raise
+	else:
+		# Manual mode - display specific icons indefinitely
+		if len(icon_numbers) > 3:
+			log_warning(f"Too many icons specified ({len(icon_numbers)}), showing first 3")
+			icon_numbers = icon_numbers[:3]
+
+		log_info(f"Displaying icons: {icon_numbers} (Ctrl+C to exit)")
+		_display_icon_batch(icon_numbers, manual_mode=True)
+
+		# Loop indefinitely until interrupted
+		try:
+			while True:
+				time.sleep(0.1)  # Keep display active, check for interrupt
+		except KeyboardInterrupt:
+			log_info("Icon test interrupted")
+			clear_display()
+			raise
+
+	log_info("Icon Test Display complete")
+	gc.collect()
+	return True
+
+
+def _display_icon_batch(icon_numbers, batch_num=None, total_batches=None, manual_mode=False):
+	"""Helper function to display a batch of icons"""
+	from code import state, font
+
+	if not manual_mode:
+		log_info(f"Batch {batch_num}/{total_batches}: Icons {icon_numbers}")
+
+	clear_display()
+	gc.collect()
+
+	try:
+		# Position icons horizontally (up to 3)
+		positions = [
+			(Layout.ICON_TEST_COL1_X, Layout.ICON_TEST_ROW1_Y),  # Left
+			(Layout.ICON_TEST_COL2_X, Layout.ICON_TEST_ROW1_Y),  # Center
+			(Layout.ICON_TEST_COL3_X, Layout.ICON_TEST_ROW1_Y),  # Right
+		]
+
+		for i, icon_num in enumerate(icon_numbers):
+			if i >= len(positions):
+				break
+
+			x, y = positions[i]
+
+			# Load icon image
+			try:
+				bitmap, palette = state.image_cache.get_image(f"{Paths.COLUMN_IMAGES}/{icon_num}.bmp")
+				icon_img = displayio.TileGrid(bitmap, pixel_shader=palette)
+				icon_img.x = x
+				icon_img.y = y
+				state.main_group.append(icon_img)
+			except Exception as e:
+				log_warning(f"Failed to load icon {icon_num}: {e}")
+				# Show error text instead
+				error_label = bitmap_label.Label(
+					font,
+					color=state.colors["RED"],
+					text="ERR",
+					x=x + 1,
+					y=y + 4
+				)
+				state.main_group.append(error_label)
+
+			# Add icon number below image
+			number_label = bitmap_label.Label(
+				font,
+				color=state.colors["DIMMEST_WHITE"],
+				text=str(icon_num),
+				x=x + (5 if icon_num < 10 else 3),  # Center single vs double digits
+				y=y + Layout.ICON_TEST_NUMBER_Y_OFFSET
+			)
+			state.main_group.append(number_label)
+
+	except Exception as e:
+		log_error(f"Icon display error: {e}")
 
 
 def create_progress_bar_tilegrid():
-	"""STUB: Progress bar creation"""
-	raise NotImplementedError("Display functions require full extraction")
+	"""Create a TileGrid-based progress bar with tick marks"""
+	from code import state
+
+	# Progress bar dimensions
+	bar_width = Layout.PROGRESS_BAR_HORIZONTAL_WIDTH
+	bar_height = Layout.PROGRESS_BAR_HORIZONTAL_HEIGHT
+	tick_height_above = 2
+	tick_height_below = 1
+	total_height = tick_height_above + bar_height + tick_height_below  # 5px total
+
+	# Bar position within bitmap
+	bar_y_start = tick_height_above  # Bar starts at row 2
+	bar_y_end = bar_y_start + bar_height  # Bar ends at row 4
+
+	# Create bitmap
+	progress_bitmap = displayio.Bitmap(bar_width, total_height, 4)
+
+	# Create palette
+	progress_palette = displayio.Palette(4)
+	progress_palette[0] = state.colors["BLACK"]
+	progress_palette[1] = state.colors["LILAC"]  # Elapsed
+	progress_palette[2] = state.colors["MINT"]   # Remaining
+	progress_palette[3] = state.colors["WHITE"]  # Tick marks
+
+	# Initialize with black background
+	for y in range(total_height):
+		for x in range(bar_width):
+			progress_bitmap[x, y] = 0
+
+	# Fill bar area with "remaining" color
+	for y in range(bar_y_start, bar_y_end):
+		for x in range(bar_width):
+			progress_bitmap[x, y] = 2
+
+	# Add tick marks at 0%, 25%, 50%, 75%, 100%
+	tick_positions = [0, bar_width // 4, bar_width // 2, 3 * bar_width // 4, bar_width - 1]
+
+	for pos in tick_positions:
+		# Major ticks (start, middle, end) get 2px above
+		if pos == 0 or pos == bar_width // 2 or pos == bar_width - 1:
+			progress_bitmap[pos, 0] = 3
+			progress_bitmap[pos, 1] = 3
+		else:  # Minor ticks (25%, 75%) get 1px above
+			progress_bitmap[pos, 1] = 3
+
+		# All ticks get 1px below
+		progress_bitmap[pos, bar_y_end] = 3
+
+	# Create TileGrid
+	progress_grid = displayio.TileGrid(
+		progress_bitmap,
+		pixel_shader=progress_palette,
+		x=Layout.PROGRESS_BAR_HORIZONTAL_X,
+		y=Layout.PROGRESS_BAR_HORIZONTAL_Y - tick_height_above
+	)
+
+	return progress_grid, progress_bitmap
 
 
 def update_progress_bar_bitmap(progress_bitmap, elapsed_seconds, total_seconds):
-	"""STUB: Progress bar update"""
-	raise NotImplementedError("Display functions require full extraction")
+	"""Update progress bar bitmap (fills left to right as time elapses)"""
+	if total_seconds <= 0:
+		return
+
+	# Calculate elapsed pixels
+	elapsed_ratio = min(1.0, elapsed_seconds / total_seconds)
+	elapsed_width = int(Layout.PROGRESS_BAR_HORIZONTAL_WIDTH * elapsed_ratio)
+
+	# Bar position (rows 2-3 in the 5-row bitmap)
+	bar_y_start = 2
+	bar_y_end = 4
+
+	# Update only the bar area
+	for y in range(bar_y_start, bar_y_end):
+		for x in range(Layout.PROGRESS_BAR_HORIZONTAL_WIDTH):
+			if x < elapsed_width:
+				progress_bitmap[x, y] = 1  # Elapsed (LILAC)
+			else:
+				progress_bitmap[x, y] = 2  # Remaining (MINT)
 
 
 def get_schedule_progress():
-	"""STUB: Get schedule progress"""
-	raise NotImplementedError("Display functions require full extraction")
+	"""
+	Calculate progress for active schedule session
+	Returns: (elapsed_seconds, total_duration, progress_ratio) or (None, None, None)
+	"""
+	from code import state
+
+	if not state.active_schedule_name or not state.active_schedule_start_time:
+		return None, None, None
+
+	current_time = time.monotonic()
+
+	# Check if schedule has expired
+	if state.active_schedule_end_time and current_time >= state.active_schedule_end_time:
+		# Schedule is over - clear session
+		log_debug(f"Schedule session ended: {state.active_schedule_name}")
+		state.active_schedule_name = None
+		state.active_schedule_start_time = None
+		state.active_schedule_end_time = None
+		state.active_schedule_segment_count = 0
+		return None, None, None
+
+	elapsed = current_time - state.active_schedule_start_time
+	total_duration = state.active_schedule_end_time - state.active_schedule_start_time
+	progress_ratio = elapsed / total_duration if total_duration > 0 else 0
+
+	return elapsed, total_duration, progress_ratio
