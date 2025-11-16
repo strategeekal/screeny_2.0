@@ -244,9 +244,9 @@ class Paths:
 
 	# Blank image fallbacks (user must create these)
 	BLANK_WEATHER = "img/weather/0.bmp"
-	BLANK_EVENT = "img/events/0.bmp"
+	BLANK_EVENT = "img/events/blank.bmp"
 	BLANK_COLUMN = "img/weather/columns/0.bmp"
-	BLANK_SCHEDULE = "img/schedules/0.bmp"
+	BLANK_SCHEDULE = "img/schedules/blank.bmp"
 
 	# Legacy paths
 	FALLBACK_EVENT_IMAGE = "img/events/blank_sq.bmp"
