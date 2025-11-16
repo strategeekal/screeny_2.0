@@ -20,10 +20,10 @@ from config import (
 def log_entry(message, level="INFO"):
 	"""
 	Unified logging with timestamp and level filtering
-	"""
-	# Import state here to avoid circular dependency at module load time
-	from code import state
 
+	Note: Shows [UPTIME] timestamps before RTC is initialized (normal during startup).
+	Once RTC is initialized, shows actual date/time.
+	"""
 	# Map string levels to numeric levels
 	level_map = {
 		"DEBUG": DebugLevel.DEBUG,
@@ -38,17 +38,26 @@ def log_entry(message, level="INFO"):
 		return  # Skip this message
 
 	try:
+		# Import state here to avoid circular dependency at module load time
+		try:
+			from code import state
+			rtc_instance = state.rtc_instance
+		except (ImportError, AttributeError):
+			rtc_instance = None
+
 		# Try RTC first, fallback to system time
-		if state.rtc_instance:
+		if rtc_instance:
 			try:
-				dt = state.rtc_instance.datetime
+				dt = rtc_instance.datetime
 				timestamp = f"{dt.tm_year}-{dt.tm_mon:02d}-{dt.tm_mday:02d} {dt.tm_hour:02d}:{dt.tm_min:02d}:{dt.tm_sec:02d}"
 				time_source = ""
 			except Exception:
+				# RTC access failed - use monotonic time
 				monotonic_time = time.monotonic()
 				timestamp = f"SYS+{int(monotonic_time)}"
 				time_source = " [SYS]"
 		else:
+			# No RTC yet (normal during startup) - use formatted uptime
 			monotonic_time = time.monotonic()
 			hours = int(monotonic_time // System.SECONDS_PER_HOUR)
 			minutes = int((monotonic_time % System.SECONDS_PER_HOUR) // System.SECONDS_PER_MINUTE)
