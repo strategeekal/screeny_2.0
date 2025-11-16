@@ -939,6 +939,13 @@ def show_forecast_display(current_data, forecast_data, display_duration, is_fres
 	time_y = Layout.FORECAST_TIME_Y
 	temp_y = Layout.FORECAST_TEMP_Y
 
+	# Define column data structure
+	columns_data = [
+		{"image": col1_icon, "x": Layout.FORECAST_COL1_X, "temp": col1_temp},
+		{"image": col2_icon, "x": Layout.FORECAST_COL2_X, "temp": col2_temp},
+		{"image": col3_icon, "x": Layout.FORECAST_COL3_X, "temp": col3_temp}
+	]
+
 	# Load weather icon columns - NO parent try block to avoid nesting
 	for i, col in enumerate(columns_data):
 		bitmap = None
