@@ -3468,7 +3468,7 @@ def initialize_system(rtc):
 
 	# Detect matrix type and initialize colors
 	matrix_type = detect_matrix_type(state)
-	state.colors = get_matrix_colors()
+	state.colors = get_matrix_colors(state)
 	state.memory_monitor.check_memory("hardware_init_complete")
 	
 	# Handle test date if configured
