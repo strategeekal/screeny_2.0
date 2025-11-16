@@ -72,27 +72,33 @@ def initialize_display(state=None):
 
 def detect_matrix_type(state=None):
 	"""Auto-detect matrix wiring type (cached for performance)"""
-	if state.matrix_type_cache is not None:
+	# Check cache if state is provided
+	if state is not None and state.matrix_type_cache is not None:
 		return state.matrix_type_cache
-	
+
 	uid = microcontroller.cpu.uid
 	device_id = "".join([f"{b:02x}" for b in uid[-3:]])
-	
+
 	device_mappings = {
 		System.DEVICE_TYPE1_ID: "type1",
 		System.DEVICE_TYPE2_ID: "type2",
 	}
-	
-	state.matrix_type_cache = device_mappings.get(device_id, "type1")
-	log_debug(f"Device ID: {device_id}, Matrix type: {state.matrix_type_cache}")
-	return state.matrix_type_cache
+
+	matrix_type = device_mappings.get(device_id, "type1")
+
+	# Cache if state is provided
+	if state is not None:
+		state.matrix_type_cache = matrix_type
+
+	log_debug(f"Device ID: {device_id}, Matrix type: {matrix_type}")
+	return matrix_type
 
 
-def get_matrix_colors():
+def get_matrix_colors(state=None):
 	"""Get color constants with corrections applied"""
-	matrix_type = detect_matrix_type()
+	matrix_type = detect_matrix_type(state)
 	bit_depth = Display.BIT_DEPTH
-	
+
 	return ColorManager.generate_colors(matrix_type, bit_depth)
 
 
