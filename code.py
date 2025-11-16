@@ -74,7 +74,7 @@ from display import (
 	calculate_uv_bar_length, add_day_indicator, add_indicator_bars,
 	get_current_error_state,
 	show_clock_display, show_weather_display, show_event_display,
-	show_forecast_display, show_scheduled_display,
+	show_scheduled_display,  # show_forecast_display removed - using OLD version
 	show_color_test_display, show_icon_test_display,
 	create_progress_bar_tilegrid, update_progress_bar_bitmap, get_schedule_progress
 )
@@ -3712,10 +3712,10 @@ def _run_normal_cycle(rtc, cycle_count, cycle_start_time):
 	current_data, forecast_data, forecast_is_fresh = fetch_cycle_data(rtc)
 	current_duration, forecast_duration, event_duration = calculate_display_durations(rtc)
 
-	# Forecast display
+	# Forecast display - using OLD version (global state) to avoid stack exhaustion
 	forecast_shown = False
 	if display_config.show_forecast and current_data and forecast_data:
-		forecast_shown = show_forecast_display(current_data, forecast_data, forecast_duration, forecast_is_fresh, state, font, display_config)
+		forecast_shown = show_forecast_display_OLD(current_data, forecast_data, forecast_duration, forecast_is_fresh)
 		something_displayed = something_displayed or forecast_shown
 
 	if not forecast_shown:
