@@ -236,13 +236,21 @@ class Paths:
 	EVENTS_CSV = "events.csv"
 	FONT_BIG = "fonts/bigbit10-16.bdf"
 	FONT_SMALL = "fonts/tinybit6-16.bdf"
-	
+
 	WEATHER_ICONS = "img/weather"
 	EVENT_IMAGES = "img/events"
 	COLUMN_IMAGES = "img/weather/columns"
+	SCHEDULE_IMAGES = "img/schedules"
+
+	# Blank image fallbacks (user must create these)
+	BLANK_WEATHER = "img/weather/0.bmp"
+	BLANK_EVENT = "img/events/0.bmp"
+	BLANK_COLUMN = "img/weather/columns/0.bmp"
+	BLANK_SCHEDULE = "img/schedules/0.bmp"
+
+	# Legacy paths
 	FALLBACK_EVENT_IMAGE = "img/events/blank_sq.bmp"
 	BIRTHDAY_IMAGE = "img/events/cake.bmp"
-	SCHEDULE_IMAGES = "img/schedules"
 	
 	# GitHub schedule paths
 	GITHUB_SCHEDULE_FOLDER = "schedules"  # Folder in your repo
@@ -2640,13 +2648,15 @@ def show_weather_display(rtc, duration, weather_data=None):
 		)
 		feels_shade_text.x = right_align_text(feels_shade_text.text, font, Layout.RIGHT_EDGE)
 	
-	# Load weather icon ONCE
+	# Load weather icon ONCE - fallback to blank
 	try:
 		bitmap, palette = state.image_cache.get_image(f"{Paths.WEATHER_ICONS}/{weather_data['weather_icon']}.bmp")
-		image_grid = displayio.TileGrid(bitmap, pixel_shader=palette)
-		state.main_group.append(image_grid)
-	except Exception as e:
-		log_warning(f"Icon load failed: {e}")
+	except:
+		bitmap, palette = state.image_cache.get_image(Paths.BLANK_WEATHER)
+		log_warning(f"Failed to load weather icon {weather_data['weather_icon']}.bmp, using blank")
+
+	image_grid = displayio.TileGrid(bitmap, pixel_shader=palette)
+	state.main_group.append(image_grid)
 	
 	# Add all static elements to display ONCE
 	state.main_group.append(temp_text)
@@ -2841,33 +2851,24 @@ def _display_single_event_optimized(event_data, rtc, duration):
 	gc.collect()
 	state.memory_monitor.check_memory("single_event_start")
 	
-	# Load image first (sequential try blocks, not nested)
-	bitmap = None
-	palette = None
-
-	if event_data[0] == "Birthday":  # Check bottom_line (was line1)
-		# For birthday events, use the original cake image layout
+	# Load image - simple fallback to blank
+	if event_data[0] == "Birthday":
+		# Try birthday cake image
 		try:
 			bitmap, palette = state.image_cache.get_image(Paths.BIRTHDAY_IMAGE)
-		except Exception as e:
-			log_warning(f"Failed to load birthday image: {e}")
-			return False
+		except:
+			# Fall back to blank
+			bitmap, palette = state.image_cache.get_image(Paths.BLANK_EVENT)
+			log_warning(f"Failed to load birthday image, using blank")
 	else:
-		# Load event-specific image (25x28 positioned at top right) - sequential fallback
+		# Try event-specific image
 		image_file = f"{Paths.EVENT_IMAGES}/{event_data[2]}"
 		try:
 			bitmap, palette = state.image_cache.get_image(image_file)
-		except Exception as e:
-			log_warning(f"Failed to load {image_file}: {e}")
-			bitmap = None  # Mark for fallback
-
-		# Try fallback if primary failed (sequential, not nested)
-		if bitmap is None:
-			try:
-				bitmap, palette = state.image_cache.get_image(Paths.FALLBACK_EVENT_IMAGE)
-			except Exception as e2:
-				log_warning(f"Failed to load fallback event image: {e2}")
-				return False
+		except:
+			# Fall back to blank
+			bitmap, palette = state.image_cache.get_image(Paths.BLANK_EVENT)
+			log_warning(f"Failed to load {image_file}, using blank")
 
 	# Now display the loaded image
 	try:
@@ -3239,24 +3240,14 @@ def show_forecast_display(current_data, forecast_data, display_duration, is_fres
 	]
 
 	for i, col in enumerate(columns_data):
-		bitmap = None
-		palette = None
-
-		# Try primary weather icon (1-level try - safe!)
+		# Try primary weather icon - fallback to blank
 		try:
 			bitmap, palette = state.image_cache.get_image(f"{Paths.COLUMN_IMAGES}/{col['image']}")
 		except:
-			# Load blank image and continue
-			bitmap, palette = state.image_cache.get_image(f"{Paths.COLUMN_IMAGES}/0.bmp}")
-			log_warning(f"Failed to load column {i+1} image, using blank image")
-			continue
+			bitmap, palette = state.image_cache.get_image(Paths.BLANK_COLUMN)
+			log_warning(f"Failed to load forecast column {i+1} image {col['image']}, using blank")
 
-		# Skip this column if both failed
-		if bitmap is None:
-			log_warning(f"Failed to load column {i+1} image")
-			continue
-
-		# Create and add column (no exception handling needed)
+		# Create and add column
 		col_img = displayio.TileGrid(bitmap, pixel_shader=palette)
 		col_img.x = col["x"]
 		col_img.y = column_y
@@ -3575,15 +3566,17 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 
 		y_offset = Layout.SCHEDULE_X_OFFSET if uv_index > 0 else 0
 
-		# Load weather icon (1-level try - safe!)
+		# Load weather icon - fallback to blank
 		try:
 			bitmap, palette = state.image_cache.get_image(f"{Paths.COLUMN_IMAGES}/{weather_icon}")
-			weather_img = displayio.TileGrid(bitmap, pixel_shader=palette)
-			weather_img.x = Layout.SCHEDULE_LEFT_MARGIN_X
-			weather_img.y = Layout.SCHEDULE_W_IMAGE_Y + y_offset
-			state.main_group.append(weather_img)
-		except Exception as e:
-			log_error(f"Failed to load weather icon: {e}")
+		except:
+			bitmap, palette = state.image_cache.get_image(Paths.BLANK_COLUMN)
+			log_warning(f"Failed to load schedule weather icon {weather_icon}, using blank")
+
+		weather_img = displayio.TileGrid(bitmap, pixel_shader=palette)
+		weather_img.x = Layout.SCHEDULE_LEFT_MARGIN_X
+		weather_img.y = Layout.SCHEDULE_W_IMAGE_Y + y_offset
+		state.main_group.append(weather_img)
 
 		# Set temperature color based on cache status
 		temp_color = state.colors["LILAC"] if is_cached else state.colors["DIMMEST_WHITE"]
@@ -3599,22 +3592,21 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 		)
 		state.main_group.append(temp_label)
 
-	# === SCHEDULE IMAGE (ALWAYS) - 1-level try (safe!) ===
+	# === SCHEDULE IMAGE (ALWAYS) - Skip schedule if image fails ===
 	try:
 		bitmap, palette = load_bmp_image(f"{Paths.SCHEDULE_IMAGES}/{schedule_config['image']}")
 		schedule_img = displayio.TileGrid(bitmap, pixel_shader=palette)
 		schedule_img.x = Layout.SCHEDULE_IMAGE_X
 		schedule_img.y = Layout.SCHEDULE_IMAGE_Y
 		state.main_group.append(schedule_img)
+		state.scheduled_display_error_count = 0
 	except Exception as e:
-		log_error(f"Failed to load schedule image: {e}")
+		log_warning(f"Failed to load schedule image {schedule_config['image']}, skipping schedule display")
 		state.scheduled_display_error_count += 1
 		if state.scheduled_display_error_count >= 3:
+			log_error(f"Too many schedule errors ({state.scheduled_display_error_count}), disabling schedules")
 			display_config.show_scheduled_displays = False
-		show_clock_display(rtc, segment_duration)
-		return
-
-	state.scheduled_display_error_count = 0
+		return  # Skip schedule, return to normal cycle
 
 	# === CLOCK LABEL AND DISPLAY LOOP - wrap in try for display errors ===
 	try:
