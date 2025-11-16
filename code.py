@@ -1,4 +1,4 @@
-##### PANTALLITA 2.1.0 - Phase 2 #####
+##### PANTALLITA 2.1.0 - Phase 2 (BUGFIX) #####
 # Stack exhaustion fix: Flattened nested try/except blocks to prevent crashes (v2.0.1)
 # Socket exhaustion fix: response.close() + smart caching (v2.0.2)
 # Comprehensive socket fix: Added response.close() to ALL HTTP requests - startup & runtime (v2.0.3)
@@ -7,6 +7,7 @@
 # Pre-refactor fixes: Moved nested format_hour() to module level, documented global state (v2.0.6.1)
 # Refactoring Phase 1: Extracted config.py - all configuration classes and constants
 # Refactoring Phase 2: Extracted utils.py - logging and utility functions
+# Phase 2 Bugfix: Moved initialize_display() back to code.py to fix circular import issue
 # See REFACTORING_PLAN_V2.md for refactoring strategy
 
 # === LIBRARIES ===
@@ -329,6 +330,28 @@ state = WeatherDisplayState()
 # Load fonts once at startup
 bg_font = bitmap_font.load_font(Paths.FONT_BIG)
 font = bitmap_font.load_font(Paths.FONT_SMALL)
+
+### ====================================== HARDWARE INITIALIZATION ====================================== ###
+
+def initialize_display():
+	"""Initialize RGB matrix display"""
+	displayio.release_displays()
+
+	matrix = rgbmatrix.RGBMatrix(
+		width=Display.WIDTH, height=Display.HEIGHT, bit_depth=Display.BIT_DEPTH,
+		rgb_pins=[board.MTX_R1, board.MTX_G1, board.MTX_B1,
+				board.MTX_R2, board.MTX_G2, board.MTX_B2],
+		addr_pins=[board.MTX_ADDRA, board.MTX_ADDRB,
+				board.MTX_ADDRC, board.MTX_ADDRD],
+		clock_pin=board.MTX_CLK, latch_pin=board.MTX_LAT,
+		output_enable_pin=board.MTX_OE,
+		serpentine=True, doublebuffer=True,
+	)
+
+	state.display = framebufferio.FramebufferDisplay(matrix, auto_refresh=True)
+	state.main_group = displayio.Group()
+	state.display.root_group = state.main_group
+	log_debug(f"Display initialized, main_group created: {state.main_group is not None}")
 
 ### ====================================== NETWORK AND RTC SETUP ====================================== ###
 

@@ -9,14 +9,10 @@ Extracted in Phase 2 of controlled refactoring from v2.0.6.1
 """
 
 import time
-import board
-import displayio
-import framebufferio
-import rgbmatrix
 
 # Import configuration
 from config import (
-	DebugLevel, CURRENT_DEBUG_LEVEL, System, MONTHS, Strings, Display, Timing
+	DebugLevel, CURRENT_DEBUG_LEVEL, System, MONTHS, Strings, Timing
 )
 
 ### LOGGING UTILITIES ###
@@ -147,30 +143,7 @@ def format_hour(hour):
 	else:
 		return f"{hour-System.HOURS_IN_HALF_DAY}{Strings.PM_SUFFIX}"
 
-### HARDWARE INITIALIZATION ###
-
-def initialize_display():
-	"""Initialize RGB matrix display"""
-	# Import state here to avoid circular dependency at module load time
-	from code import state
-
-	displayio.release_displays()
-
-	matrix = rgbmatrix.RGBMatrix(
-		width=Display.WIDTH, height=Display.HEIGHT, bit_depth=Display.BIT_DEPTH,
-		rgb_pins=[board.MTX_R1, board.MTX_G1, board.MTX_B1,
-				board.MTX_R2, board.MTX_G2, board.MTX_B2],
-		addr_pins=[board.MTX_ADDRA, board.MTX_ADDRB,
-				board.MTX_ADDRC, board.MTX_ADDRD],
-		clock_pin=board.MTX_CLK, latch_pin=board.MTX_LAT,
-		output_enable_pin=board.MTX_OE,
-		serpentine=True, doublebuffer=True,
-	)
-
-	state.display = framebufferio.FramebufferDisplay(matrix, auto_refresh=True)
-	state.main_group = displayio.Group()
-	state.display.root_group = state.main_group
-
+### HELPER FUNCTIONS ###
 
 def interruptible_sleep(duration):
 	"""Sleep that can be interrupted more easily"""
