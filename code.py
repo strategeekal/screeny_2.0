@@ -61,8 +61,8 @@ from utils import (
 	log_entry, log_info, log_error, log_warning, log_debug, log_verbose,
 	# Time parsing
 	duration_message, parse_iso_datetime, format_datetime, format_hour,
-	# Hardware and helpers
-	initialize_display, interruptible_sleep
+	# Helpers
+	interruptible_sleep
 )
 
 ### CACHE ###
