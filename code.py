@@ -2468,6 +2468,20 @@ def right_align_text(text, font, right_edge):
 def center_text(text, font, area_x, area_width):
 	return area_x + (area_width - get_text_width(text, font)) // 2
 
+def format_hour_12h(hour):
+	"""Convert 24-hour time to 12-hour format with AM/PM suffix (e.g., '3P', '12A')"""
+	# Handle midnight and noon specially
+	if hour == 0:
+		return Strings.NOON_12AM  # "12A"
+	if hour == 12:
+		return Strings.NOON_12PM  # "12P"
+
+	# Convert to 12-hour and add suffix
+	if hour < 12:
+		return f"{hour}{Strings.AM_SUFFIX}"  # "1A" to "11A"
+
+	return f"{hour - 12}{Strings.PM_SUFFIX}"  # "1P" to "11P"
+
 def get_day_color(rtc):
 	"""Get color for day of week indicator"""
 	day_colors = {
@@ -3214,20 +3228,10 @@ def show_forecast_display(current_data, forecast_data, display_duration, is_fres
 		if col2_hours_ahead <= 1:
 			col2_color = state.colors["DIMMEST_WHITE"]
 			col3_color = state.colors["DIMMEST_WHITE"]
-		
+
 		# Generate static time labels for columns 2 and 3
-		def format_hour(hour):
-			if hour == 0:
-				return Strings.NOON_12AM
-			elif hour < System.HOURS_IN_HALF_DAY:
-				return f"{hour}{Strings.AM_SUFFIX}"
-			elif hour == System.HOURS_IN_HALF_DAY:
-				return Strings.NOON_12PM
-			else:
-				return f"{hour-System.HOURS_IN_HALF_DAY}{Strings.PM_SUFFIX}"
-		
-		col2_time = format_hour(hour_plus_1)
-		col3_time = format_hour(hour_plus_2)
+		col2_time = format_hour_12h(hour_plus_1)
+		col3_time = format_hour_12h(hour_plus_2)
 	except Exception as e:
 		log_error(f"Forecast data extraction error: {e}")
 		return False
