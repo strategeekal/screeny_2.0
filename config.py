@@ -357,7 +357,7 @@ class DisplayConfig:
 		self.show_events = True
 
 		# Display Elements
-		self.show_weekday_indicator = True
+		self.show_weekday_indicator = False  # DISABLED: Creates 25 Line objects, causes stack exhaustion in forecast
 		self.show_scheduled_displays = True
 		self.show_events_in_between_schedules = True
 
