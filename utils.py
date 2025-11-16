@@ -15,6 +15,20 @@ from config import (
 	DebugLevel, CURRENT_DEBUG_LEVEL, System, MONTHS, Strings, Timing
 )
 
+# Module-level cache for state reference (initialized on first use)
+_state_cache = None
+
+def _get_state():
+	"""Get cached state reference, loading it on first call"""
+	global _state_cache
+	if _state_cache is None:
+		try:
+			from code import state
+			_state_cache = state
+		except (ImportError, AttributeError):
+			pass
+	return _state_cache
+
 ### LOGGING UTILITIES ###
 
 def log_entry(message, level="INFO"):
@@ -38,12 +52,9 @@ def log_entry(message, level="INFO"):
 		return  # Skip this message
 
 	try:
-		# Import state here to avoid circular dependency at module load time
-		try:
-			from code import state
-			rtc_instance = state.rtc_instance
-		except (ImportError, AttributeError):
-			rtc_instance = None
+		# Get cached state reference (only imports once)
+		state = _get_state()
+		rtc_instance = state.rtc_instance if state else None
 
 		# Try RTC first, fallback to system time
 		if rtc_instance:
