@@ -2649,21 +2649,14 @@ def show_weather_display(rtc, duration, weather_data=None):
 		feels_shade_text.x = right_align_text(feels_shade_text.text, font, Layout.RIGHT_EDGE)
 	
 	# Load weather icon ONCE - fallback to blank
-	bitmap = None
-	palette = None
+	bitmap, palette = state.image_cache.get_image(f"{Paths.WEATHER_ICONS}/{weather_data['weather_icon']}.bmp")
 
-	try:
-		bitmap, palette = state.image_cache.get_image(f"{Paths.WEATHER_ICONS}/{weather_data['weather_icon']}.bmp")
-	except:
-		log_warning(f"Failed to load weather icon {weather_data['weather_icon']}.bmp, trying blank")
-
-	# Try blank if primary failed (sequential, not nested)
+	# Try blank if primary failed (check return value, not exception)
 	if bitmap is None:
-		try:
-			bitmap, palette = state.image_cache.get_image(Paths.BLANK_WEATHER)
-		except:
-			log_error(f"Failed to load weather blank fallback, skipping icon")
-			bitmap = None  # Mark as failed
+		log_warning(f"Weather icon {weather_data['weather_icon']}.bmp failed, trying blank")
+		bitmap, palette = state.image_cache.get_image(Paths.BLANK_WEATHER)
+		if bitmap is None:
+			log_error(f"Weather blank fallback failed, skipping icon")
 
 	# Add icon if successfully loaded
 	if bitmap:
@@ -2863,30 +2856,24 @@ def _display_single_event_optimized(event_data, rtc, duration):
 	gc.collect()
 	state.memory_monitor.check_memory("single_event_start")
 	
-	# Load image - simple fallback to blank
+	# Load image - fallback to blank if primary fails
 	bitmap = None
 	palette = None
 
 	if event_data[0] == "Birthday":
 		# Try birthday cake image
-		try:
-			bitmap, palette = state.image_cache.get_image(Paths.BIRTHDAY_IMAGE)
-		except:
-			log_warning(f"Failed to load birthday image, trying blank")
+		bitmap, palette = state.image_cache.get_image(Paths.BIRTHDAY_IMAGE)
 	else:
 		# Try event-specific image
 		image_file = f"{Paths.EVENT_IMAGES}/{event_data[2]}"
-		try:
-			bitmap, palette = state.image_cache.get_image(image_file)
-		except:
-			log_warning(f"Failed to load {image_file}, trying blank")
+		bitmap, palette = state.image_cache.get_image(image_file)
 
-	# Try blank if primary failed (sequential, not nested)
+	# Try blank if primary failed (check return value, not exception)
 	if bitmap is None:
-		try:
-			bitmap, palette = state.image_cache.get_image(Paths.BLANK_EVENT)
-		except:
-			log_error(f"Failed to load event blank fallback, skipping event")
+		log_warning(f"Event image failed, trying blank")
+		bitmap, palette = state.image_cache.get_image(Paths.BLANK_EVENT)
+		if bitmap is None:
+			log_error(f"Event blank fallback failed, skipping event")
 			return False
 
 	# Now display the loaded image
@@ -3259,21 +3246,15 @@ def show_forecast_display(current_data, forecast_data, display_duration, is_fres
 	]
 
 	for i, col in enumerate(columns_data):
-		bitmap = None
-		palette = None
-
 		# Try primary weather icon
-		try:
-			bitmap, palette = state.image_cache.get_image(f"{Paths.COLUMN_IMAGES}/{col['image']}")
-		except:
-			log_warning(f"Failed to load forecast column {i+1} image {col['image']}, trying blank")
+		bitmap, palette = state.image_cache.get_image(f"{Paths.COLUMN_IMAGES}/{col['image']}")
 
-		# Try blank if primary failed (sequential, not nested)
+		# Try blank if primary failed (check return value, not exception)
 		if bitmap is None:
-			try:
-				bitmap, palette = state.image_cache.get_image(Paths.BLANK_COLUMN)
-			except:
-				log_error(f"Failed to load blank fallback for column {i+1}, skipping column")
+			log_warning(f"Forecast column {i+1} image {col['image']} failed, trying blank")
+			bitmap, palette = state.image_cache.get_image(Paths.BLANK_COLUMN)
+			if bitmap is None:
+				log_error(f"Blank fallback failed for column {i+1}, skipping column")
 				continue
 
 		# Create and add column
@@ -3596,21 +3577,14 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 		y_offset = Layout.SCHEDULE_X_OFFSET if uv_index > 0 else 0
 
 		# Load weather icon - fallback to blank
-		bitmap = None
-		palette = None
+		bitmap, palette = state.image_cache.get_image(f"{Paths.COLUMN_IMAGES}/{weather_icon}")
 
-		try:
-			bitmap, palette = state.image_cache.get_image(f"{Paths.COLUMN_IMAGES}/{weather_icon}")
-		except:
-			log_warning(f"Failed to load schedule weather icon {weather_icon}, trying blank")
-
-		# Try blank if primary failed (sequential, not nested)
+		# Try blank if primary failed (check return value, not exception)
 		if bitmap is None:
-			try:
-				bitmap, palette = state.image_cache.get_image(Paths.BLANK_COLUMN)
-			except:
-				log_error(f"Failed to load schedule weather blank fallback, skipping icon")
-				bitmap = None  # Mark as failed
+			log_warning(f"Schedule weather icon {weather_icon} failed, trying blank")
+			bitmap, palette = state.image_cache.get_image(Paths.BLANK_COLUMN)
+			if bitmap is None:
+				log_error(f"Schedule weather blank fallback failed, skipping icon")
 
 		# Add icon if successfully loaded
 		if bitmap:
