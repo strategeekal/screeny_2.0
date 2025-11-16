@@ -2673,7 +2673,7 @@ def show_forecast_display(current_data, forecast_data, display_duration, is_fres
 		# Create temperature labels (all static)
 		for col in columns_data:
 			centered_x = center_text(col["temp"], font, col["x"], column_width) + 1
-			
+
 			temp_label = bitmap_label.Label(
 				font,
 				color=state.colors["DIMMEST_WHITE"],
@@ -2682,12 +2682,13 @@ def show_forecast_display(current_data, forecast_data, display_duration, is_fres
 				y=temp_y
 			)
 			state.main_group.append(temp_label)
-		
-		# Add day indicator if enabled
-		if display_config.show_weekday_indicator:
-			add_day_indicator(state.main_group, state.rtc_instance)
-		
-		
+
+		# SKIP day indicator in forecast to reduce stack depth
+		# (Day indicator creates 20+ Line objects which exhausts stack)
+		# if display_config.show_weekday_indicator:
+		# 	add_day_indicator(state.main_group, state.rtc_instance)
+
+
 		# Display update loop - update column 1 time only when minute changes
 		start_time = time.monotonic()
 		loop_count = 0
