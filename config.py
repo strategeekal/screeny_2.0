@@ -377,9 +377,6 @@ class DisplayConfig:
 
 	def validate(self):
 		"""Validate configuration and return list of issues"""
-		# Import here to avoid circular dependency
-		from utils import log_warning
-
 		issues = []
 		warnings = []
 
@@ -389,13 +386,13 @@ class DisplayConfig:
 
 		# Warn about dummy modes
 		if not self.use_live_weather:
-			log_warning("Using DUMMY weather data (not fetching from API)")
+			print("[CONFIG WARNING] Using DUMMY weather data (not fetching from API)")
 
 		if not self.use_live_forecast:
-			log_warning("Using DUMMY forecast data (not fetching from API)")
+			print("[CONFIG WARNING] Using DUMMY forecast data (not fetching from API)")
 
 		if self.use_test_date:
-			log_warning("Test date mode enabled - NTP sync will be skipped")
+			print("[CONFIG WARNING] Test date mode enabled - NTP sync will be skipped")
 
 
 	def should_fetch_weather(self):
@@ -425,9 +422,8 @@ class DisplayConfig:
 
 	def log_status(self):
 		"""Log current configuration status"""
-		# Import here to avoid circular dependency
-		from utils import log_info
-		log_info(f"Features: {', '.join(self.get_active_features())}")
+		# Simple print - logging handled by caller if needed
+		print(f"[CONFIG INFO] Features: {', '.join(self.get_active_features())}")
 
 # Global display configuration instance
 display_config = DisplayConfig()
@@ -535,9 +531,6 @@ DAILY_RESET_ENABLED = True
 
 def validate_configuration():
 	"""Validate configuration values and log warnings for potential issues"""
-	# Import here to avoid circular dependency
-	from utils import log_error, log_warning, log_debug
-
 	issues = []
 	warnings = []
 
@@ -574,16 +567,16 @@ def validate_configuration():
 
 	# Report issues
 	if issues:
-		log_error("=== CONFIGURATION ERRORS ===")
+		print("[CONFIG ERROR] === CONFIGURATION ERRORS ===")
 		for issue in issues:
-			log_error(f"  - {issue}")
-		log_error("Fix these issues before running!")
+			print(f"[CONFIG ERROR]   - {issue}")
+		print("[CONFIG ERROR] Fix these issues before running!")
 		return False
 
 	if warnings:
-		log_warning("=== CONFIGURATION WARNINGS ===")
+		print("[CONFIG WARNING] === CONFIGURATION WARNINGS ===")
 		for warning in warnings:
-			log_warning(f"  - {warning}")
+			print(f"[CONFIG WARNING]   - {warning}")
 
-	log_debug("Configuration validation passed")
+	print("[CONFIG DEBUG] Configuration validation passed")
 	return True
