@@ -1,10 +1,11 @@
-##### PANTALLITA 2.0.6 #####
+##### PANTALLITA 2.0.6.1 #####
 # Stack exhaustion fix: Flattened nested try/except blocks to prevent crashes (v2.0.1)
 # Socket exhaustion fix: response.close() + smart caching (v2.0.2)
 # Comprehensive socket fix: Added response.close() to ALL HTTP requests - startup & runtime (v2.0.3)
 # CRITICAL socket pool fix: Reuse single global socket pool instead of creating new pools (v2.0.5)
 # Simplified approach: Removed mid-schedule cleanup - matches proven regular cycle behavior (v2.0.6)
-# See STACK_TEST_ANALYSIS.md for technical details
+# Pre-refactor fixes: Moved nested format_hour() to module level, documented global state (v2.0.6.1)
+# See REFACTORING_PLAN_V2.md for refactoring strategy
 
 # === LIBRARIES ===
 # Standard library
@@ -853,6 +854,18 @@ class WeatherDisplayState:
 				pass
 
 ### GLOBAL STATE ###
+# Global state objects used throughout the application
+# These will remain in code.py during refactoring to avoid circular imports
+# Other modules will import these from code.py OR receive them as parameters
+#
+# Global objects:
+# - state: WeatherDisplayState() - tracks runtime state, caches, counters
+# - display_config: DisplayConfig() - feature flags and config (line 453)
+# - scheduled_display: ScheduledDisplay() - schedule management (line 2412)
+# - _global_socket_pool: Socket pool (reused, created once) (line 1242)
+# - _global_session: HTTP session (recreated as needed) (line 1243)
+# - bg_font, font: Loaded font objects (initialized below)
+#
 state = WeatherDisplayState()
 
 # Load fonts once at startup
@@ -974,6 +987,17 @@ def format_datetime(iso_string):
 		time_str = f"{hour - 12}pm"
 	
 	return f"{MONTHS[month]} {day}, {time_str}"
+
+def format_hour(hour):
+	"""Format hour (0-23) to 12-hour format with am/pm suffix"""
+	if hour == 0:
+		return Strings.NOON_12AM
+	elif hour < System.HOURS_IN_HALF_DAY:
+		return f"{hour}{Strings.AM_SUFFIX}"
+	elif hour == System.HOURS_IN_HALF_DAY:
+		return Strings.NOON_12PM
+	else:
+		return f"{hour-System.HOURS_IN_HALF_DAY}{Strings.PM_SUFFIX}"
 
 ### HARDWARE INITIALIZATION ###
 
@@ -3239,16 +3263,6 @@ def show_forecast_display(current_data, forecast_data, display_duration, is_fres
 				col3_color = state.colors["DIMMEST_WHITE"]
 		
 		# Generate static time labels for columns 2 and 3
-		def format_hour(hour):
-			if hour == 0:
-				return Strings.NOON_12AM
-			elif hour < System.HOURS_IN_HALF_DAY:
-				return f"{hour}{Strings.AM_SUFFIX}"
-			elif hour == System.HOURS_IN_HALF_DAY:
-				return Strings.NOON_12PM
-			else:
-				return f"{hour-System.HOURS_IN_HALF_DAY}{Strings.PM_SUFFIX}"
-		
 		col2_time = format_hour(hour_plus_1)
 		col3_time = format_hour(hour_plus_2)
 	except Exception as e:
