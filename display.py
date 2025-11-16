@@ -156,8 +156,18 @@ def load_bmp_image(filepath):
 # ===========================
 
 def get_text_width(text, font, state=None):
-	"""Get text width using cache"""
-	return state.text_cache.get_text_width(text, font)
+	"""Get text width using cache if available, otherwise calculate directly"""
+	if not text:
+		return 0
+
+	# Use cache if state is provided
+	if state is not None and hasattr(state, 'text_cache'):
+		return state.text_cache.get_text_width(text, font)
+
+	# Calculate width directly without cache
+	temp_label = bitmap_label.Label(font, text=text)
+	bbox = temp_label.bounding_box
+	return bbox[2] if bbox else 0
 
 
 def get_font_metrics(font, text="Aygjpq"):
@@ -218,14 +228,14 @@ def clear_display(state=None):
 		state.main_group.pop()
 
 
-def right_align_text(text, font, right_edge):
+def right_align_text(text, font, right_edge, state=None):
 	"""Calculate x position for right-aligned text"""
-	return right_edge - get_text_width(text, font)
+	return right_edge - get_text_width(text, font, state)
 
 
-def center_text(text, font, area_x, area_width):
+def center_text(text, font, area_x, area_width, state=None):
 	"""Calculate x position for centered text"""
-	text_width = get_text_width(text, font)
+	text_width = get_text_width(text, font, state)
 	return area_x + (area_width - text_width) // 2
 
 
@@ -516,7 +526,7 @@ def show_weather_display(rtc, duration, weather_data=None, state=None, font=None
 			padding_bottom=-2,
 			padding_left=1
 		)
-		feels_like_text.x = right_align_text(feels_like_text.text, font, Layout.RIGHT_EDGE)
+		feels_like_text.x = right_align_text(feels_like_text.text, font, Layout.RIGHT_EDGE, state)
 
 	if feels_shade_rounded != feels_like_rounded:
 		feels_shade_text = bitmap_label.Label(
@@ -529,7 +539,7 @@ def show_weather_display(rtc, duration, weather_data=None, state=None, font=None
 			padding_bottom=-2,
 			padding_left=1
 		)
-		feels_shade_text.x = right_align_text(feels_shade_text.text, font, Layout.RIGHT_EDGE)
+		feels_shade_text.x = right_align_text(feels_shade_text.text, font, Layout.RIGHT_EDGE, state)
 
 	# Load weather icon ONCE
 	try:
@@ -587,9 +597,9 @@ def show_weather_display(rtc, duration, weather_data=None, state=None, font=None
 
 			# Position time text based on other elements
 			if feels_shade_text:
-				time_text.x = center_text(current_time, font, 0, Display.WIDTH)
+				time_text.x = center_text(current_time, font, 0, Display.WIDTH, state)
 			else:
-				time_text.x = right_align_text(current_time, font, Layout.RIGHT_EDGE)
+				time_text.x = right_align_text(current_time, font, Layout.RIGHT_EDGE, state)
 
 			last_minute = minute
 
@@ -975,7 +985,7 @@ def show_forecast_display(current_data, forecast_data, display_duration, is_fres
 		col1_time_label = bitmap_label.Label(
 			font,
 			color=state.colors["DIMMEST_WHITE"],
-			x=max(center_text("00:00", font, Layout.FORECAST_COL1_X, column_width), 1),  # Initial placeholder
+			x=max(center_text("00:00", font, Layout.FORECAST_COL1_X, column_width, state), 1),  # Initial placeholder
 			y=time_y
 		)
 
@@ -984,7 +994,7 @@ def show_forecast_display(current_data, forecast_data, display_duration, is_fres
 			font,
 			color=col2_color,
 			text=col2_time,
-			x=max(center_text(col2_time, font, Layout.FORECAST_COL2_X, column_width), 1),
+			x=max(center_text(col2_time, font, Layout.FORECAST_COL2_X, column_width, state), 1),
 			y=time_y
 		)
 
@@ -992,7 +1002,7 @@ def show_forecast_display(current_data, forecast_data, display_duration, is_fres
 			font,
 			color=col3_color,
 			text=col3_time,
-			x=max(center_text(col3_time, font, Layout.FORECAST_COL3_X, column_width), 1),
+			x=max(center_text(col3_time, font, Layout.FORECAST_COL3_X, column_width, state), 1),
 			y=time_y
 		)
 
@@ -1003,7 +1013,7 @@ def show_forecast_display(current_data, forecast_data, display_duration, is_fres
 
 		# Create temperature labels (all static)
 		for col in columns_data:
-			centered_x = center_text(col["temp"], font, col["x"], column_width) + 1
+			centered_x = center_text(col["temp"], font, col["x"], column_width, state) + 1
 
 			temp_label = bitmap_label.Label(
 				font,
@@ -1046,7 +1056,7 @@ def show_forecast_display(current_data, forecast_data, display_duration, is_fres
 				# Update ONLY the first column time text
 				col1_time_label.text = new_time
 				# Recenter the text
-				col1_time_label.x = max(center_text(new_time, font, Layout.FORECAST_COL1_X, column_width), 1)
+				col1_time_label.x = max(center_text(new_time, font, Layout.FORECAST_COL1_X, column_width, state), 1)
 
 				last_minute = current_minute
 
