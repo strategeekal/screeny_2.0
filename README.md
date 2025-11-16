@@ -1,4 +1,4 @@
-# Pantallita 2.0.6
+# Pantallita 2.0.6.1
 
 A dual RGB matrix weather display system running on MatrixPortal S3, showing real-time weather, forecasts, events, and scheduled activities for family use.
 
@@ -797,18 +797,20 @@ See "Future Enhancements" section for implementation timeline.
 ## Future Enhancements
 
 ### High Priority
-1. **Implement socket exhaustion fixes** (see CODE_REVIEW_REVISED.md)
-   - Add response.close() to 5 locations
-   - Mid-schedule cleanup every 4 segments
-   - 15-minute weather caching during schedules
 
-2. **Testing environment**
+1. **Testing environment**
    - Test mode flag to prevent API calls
    - Mock data generators
    - Unit test framework for CircuitPython
    - Separate test/production configurations
 
 ### Planned Features
+2. **Minimal display mode**
+ - Time-based activation (e.g., 10pm-6am)
+ - Clock + temperature only
+ - Reduced brightness
+ - Lower API frequency
+
 3. **GitHub-based config control**
    - Remote feature toggles without USB connection
    - JSON config file fetched at startup
@@ -819,13 +821,7 @@ See "Future Enhancements" section for implementation timeline.
    - Update frequency: 5-15 minutes
    - Rotating display with multiple stocks
 
-5. **Minimal display mode**
-   - Time-based activation (e.g., 10pm-6am)
-   - Clock + temperature only
-   - Reduced brightness
-   - Lower API frequency
-
-6. **Sports scores** (World Cup 2026!)
+5. **Sports scores** (World Cup 2026!)
    - Game schedule tracking
    - Live score updates during matches
    - Team logos and match status
@@ -841,6 +837,9 @@ See "Future Enhancements" section for implementation timeline.
 - Benefits: Simpler code, zero overhead, no session recreation, matches proven pattern
 - Daily restart provides natural cleanup boundary (sessions never open for days)
 - Result: ~200 lines of complexity removed, same reliability as regular cycles
+- 2.0.6.1
+  - Removed logic for feels like temperature for forecast
+  - Simplified missing image handling 
 
 ### 2.0.5
 - **FIXED:** CRITICAL socket pool exhaustion - the root cause of ALL socket issues!

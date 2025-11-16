@@ -1,4 +1,4 @@
-##### PANTALLITA 2.0.6 #####
+##### PANTALLITA 2.0.6.1 #####
 # Stack exhaustion fix: Flattened nested try/except blocks to prevent crashes (v2.0.1)
 # Socket exhaustion fix: response.close() + smart caching (v2.0.2)
 # Comprehensive socket fix: Added response.close() to ALL HTTP requests - startup & runtime (v2.0.3)
@@ -3160,9 +3160,7 @@ def show_forecast_display(current_data, forecast_data, display_duration, is_fres
 	
 	if first_forecast_hour == current_hour and forecast_indices[0] == 0 and len(forecast_data) >= 3:
 		forecast_indices = [1, 2]
-		log_debug(f"Adjusted to skip duplicate hour {current_hour}")
-	
-	log_debug(f"Will show hours: {forecast_indices[0]+1} and {forecast_indices[1]+1}")
+		log_debug(f"Adjusted to skip duplicate hour {current_hour}, Will show hours: {forecast_indices[0]+1} and {forecast_indices[1]+1}")
 	
 	clear_display()
 	gc.collect()
@@ -3175,43 +3173,17 @@ def show_forecast_display(current_data, forecast_data, display_duration, is_fres
 
 	# Extract weather data (no exception handling needed for dict access with defaults)
 	try:
-		# Column 1 - current temperature with feels-like logic
-		temp_col1 = current_data['temperature']
 		
-		if temp_col1 > Visual.FEELS_LIKE_TEMP_THRESHOLD:
-			display_temp_col1 = current_data.get('feels_like', temp_col1)
-		else:
-			display_temp_col1 = current_data.get('feels_shade', temp_col1)
-		
-		col1_temp = f"{round(display_temp_col1)}°"
+		# Column 1 - feels-like temperature and icon
+		col1_temp = f"{current_temp}°"
 		col1_icon = f"{current_data['weather_icon']}.bmp"
 		
-		# Column 2 - temperature with feels-like logic
-		temp_col2 = forecast_data[forecast_indices[0]]['temperature']
-		
-		if temp_col2 > Visual.FEELS_LIKE_TEMP_THRESHOLD:
-			# Warm: show feels-like
-			display_temp_col2 = forecast_data[forecast_indices[0]].get('feels_like', temp_col2)
-		else:
-			# Cool: show feels-like shade
-			display_temp_col2 = forecast_data[forecast_indices[0]].get('feels_shade', temp_col2)
-		
-		col2_temp = f"{round(display_temp_col2)}°"
-		
-		# Column 3 - temperature with feels-like logic
-		temp_col3 = forecast_data[forecast_indices[1]]['temperature']
-		
-		if temp_col3 > Visual.FEELS_LIKE_TEMP_THRESHOLD:
-			# Warm: show feels-like
-			display_temp_col3 = forecast_data[forecast_indices[1]].get('feels_like', temp_col3)
-		else:
-			# Cool: show feels-like shade
-			display_temp_col3 = forecast_data[forecast_indices[1]].get('feels_shade', temp_col3)
-		
-		col3_temp = f"{round(display_temp_col3)}°"
-		
-		# Get column icons
+		# Column 2 - feels-like temperature and icon
+		col2_temp = f"{round(forecast_data[forecast_indices[0]]['feels_like'])}°"
 		col2_icon = f"{forecast_data[forecast_indices[0]]['weather_icon']}.bmp"
+		
+		# Column 3 - feels-like temperature and icon
+		col3_temp = f"{round(forecast_data[forecast_indices[1]]['feels_like'])}°"
 		col3_icon = f"{forecast_data[forecast_indices[1]]['weather_icon']}.bmp"
 		
 		hour_plus_1 = int(forecast_data[forecast_indices[0]]['datetime'][11:13]) % System.HOURS_IN_DAY
@@ -3234,9 +3206,7 @@ def show_forecast_display(current_data, forecast_data, display_duration, is_fres
 		# Override if col2 is immediate
 		if col2_hours_ahead <= 1:
 			col2_color = state.colors["DIMMEST_WHITE"]
-			# Override col3 if also immediate
-			if col3_hours_ahead <= 2:
-				col3_color = state.colors["DIMMEST_WHITE"]
+			col3_color = state.colors["DIMMEST_WHITE"]
 		
 		# Generate static time labels for columns 2 and 3
 		def format_hour(hour):
@@ -3276,15 +3246,10 @@ def show_forecast_display(current_data, forecast_data, display_duration, is_fres
 		try:
 			bitmap, palette = state.image_cache.get_image(f"{Paths.COLUMN_IMAGES}/{col['image']}")
 		except:
-			pass  # Will try fallback
-
-		# Try fallback if primary failed (1-level try - safe!)
-		if bitmap is None:
-			try:
-				bitmap, palette = state.image_cache.get_image(f"{Paths.COLUMN_IMAGES}/{i+1}.bmp")
-				log_warning(f"Used fallback column image for column {i+1}")
-			except:
-				pass  # Will skip this column
+			# Load blank image and continue
+			bitmap, palette = state.image_cache.get_image(f"{Paths.COLUMN_IMAGES}/0.bmp}")
+			log_warning(f"Failed to load column {i+1} image, using blank image")
+			continue
 
 		# Skip this column if both failed
 		if bitmap is None:
