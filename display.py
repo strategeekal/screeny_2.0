@@ -1051,9 +1051,8 @@ def show_forecast_display(current_data, forecast_data, display_duration, is_fres
 			new_time = f"{display_hour}:{current_minute:02d}"
 
 			# Update ONLY the first column time text
+			# DON'T recalculate position - time strings are fixed width, position stays the same
 			col1_time_label.text = new_time
-			# Recenter the text
-			col1_time_label.x = max(center_text(new_time, font, Layout.FORECAST_COL1_X, column_width, state), 1)
 
 			last_minute = current_minute
 
