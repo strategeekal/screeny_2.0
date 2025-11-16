@@ -790,6 +790,18 @@ def _display_single_event_optimized(event_data, rtc, duration, state=None, font=
 	state.memory_monitor.check_memory("single_event_complete")
 
 
+def _format_hour_for_forecast(hour):
+	"""Format hour for forecast display (helper function to avoid nested def)"""
+	if hour == 0:
+		return Strings.NOON_12AM
+	elif hour < System.HOURS_IN_HALF_DAY:
+		return f"{hour}{Strings.AM_SUFFIX}"
+	elif hour == System.HOURS_IN_HALF_DAY:
+		return Strings.NOON_12PM
+	else:
+		return f"{hour-System.HOURS_IN_HALF_DAY}{Strings.PM_SUFFIX}"
+
+
 def show_forecast_display(current_data, forecast_data, display_duration, is_fresh=False, state=None, font=None, display_config=None):
 	"""Optimized forecast display with smart precipitation detection"""
 	# CRITICAL: Aggressive cleanup
@@ -920,18 +932,8 @@ def show_forecast_display(current_data, forecast_data, display_duration, is_fres
 			col3_color = state.colors["DIMMEST_WHITE"]
 
 	# Generate static time labels for columns 2 and 3
-	def format_hour(hour):
-		if hour == 0:
-			return Strings.NOON_12AM
-		elif hour < System.HOURS_IN_HALF_DAY:
-			return f"{hour}{Strings.AM_SUFFIX}"
-		elif hour == System.HOURS_IN_HALF_DAY:
-			return Strings.NOON_12PM
-		else:
-			return f"{hour-System.HOURS_IN_HALF_DAY}{Strings.PM_SUFFIX}"
-
-	col2_time = format_hour(hour_plus_1)
-	col3_time = format_hour(hour_plus_2)
+	col2_time = _format_hour_for_forecast(hour_plus_1)
+	col3_time = _format_hour_for_forecast(hour_plus_2)
 
 	# Column positioning constants
 	column_y = Layout.FORECAST_COLUMN_Y
