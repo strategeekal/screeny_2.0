@@ -2649,14 +2649,26 @@ def show_weather_display(rtc, duration, weather_data=None):
 		feels_shade_text.x = right_align_text(feels_shade_text.text, font, Layout.RIGHT_EDGE)
 	
 	# Load weather icon ONCE - fallback to blank
+	bitmap = None
+	palette = None
+
 	try:
 		bitmap, palette = state.image_cache.get_image(f"{Paths.WEATHER_ICONS}/{weather_data['weather_icon']}.bmp")
 	except:
-		bitmap, palette = state.image_cache.get_image(Paths.BLANK_WEATHER)
-		log_warning(f"Failed to load weather icon {weather_data['weather_icon']}.bmp, using blank")
+		log_warning(f"Failed to load weather icon {weather_data['weather_icon']}.bmp, trying blank")
 
-	image_grid = displayio.TileGrid(bitmap, pixel_shader=palette)
-	state.main_group.append(image_grid)
+	# Try blank if primary failed (sequential, not nested)
+	if bitmap is None:
+		try:
+			bitmap, palette = state.image_cache.get_image(Paths.BLANK_WEATHER)
+		except:
+			log_error(f"Failed to load weather blank fallback, skipping icon")
+			bitmap = None  # Mark as failed
+
+	# Add icon if successfully loaded
+	if bitmap:
+		image_grid = displayio.TileGrid(bitmap, pixel_shader=palette)
+		state.main_group.append(image_grid)
 	
 	# Add all static elements to display ONCE
 	state.main_group.append(temp_text)
@@ -2852,23 +2864,30 @@ def _display_single_event_optimized(event_data, rtc, duration):
 	state.memory_monitor.check_memory("single_event_start")
 	
 	# Load image - simple fallback to blank
+	bitmap = None
+	palette = None
+
 	if event_data[0] == "Birthday":
 		# Try birthday cake image
 		try:
 			bitmap, palette = state.image_cache.get_image(Paths.BIRTHDAY_IMAGE)
 		except:
-			# Fall back to blank
-			bitmap, palette = state.image_cache.get_image(Paths.BLANK_EVENT)
-			log_warning(f"Failed to load birthday image, using blank")
+			log_warning(f"Failed to load birthday image, trying blank")
 	else:
 		# Try event-specific image
 		image_file = f"{Paths.EVENT_IMAGES}/{event_data[2]}"
 		try:
 			bitmap, palette = state.image_cache.get_image(image_file)
 		except:
-			# Fall back to blank
+			log_warning(f"Failed to load {image_file}, trying blank")
+
+	# Try blank if primary failed (sequential, not nested)
+	if bitmap is None:
+		try:
 			bitmap, palette = state.image_cache.get_image(Paths.BLANK_EVENT)
-			log_warning(f"Failed to load {image_file}, using blank")
+		except:
+			log_error(f"Failed to load event blank fallback, skipping event")
+			return False
 
 	# Now display the loaded image
 	try:
@@ -3240,12 +3259,22 @@ def show_forecast_display(current_data, forecast_data, display_duration, is_fres
 	]
 
 	for i, col in enumerate(columns_data):
-		# Try primary weather icon - fallback to blank
+		bitmap = None
+		palette = None
+
+		# Try primary weather icon
 		try:
 			bitmap, palette = state.image_cache.get_image(f"{Paths.COLUMN_IMAGES}/{col['image']}")
 		except:
-			bitmap, palette = state.image_cache.get_image(Paths.BLANK_COLUMN)
-			log_warning(f"Failed to load forecast column {i+1} image {col['image']}, using blank")
+			log_warning(f"Failed to load forecast column {i+1} image {col['image']}, trying blank")
+
+		# Try blank if primary failed (sequential, not nested)
+		if bitmap is None:
+			try:
+				bitmap, palette = state.image_cache.get_image(Paths.BLANK_COLUMN)
+			except:
+				log_error(f"Failed to load blank fallback for column {i+1}, skipping column")
+				continue
 
 		# Create and add column
 		col_img = displayio.TileGrid(bitmap, pixel_shader=palette)
@@ -3567,16 +3596,28 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 		y_offset = Layout.SCHEDULE_X_OFFSET if uv_index > 0 else 0
 
 		# Load weather icon - fallback to blank
+		bitmap = None
+		palette = None
+
 		try:
 			bitmap, palette = state.image_cache.get_image(f"{Paths.COLUMN_IMAGES}/{weather_icon}")
 		except:
-			bitmap, palette = state.image_cache.get_image(Paths.BLANK_COLUMN)
-			log_warning(f"Failed to load schedule weather icon {weather_icon}, using blank")
+			log_warning(f"Failed to load schedule weather icon {weather_icon}, trying blank")
 
-		weather_img = displayio.TileGrid(bitmap, pixel_shader=palette)
-		weather_img.x = Layout.SCHEDULE_LEFT_MARGIN_X
-		weather_img.y = Layout.SCHEDULE_W_IMAGE_Y + y_offset
-		state.main_group.append(weather_img)
+		# Try blank if primary failed (sequential, not nested)
+		if bitmap is None:
+			try:
+				bitmap, palette = state.image_cache.get_image(Paths.BLANK_COLUMN)
+			except:
+				log_error(f"Failed to load schedule weather blank fallback, skipping icon")
+				bitmap = None  # Mark as failed
+
+		# Add icon if successfully loaded
+		if bitmap:
+			weather_img = displayio.TileGrid(bitmap, pixel_shader=palette)
+			weather_img.x = Layout.SCHEDULE_LEFT_MARGIN_X
+			weather_img.y = Layout.SCHEDULE_W_IMAGE_Y + y_offset
+			state.main_group.append(weather_img)
 
 		# Set temperature color based on cache status
 		temp_color = state.colors["LILAC"] if is_cached else state.colors["DIMMEST_WHITE"]
