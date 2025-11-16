@@ -4075,6 +4075,7 @@ def _check_rapid_cycling(cycle_count):
 
 def _ensure_wifi_available(rtc):
 	"""Helper: Check WiFi with recovery attempt (Category A2)"""
+	global state, font, bg_font, display_config
 	if is_wifi_connected():
 		return True
 
@@ -4088,7 +4089,7 @@ def _ensure_wifi_available(rtc):
 
 def _check_failure_mode(rtc):
 	"""Helper: Check and handle extended failure mode (Category A2)"""
-    global state, font, bg_font, display_config
+	global state, font, bg_font, display_config
 	time_since_success = time.monotonic() - state.last_successful_weather
 	in_failure_mode = time_since_success > Timing.EXTENDED_FAILURE_THRESHOLD
 
@@ -4106,7 +4107,7 @@ def _check_failure_mode(rtc):
 
 def _run_scheduled_cycle(rtc, cycle_count, cycle_start_time):
 	"""Helper: Handle scheduled display if active (Category A2)"""
-    global state, font, bg_font, display_config
+	global state, font, bg_font, display_config
 	if not display_config.show_scheduled_displays:
 		log_debug("Scheduled displays disabled due to errors")
 		return False
