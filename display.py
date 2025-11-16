@@ -855,87 +855,83 @@ def show_forecast_display(current_data, forecast_data, display_duration, is_fres
 	status = "Fresh" if is_fresh else "Cached"
 	log_info(f"Displaying Forecast: Current {current_temp}°C → Next: {next_temps[0]}°C, {next_temps[1]}°C ({display_duration/60:.0f} min) [{status}]")
 
-	# Extract weather data (no exception handling needed for dict access with defaults)
-	try:
-		# Column 1 - current temperature with feels-like logic
-		temp_col1 = current_data['temperature']
+	# Extract weather data - NO TRY BLOCK to avoid nesting later
+	# Column 1 - current temperature with feels-like logic
+	temp_col1 = current_data.get('temperature', 0)
 
-		if temp_col1 > Visual.FEELS_LIKE_TEMP_THRESHOLD:
-			display_temp_col1 = current_data.get('feels_like', temp_col1)
+	if temp_col1 > Visual.FEELS_LIKE_TEMP_THRESHOLD:
+		display_temp_col1 = current_data.get('feels_like', temp_col1)
+	else:
+		display_temp_col1 = current_data.get('feels_shade', temp_col1)
+
+	col1_temp = f"{round(display_temp_col1)}°"
+	col1_icon = f"{current_data.get('weather_icon', 1)}.bmp"
+
+	# Column 2 - temperature with feels-like logic
+	temp_col2 = forecast_data[forecast_indices[0]].get('temperature', 0)
+
+	if temp_col2 > Visual.FEELS_LIKE_TEMP_THRESHOLD:
+		# Warm: show feels-like
+		display_temp_col2 = forecast_data[forecast_indices[0]].get('feels_like', temp_col2)
+	else:
+		# Cool: show feels-like shade
+		display_temp_col2 = forecast_data[forecast_indices[0]].get('feels_shade', temp_col2)
+
+	col2_temp = f"{round(display_temp_col2)}°"
+
+	# Column 3 - temperature with feels-like logic
+	temp_col3 = forecast_data[forecast_indices[1]].get('temperature', 0)
+
+	if temp_col3 > Visual.FEELS_LIKE_TEMP_THRESHOLD:
+		# Warm: show feels-like
+		display_temp_col3 = forecast_data[forecast_indices[1]].get('feels_like', temp_col3)
+	else:
+		# Cool: show feels-like shade
+		display_temp_col3 = forecast_data[forecast_indices[1]].get('feels_shade', temp_col3)
+
+	col3_temp = f"{round(display_temp_col3)}°"
+
+	# Get column icons
+	col2_icon = f"{forecast_data[forecast_indices[0]].get('weather_icon', 1)}.bmp"
+	col3_icon = f"{forecast_data[forecast_indices[1]].get('weather_icon', 1)}.bmp"
+
+	hour_plus_1 = int(forecast_data[forecast_indices[0]]['datetime'][11:13]) % System.HOURS_IN_DAY
+	hour_plus_2 = int(forecast_data[forecast_indices[1]]['datetime'][11:13]) % System.HOURS_IN_DAY
+
+	# Calculate actual hours from datetime strings
+	current_hour = state.rtc_instance.datetime.tm_hour
+	col2_hour = int(forecast_data[forecast_indices[0]]['datetime'][11:13]) % System.HOURS_IN_DAY
+	col3_hour = int(forecast_data[forecast_indices[1]]['datetime'][11:13]) % System.HOURS_IN_DAY
+
+	# Calculate hours ahead from current time (handle midnight wraparound)
+	col2_hours_ahead = (col2_hour - current_hour) % System.HOURS_IN_DAY
+	col3_hours_ahead = (col3_hour - current_hour) % System.HOURS_IN_DAY
+
+	# Determine colors based on hour gaps
+	# Default: both jumped ahead
+	col2_color = state.colors["MINT"]
+	col3_color = state.colors["MINT"]
+
+	# Override if col2 is immediate
+	if col2_hours_ahead <= 1:
+		col2_color = state.colors["DIMMEST_WHITE"]
+		# Override col3 if also immediate
+		if col3_hours_ahead <= 2:
+			col3_color = state.colors["DIMMEST_WHITE"]
+
+	# Generate static time labels for columns 2 and 3
+	def format_hour(hour):
+		if hour == 0:
+			return Strings.NOON_12AM
+		elif hour < System.HOURS_IN_HALF_DAY:
+			return f"{hour}{Strings.AM_SUFFIX}"
+		elif hour == System.HOURS_IN_HALF_DAY:
+			return Strings.NOON_12PM
 		else:
-			display_temp_col1 = current_data.get('feels_shade', temp_col1)
+			return f"{hour-System.HOURS_IN_HALF_DAY}{Strings.PM_SUFFIX}"
 
-		col1_temp = f"{round(display_temp_col1)}°"
-		col1_icon = f"{current_data['weather_icon']}.bmp"
-
-		# Column 2 - temperature with feels-like logic
-		temp_col2 = forecast_data[forecast_indices[0]]['temperature']
-
-		if temp_col2 > Visual.FEELS_LIKE_TEMP_THRESHOLD:
-			# Warm: show feels-like
-			display_temp_col2 = forecast_data[forecast_indices[0]].get('feels_like', temp_col2)
-		else:
-			# Cool: show feels-like shade
-			display_temp_col2 = forecast_data[forecast_indices[0]].get('feels_shade', temp_col2)
-
-		col2_temp = f"{round(display_temp_col2)}°"
-
-		# Column 3 - temperature with feels-like logic
-		temp_col3 = forecast_data[forecast_indices[1]]['temperature']
-
-		if temp_col3 > Visual.FEELS_LIKE_TEMP_THRESHOLD:
-			# Warm: show feels-like
-			display_temp_col3 = forecast_data[forecast_indices[1]].get('feels_like', temp_col3)
-		else:
-			# Cool: show feels-like shade
-			display_temp_col3 = forecast_data[forecast_indices[1]].get('feels_shade', temp_col3)
-
-		col3_temp = f"{round(display_temp_col3)}°"
-
-		# Get column icons
-		col2_icon = f"{forecast_data[forecast_indices[0]]['weather_icon']}.bmp"
-		col3_icon = f"{forecast_data[forecast_indices[1]]['weather_icon']}.bmp"
-
-		hour_plus_1 = int(forecast_data[forecast_indices[0]]['datetime'][11:13]) % System.HOURS_IN_DAY
-		hour_plus_2 = int(forecast_data[forecast_indices[1]]['datetime'][11:13]) % System.HOURS_IN_DAY
-
-		# Calculate actual hours from datetime strings
-		current_hour = state.rtc_instance.datetime.tm_hour
-		col2_hour = int(forecast_data[forecast_indices[0]]['datetime'][11:13]) % System.HOURS_IN_DAY
-		col3_hour = int(forecast_data[forecast_indices[1]]['datetime'][11:13]) % System.HOURS_IN_DAY
-
-		# Calculate hours ahead from current time (handle midnight wraparound)
-		col2_hours_ahead = (col2_hour - current_hour) % System.HOURS_IN_DAY
-		col3_hours_ahead = (col3_hour - current_hour) % System.HOURS_IN_DAY
-
-		# Determine colors based on hour gaps
-		# Default: both jumped ahead
-		col2_color = state.colors["MINT"]
-		col3_color = state.colors["MINT"]
-
-		# Override if col2 is immediate
-		if col2_hours_ahead <= 1:
-			col2_color = state.colors["DIMMEST_WHITE"]
-			# Override col3 if also immediate
-			if col3_hours_ahead <= 2:
-				col3_color = state.colors["DIMMEST_WHITE"]
-
-		# Generate static time labels for columns 2 and 3
-		def format_hour(hour):
-			if hour == 0:
-				return Strings.NOON_12AM
-			elif hour < System.HOURS_IN_HALF_DAY:
-				return f"{hour}{Strings.AM_SUFFIX}"
-			elif hour == System.HOURS_IN_HALF_DAY:
-				return Strings.NOON_12PM
-			else:
-				return f"{hour-System.HOURS_IN_HALF_DAY}{Strings.PM_SUFFIX}"
-
-		col2_time = format_hour(hour_plus_1)
-		col3_time = format_hour(hour_plus_2)
-	except Exception as e:
-		log_error(f"Forecast data extraction error: {e}")
-		return False
+	col2_time = format_hour(hour_plus_1)
+	col3_time = format_hour(hour_plus_2)
 
 	# Column positioning constants
 	column_y = Layout.FORECAST_COLUMN_Y
@@ -943,13 +939,7 @@ def show_forecast_display(current_data, forecast_data, display_duration, is_fres
 	time_y = Layout.FORECAST_TIME_Y
 	temp_y = Layout.FORECAST_TEMP_Y
 
-	# Load weather icon columns - NO parent try block (reduces nesting to 1 level)
-	columns_data = [
-		{"image": col1_icon, "x": Layout.FORECAST_COL1_X, "temp": col1_temp},
-		{"image": col2_icon, "x": Layout.FORECAST_COL2_X, "temp": col2_temp},
-		{"image": col3_icon, "x": Layout.FORECAST_COL3_X, "temp": col3_temp}
-	]
-
+	# Load weather icon columns - NO parent try block to avoid nesting
 	for i, col in enumerate(columns_data):
 		bitmap = None
 		palette = None
