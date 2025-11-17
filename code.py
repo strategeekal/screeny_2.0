@@ -1882,13 +1882,6 @@ def parse_event_data(parts):
 		int(parts[6]) if len(parts) > 6 and parts[6].strip() else Timing.EVENT_ALL_DAY_END
 	]
 
-def parse_event_line(parts):
-	"""Parse CSV parts into event data. Returns (date_key, event_data) or None if invalid."""
-	if len(parts) < 4:
-		return None
-	# Format: MM-DD,TopLine,BottomLine,ImageFile,Color[,StartHour,EndHour]
-	return normalize_date_key(parts[0]), parse_event_data(parts)
-
 def load_events_from_file(filepath):
 	"""Load events from CSV file. Returns dict of {date_key: [event_data, ...]}"""
 	events = {}
@@ -1903,13 +1896,14 @@ def load_events_from_file(filepath):
 
 				try:
 					parts = [p.strip() for p in line.split(",")]
-					result = parse_event_line(parts)
 
-					if result is None:
+					# Format: MM-DD,TopLine,BottomLine,ImageFile,Color[,StartHour,EndHour]
+					if len(parts) < 4:
 						log_warning(f"Line {line_num}: Not enough fields (need at least 4)")
 						continue
 
-					date_key, event_data = result
+					date_key = normalize_date_key(parts[0])
+					event_data = parse_event_data(parts)
 					events.setdefault(date_key, []).append(event_data)
 					count += 1
 					log_verbose(f"Loaded: {date_key} - {event_data[0]} {event_data[1]}")
