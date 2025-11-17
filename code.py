@@ -1440,12 +1440,9 @@ def fetch_weather_with_retries(url, max_retries=None, context="API"):
 
 			last_error = f"HTTP {response.status_code}"
 		finally:
-			# Always close response to free socket
-			if response:
-				try:
-					response.close()
-				except:
-					pass  # Ignore errors during cleanup
+			# Always close response to free socket (ignore errors)
+			if response and hasattr(response, 'close'):
+				response.close()
 
 	log_error(f"{context}: All {max_retries + 1} attempts failed. Last error: {last_error}")
 	return None
@@ -1624,7 +1621,6 @@ def fetch_current_weather():
 		else:
 			log_warning("Current weather fetch failed")
 			handle_weather_failure()
-			check_preventive_restart()
 			return None
 
 	except Exception as e:
@@ -1676,7 +1672,6 @@ def fetch_forecast_weather():
 		else:
 			log_warning("Forecast fetch failed")
 			handle_weather_failure()
-			check_preventive_restart()
 			return None
 
 	except Exception as e:
@@ -3980,10 +3975,9 @@ def fetch_cycle_data(rtc):
 			current_data = TestData.DUMMY_WEATHER_DATA
 			log_debug("Using DUMMY weather data")
 		elif display_config.show_weather:
-			display_config.use_live_forecast = False
-			current_data, _ = fetch_current_and_forecast_weather()
-			display_config.use_live_forecast = True
-		
+			# Fetch only current weather (no forecast needed)
+			current_data = fetch_current_weather()
+
 		forecast_data = state.cached_forecast_data
 	
 	# Return fresh flag along with data
