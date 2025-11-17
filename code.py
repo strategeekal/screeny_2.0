@@ -2045,53 +2045,46 @@ def parse_events_csv_content(csv_content, rtc):
 		log_error(f"Error parsing events CSV: {e}")
 		return {}
 	
+def parse_schedule_data(parts):
+	"""Extract schedule fields from CSV parts. Returns (name, schedule_dict)."""
+	name = parts[0]
+	schedule = {
+		"enabled": parts[1] == "1",
+		"days": [int(d) for d in parts[2] if d.isdigit()],
+		"start_hour": int(parts[3]),
+		"start_min": int(parts[4]),
+		"end_hour": int(parts[5]),
+		"end_min": int(parts[6]),
+		"image": parts[7],
+		"progressbar": parts[8] == "1" if len(parts) > 8 else True
+	}
+	return name, schedule
+
 def parse_schedule_csv_content(csv_content, rtc):
 	"""Parse schedule CSV content directly from string (no file I/O)"""
 	schedules = {}
-	
+
 	try:
 		lines = csv_content.strip().split('\n')
-		
+
 		if not lines:
 			return schedules
-		
+
 		# Skip header row
 		for line in lines[1:]:
 			line = line.strip()
 			if not line or line.startswith('#'):
 				continue
-			
+
 			parts = [p.strip() for p in line.split(',')]
-			
-			if len(parts) >= 9:
-				name = parts[0]
-				enabled = parts[1] == "1"
-				days_str = parts[2]
-				start_hour = int(parts[3])
-				start_min = int(parts[4])
-				end_hour = int(parts[5])
-				end_min = int(parts[6])
-				image = parts[7]
-				progressbar = parts[8] == "1"
-				
-				# Convert days string to list of day numbers (0=Mon, 6=Sun)
-				days = [int(d) for d in days_str if d.isdigit()]
-				
-				schedules[name] = {
-					"enabled": enabled,
-					"days": days,
-					"start_hour": start_hour,
-					"start_min": start_min,
-					"end_hour": end_hour,
-					"end_min": end_min,
-					"image": image,
-					"progressbar": progressbar
-				}
-				
-				log_verbose(f"Parsed schedule: {name} ({'enabled' if enabled else 'disabled'}, {len(days)} days)")
-		
+
+			if len(parts) >= 8:
+				name, schedule = parse_schedule_data(parts)
+				schedules[name] = schedule
+				log_verbose(f"Parsed schedule: {name} ({'enabled' if schedule['enabled'] else 'disabled'}, {len(schedule['days'])} days)")
+
 		return schedules
-		
+
 	except Exception as e:
 		log_error(f"Error parsing schedule CSV: {e}")
 		return {}
@@ -2212,28 +2205,17 @@ def load_schedules_from_csv():
 				if line and not line.startswith("#"):
 					parts = [part.strip() for part in line.split(",")]
 					if len(parts) >= 8:
-						name = parts[0]
-						enabled = parts[1] == "1"
-						days = [int(d) for d in parts[2]]
-						schedules[name] = {
-							"enabled": enabled,
-							"days": days,
-							"start_hour": int(parts[3]),
-							"start_min": int(parts[4]),
-							"end_hour": int(parts[5]),
-							"end_min": int(parts[6]),
-							"image": parts[7],
-							"progressbar": parts[8] == "1" if len(parts) > 8 else True
-						}
-		
+						name, schedule = parse_schedule_data(parts)
+						schedules[name] = schedule
+
 		# Log successful load
 		if schedules:
 			log_debug(f"{len(schedules)} schedules loaded")
 		else:
 			log_warning("No schedules found in schedules.csv")
-		
+
 		return schedules
-		
+
 	except Exception as e:
 		log_warning(f"Failed to load schedules.csv: {e}")
 		return {}
