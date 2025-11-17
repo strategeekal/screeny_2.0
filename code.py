@@ -2089,23 +2089,8 @@ def parse_schedule_csv_content(csv_content, rtc):
 		log_error(f"Error parsing schedule CSV: {e}")
 		return {}
 	
-def fetch_github_data(rtc):
-	"""
-	Fetch both events and schedules from GitHub in one operation
-	Returns: (events_dict, schedules_dict, schedule_source)
-		schedule_source: "date-specific", "default", or None
-	"""
-	
-	session = get_requests_session()
-	if not session:
-		log_warning("No session available for GitHub fetch")
-		return None, None, None
-	
-	import time
-	cache_buster = int(time.monotonic())
-	github_base = Strings.GITHUB_REPO_URL.rsplit('/', 1)[0]
-	
-	# ===== FETCH EVENTS =====
+def fetch_github_events(session, cache_buster, rtc):
+	"""Fetch events from GitHub. Returns events dict."""
 	events_url = f"{Strings.GITHUB_REPO_URL}?t={cache_buster}"
 	events = {}
 	response = None
@@ -2129,11 +2114,11 @@ def fetch_github_data(rtc):
 					pass  # Ignore close errors
 	except Exception as e:
 		log_warning(f"Failed to fetch events: {e}")
-	
-	# ===== FETCH SCHEDULE =====
-	now = rtc.datetime
-	date_str = f"{now.tm_year:04d}-{now.tm_mon:02d}-{now.tm_mday:02d}"
 
+	return events
+
+def fetch_github_schedules(session, github_base, cache_buster, rtc, date_str):
+	"""Fetch schedules from GitHub (date-specific or default). Returns (schedules, schedule_source)."""
 	schedules = {}
 	schedule_source = None
 	response = None
@@ -2191,6 +2176,31 @@ def fetch_github_data(rtc):
 
 	except Exception as e:
 		log_warning(f"Failed to fetch schedule: {e}")
+
+	return schedules, schedule_source
+
+def fetch_github_data(rtc):
+	"""
+	Fetch both events and schedules from GitHub in one operation
+	Returns: (events_dict, schedules_dict, schedule_source)
+		schedule_source: "date-specific", "default", or None
+	"""
+
+	session = get_requests_session()
+	if not session:
+		log_warning("No session available for GitHub fetch")
+		return None, None, None
+
+	import time
+	cache_buster = int(time.monotonic())
+	github_base = Strings.GITHUB_REPO_URL.rsplit('/', 1)[0]
+
+	# Fetch events and schedules
+	events = fetch_github_events(session, cache_buster, rtc)
+
+	now = rtc.datetime
+	date_str = f"{now.tm_year:04d}-{now.tm_mon:02d}-{now.tm_mday:02d}"
+	schedules, schedule_source = fetch_github_schedules(session, github_base, cache_buster, rtc, date_str)
 
 	return events, schedules, schedule_source
 	
