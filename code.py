@@ -1451,170 +1451,241 @@ def fetch_weather_with_retries(url, max_retries=None, context="API"):
 	log_error(f"{context}: All {max_retries + 1} attempts failed. Last error: {last_error}")
 	return None
 
+# ============================================================================
+# Weather Fetch Helpers
+# ============================================================================
+
+def parse_current_weather(current_json):
+	"""Parse current weather JSON response into data dict"""
+	current = current_json[0]
+	temp_data = current.get("Temperature", {}).get("Metric", {})
+	realfeel_data = current.get("RealFeelTemperature", {}).get("Metric", {})
+	realfeel_shade_data = current.get("RealFeelTemperatureShade", {}).get("Metric", {})
+
+	current_data = {
+		"weather_icon": current.get("WeatherIcon", 0),
+		"temperature": temp_data.get("Value", 0),
+		"feels_like": realfeel_data.get("Value", 0),
+		"feels_shade": realfeel_shade_data.get("Value", 0),
+		"humidity": current.get("RelativeHumidity", 0),
+		"uv_index": current.get("UVIndex", 0),
+		"weather_text": current.get("WeatherText", "Unknown"),
+		"is_day_time": current.get("IsDayTime", True),
+		"has_precipitation": current.get("HasPrecipitation", False),
+	}
+
+	log_verbose(f"CURRENT DATA: {current_data}")
+	log_info(f"Weather: {current_data['weather_text']}, {current_data['feels_like']}°C")
+
+	return current_data
+
+def parse_forecast_weather(forecast_json):
+	"""Parse forecast weather JSON response into data list"""
+	forecast_fetch_length = min(API.DEFAULT_FORECAST_HOURS, API.MAX_FORECAST_HOURS)
+
+	if not forecast_json or len(forecast_json) < forecast_fetch_length:
+		log_warning("12-hour forecast fetch failed or insufficient data")
+		return None
+
+	forecast_data = []
+	for i in range(forecast_fetch_length):
+		hour_data = forecast_json[i]
+		forecast_data.append({
+			"temperature": hour_data.get("Temperature", {}).get("Value", 0),
+			"feels_like": hour_data.get("RealFeelTemperature", {}).get("Value", 0),
+			"feels_shade": hour_data.get("RealFeelTemperatureShade", {}).get("Value", 0),
+			"weather_icon": hour_data.get("WeatherIcon", 1),
+			"weather_text": hour_data.get("IconPhrase", "Unknown"),
+			"datetime": hour_data.get("DateTime", ""),
+			"has_precipitation": hour_data.get("HasPrecipitation", False)
+		})
+
+	log_info(f"Forecast: {len(forecast_data)} hours (fresh) | Next: {forecast_data[0]['feels_like']}°C")
+	if len(forecast_data) >= forecast_fetch_length and CURRENT_DEBUG_LEVEL >= DebugLevel.VERBOSE:
+		for h, item in enumerate(forecast_data):
+			log_verbose(f"  Hour {h+1}: {item['temperature']}°C, {item['weather_text']}")
+
+	return forecast_data
+
+def track_api_call_success(call_type):
+	"""Track successful API call (call_type: 'current' or 'forecast')"""
+	if call_type == "current":
+		state.current_api_calls += 1
+	elif call_type == "forecast":
+		state.forecast_api_calls += 1
+
+	state.api_call_count += 1
+	log_debug(f"API Stats: Total={state.api_call_count}/{API.MAX_CALLS_BEFORE_RESTART}, Current={state.current_api_calls}, Forecast={state.forecast_api_calls}")
+
+def handle_weather_success():
+	"""Handle successful weather fetch - reset failure counters and log recovery"""
+	# Log recovery if coming out of extended failure mode
+	if state.in_extended_failure_mode:
+		recovery_time = int((time.monotonic() - state.last_successful_weather) / System.SECONDS_PER_MINUTE)
+		log_info(f"Weather API recovered after {recovery_time} minutes of failures")
+
+	state.consecutive_failures = 0
+	state.last_successful_weather = time.monotonic()
+	state.wifi_reconnect_attempts = 0  # Reset WiFi counter on success
+	state.system_error_count = 0  # Reset system errors on success
+
+def handle_weather_failure():
+	"""Handle failed weather fetch - increment failure counters and trigger recovery if needed"""
+	state.consecutive_failures += 1
+	state.system_error_count += 1  # Increment across soft resets
+	log_warning(f"Consecutive failures: {state.consecutive_failures}, System errors: {state.system_error_count}")
+
+	# Soft reset on repeated failures
+	if state.consecutive_failures >= Recovery.SOFT_RESET_THRESHOLD:
+		log_warning("Soft reset: clearing network session")
+		cleanup_global_session()
+		state.consecutive_failures = 0
+
+		# Enter temporary extended failure mode for cooldown
+		was_in_extended_mode = state.in_extended_failure_mode
+		state.in_extended_failure_mode = True
+
+		# Show purple clock during 30s cooldown
+		log_info("Cooling down for 30 seconds before retry...")
+		show_clock_display(state.rtc_instance, 30)
+
+		# Restore previous extended mode state
+		state.in_extended_failure_mode = was_in_extended_mode
+
+	# Hard reset if soft resets aren't helping
+	if state.system_error_count >= Recovery.HARD_RESET_THRESHOLD:
+		log_error(f"Hard reset after {state.system_error_count} system errors")
+		interruptible_sleep(Timing.RESTART_DELAY)
+		supervisor.reload()
+
+def check_preventive_restart():
+	"""Check if preventive restart is needed due to API call limit"""
+	if state.api_call_count >= API.MAX_CALLS_BEFORE_RESTART:
+		log_warning(f"Preventive restart after {state.api_call_count} API calls")
+		cleanup_global_session()
+		interruptible_sleep(API.RETRY_DELAY)
+		supervisor.reload()
+
+# ============================================================================
+# Weather Fetch Functions
+# ============================================================================
+
 def fetch_current_and_forecast_weather():
-	"""Fetch current and/or forecast weather with individual controls, detailed tracking, and improved error handling"""
-	state.memory_monitor.check_memory("weather_fetch_start")
-	
-	# Check what to fetch based on config
-	if not display_config.should_fetch_weather() and not display_config.should_fetch_forecast():
-		log_debug("All API fetching disabled")
-		return None, None
-	
-	# Count expected API calls
-	expected_calls = (1 if display_config.should_fetch_weather() else 0) + (1 if display_config.should_fetch_forecast() else 0)
-	
-	# Monitor memory just before planned restart
-	if state.api_call_count + expected_calls >= API.MAX_CALLS_BEFORE_RESTART:
-		log_warning(f"API call #{state.api_call_count + expected_calls} - restart imminent")
-	
+	"""Convenience wrapper to fetch both current and forecast weather
+
+	Each independent function handles its own error tracking, recovery, and API counting.
+	This wrapper simply calls both and returns the results as a tuple.
+	"""
+	current_data = fetch_current_weather()
+	forecast_data = fetch_forecast_weather()
+	return current_data, forecast_data
+
+def fetch_current_weather():
+	"""Fetch only current weather - independent function with full error handling"""
+	state.memory_monitor.check_memory("current_fetch_start")
+
+	# Check if enabled
+	if not display_config.should_fetch_weather():
+		log_debug("Current weather fetching disabled")
+		return None
+
 	try:
-		# Get matrix-specific API key
+		# Get API key
 		api_key = get_api_key()
 		if not api_key:
-			state.consecutive_failures += 1
-			return None, None
-		
-		current_data = None
-		forecast_data = None
-		current_success = False
-		forecast_success = False
-		
-		# Fetch current weather if enabled
-		if display_config.should_fetch_weather():
-			current_url = f"{API.BASE_URL}/{API.CURRENT_ENDPOINT}/{os.getenv(Strings.API_LOCATION_KEY)}?apikey={api_key}&details=true"
-			
-			current_json = fetch_weather_with_retries(current_url, context="Current Weather")
-			
-			if current_json:
-				state.current_api_calls += 1
-				state.api_call_count += 1
-				current_success = True
-				
-				# Process current weather
-				current = current_json[0]
-				temp_data = current.get("Temperature", {}).get("Metric", {})
-				realfeel_data = current.get("RealFeelTemperature", {}).get("Metric", {})
-				realfeel_shade_data = current.get("RealFeelTemperatureShade", {}).get("Metric", {})
-				
-				current_data = {
-					"weather_icon": current.get("WeatherIcon", 0),
-					"temperature": temp_data.get("Value", 0),
-					"feels_like": realfeel_data.get("Value", 0),
-					"feels_shade": realfeel_shade_data.get("Value", 0),
-					"humidity": current.get("RelativeHumidity", 0),
-					"uv_index": current.get("UVIndex", 0),
-					"weather_text": current.get("WeatherText", "Unknown"),
-					"is_day_time": current.get("IsDayTime", True),
-					"has_precipitation": current.get("HasPrecipitation", False),
-				}
-				
-				state.cached_current_weather = current_data  # Cache for fallback
-				state.cached_current_weather_time = time.monotonic()
-				
-				log_verbose(f"CURRENT DATA: {current_data}")
-				log_info(f"Weather: {current_data['weather_text']}, {current_data['feels_like']}°C")
-				
-			else:
-				log_warning("Current weather fetch failed")
-		
-		# Fetch forecast weather if enabled and (current succeeded OR current disabled)
-		if display_config.should_fetch_forecast():
-			forecast_url = f"{API.BASE_URL}/{API.FORECAST_ENDPOINT}/{os.getenv(Strings.API_LOCATION_KEY)}?apikey={api_key}&metric=true&details=true"
-			
-			forecast_json = fetch_weather_with_retries(forecast_url, max_retries=1, context="Forecast")
-			
-			if forecast_json:  # Count the API call even if processing fails later
-				state.forecast_api_calls += 1
-				state.api_call_count += 1
-			
-			forecast_fetch_length = min(API.DEFAULT_FORECAST_HOURS, API.MAX_FORECAST_HOURS)
-			
-			if forecast_json and len(forecast_json) >= forecast_fetch_length:
-				# Extract forecast data
-				forecast_data = []
-				for i in range(forecast_fetch_length):
-					hour_data = forecast_json[i]
-					forecast_data.append({
-						"temperature": hour_data.get("Temperature", {}).get("Value", 0),
-						"feels_like": hour_data.get("RealFeelTemperature", {}).get("Value", 0),
-						"feels_shade": hour_data.get("RealFeelTemperatureShade", {}).get("Value", 0),
-						"weather_icon": hour_data.get("WeatherIcon", 1),
-						"weather_text": hour_data.get("IconPhrase", "Unknown"),
-						"datetime": hour_data.get("DateTime", ""),
-						"has_precipitation": hour_data.get("HasPrecipitation", False)
-					})
-				
-				log_info(f"Forecast: {len(forecast_data)} hours (fresh) | Next: {forecast_data[0]['feels_like']}°C")
-				if len(forecast_data) >= forecast_fetch_length and CURRENT_DEBUG_LEVEL >= DebugLevel.VERBOSE:
-					for h, item in enumerate(forecast_data):
-						log_verbose(f"  Hour {h+1}: {item['temperature']}°C, {item['weather_text']}")
-				
-				state.memory_monitor.check_memory("forecast_data_complete")
-				forecast_success = True
-			else:
-				log_warning("12-hour forecast fetch failed or insufficient data")
-				forecast_data = None
-		
-		# Log API call statistics
-		log_debug(f"API Stats: Total={state.api_call_count}/{API.MAX_CALLS_BEFORE_RESTART}, Current={state.current_api_calls}, Forecast={state.forecast_api_calls}")
-		
-		# Determine overall success
-		any_success = current_success or forecast_success
-		
-		if any_success:
-			# Log recovery if coming out of extended failure mode
-			if state.in_extended_failure_mode:
-				recovery_time = int((time.monotonic() - state.last_successful_weather) / System.SECONDS_PER_MINUTE)
-				log_info(f"Weather API recovered after {recovery_time} minutes of failures")
-			
-			state.consecutive_failures = 0
-			state.last_successful_weather = time.monotonic()
-			state.wifi_reconnect_attempts = 0  # Reset WiFi counter on success
-			state.system_error_count = 0  # Reset system errors on success
+			handle_weather_failure()
+			return None
+
+		# Build URL
+		location = os.getenv(Strings.API_LOCATION_KEY)
+		current_url = f"{API.BASE_URL}/{API.CURRENT_ENDPOINT}/{location}?apikey={api_key}&details=true"
+
+		# Fetch with retries (default: 3 retries)
+		current_json = fetch_weather_with_retries(current_url, context="Current Weather")
+
+		if current_json:
+			# Track successful API call
+			track_api_call_success("current")
+
+			# Parse the data
+			current_data = parse_current_weather(current_json)
+
+			# Cache for fallback
+			state.cached_current_weather = current_data
+			state.cached_current_weather_time = time.monotonic()
+
+			# Handle success
+			handle_weather_success()
+
+			# Check for preventive restart
+			check_preventive_restart()
+
+			state.memory_monitor.check_memory("current_fetch_complete")
+			return current_data
 		else:
-			state.consecutive_failures += 1
-			state.system_error_count += 1  # Increment across soft resets
-			log_warning(f"Consecutive failures: {state.consecutive_failures}, System errors: {state.system_error_count}")
-			
-			# Soft reset on repeated failures
-			if state.consecutive_failures >= Recovery.SOFT_RESET_THRESHOLD:
-				log_warning("Soft reset: clearing network session")
-				cleanup_global_session()
-				state.consecutive_failures = 0
-				
-				# Enter temporary extended failure mode for cooldown
-				was_in_extended_mode = state.in_extended_failure_mode
-				state.in_extended_failure_mode = True
-				
-				# Show purple clock during 30s cooldown
-				log_info("Cooling down for 30 seconds before retry...")
-				show_clock_display(state.rtc_instance, 30)
-				
-				# Restore previous extended mode state
-				state.in_extended_failure_mode = was_in_extended_mode
-			
-			# Hard reset if soft resets aren't helping
-			if state.system_error_count >= Recovery.HARD_RESET_THRESHOLD:
-				log_error(f"Hard reset after {state.system_error_count} system errors")
-				interruptible_sleep(Timing.RESTART_DELAY)
-				supervisor.reload()
-		
-		# Check for preventive restart
-		if state.api_call_count >= API.MAX_CALLS_BEFORE_RESTART:
-			log_warning(f"Preventive restart after {state.api_call_count} API calls")
-			cleanup_global_session()
-			interruptible_sleep(API.RETRY_DELAY)
-			supervisor.reload()
-		
-		state.memory_monitor.check_memory("weather_fetch_complete")
-		return current_data, forecast_data
-		
+			log_warning("Current weather fetch failed")
+			handle_weather_failure()
+			check_preventive_restart()
+			return None
+
 	except Exception as e:
-		log_error(f"Weather fetch critical error: {type(e).__name__}: {e}")
-		state.memory_monitor.check_memory("weather_fetch_error")
-		state.consecutive_failures += 1
-		return None, None
-		
+		log_error(f"Current weather critical error: {type(e).__name__}: {e}")
+		state.memory_monitor.check_memory("current_fetch_error")
+		handle_weather_failure()
+		return None
+
+def fetch_forecast_weather():
+	"""Fetch only forecast weather - independent function with full error handling"""
+	state.memory_monitor.check_memory("forecast_fetch_start")
+
+	# Check if enabled
+	if not display_config.should_fetch_forecast():
+		log_debug("Forecast weather fetching disabled")
+		return None
+
+	try:
+		# Get API key
+		api_key = get_api_key()
+		if not api_key:
+			handle_weather_failure()
+			return None
+
+		# Build URL
+		location = os.getenv(Strings.API_LOCATION_KEY)
+		forecast_url = f"{API.BASE_URL}/{API.FORECAST_ENDPOINT}/{location}?apikey={api_key}&metric=true&details=true"
+
+		# Fetch with retries (max_retries=1 for forecast - less aggressive)
+		forecast_json = fetch_weather_with_retries(forecast_url, max_retries=1, context="Forecast")
+
+		if forecast_json:
+			# Track successful API call
+			track_api_call_success("forecast")
+
+			# Parse the data
+			forecast_data = parse_forecast_weather(forecast_json)
+
+			if forecast_data:
+				state.memory_monitor.check_memory("forecast_data_complete")
+				handle_weather_success()
+				check_preventive_restart()
+				return forecast_data
+			else:
+				# Parsing failed (insufficient data)
+				handle_weather_failure()
+				check_preventive_restart()
+				return None
+		else:
+			log_warning("Forecast fetch failed")
+			handle_weather_failure()
+			check_preventive_restart()
+			return None
+
+	except Exception as e:
+		log_error(f"Forecast critical error: {type(e).__name__}: {e}")
+		state.memory_monitor.check_memory("forecast_fetch_error")
+		handle_weather_failure()
+		return None
+
 def get_cached_weather_if_fresh(max_age_seconds=Timing.MAX_CACHE_AGE):
 	"""
 	Get cached current weather if it's not too old
@@ -1638,15 +1709,9 @@ def get_cached_weather_if_fresh(max_age_seconds=Timing.MAX_CACHE_AGE):
 		return None
 		
 def fetch_current_weather_only():
-	"""Fetch only current weather (not forecast)"""
+	"""Fetch only current weather (not forecast) - uses independent fetch function"""
 	if display_config.use_live_weather:
-		display_config.use_live_forecast = False
-		current_data, _ = fetch_current_and_forecast_weather()
-		display_config.use_live_forecast = True
-		
-		if current_data:
-			state.last_successful_weather = time.monotonic()
-		return current_data
+		return fetch_current_weather()
 	else:
 		return TestData.DUMMY_WEATHER_DATA
 
