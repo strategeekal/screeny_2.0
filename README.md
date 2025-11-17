@@ -1,4 +1,4 @@
-# Pantallita 2.0.6.1
+# Pantallita 2.0.6.3
 
 A dual RGB matrix weather display system running on MatrixPortal S3, showing real-time weather, forecasts, events, and scheduled activities for family use.
 
@@ -349,6 +349,7 @@ def __init__(self):
 - ✅ Early returns to reduce nesting
 - ✅ Avoid nesting exception handlers
 - ❌ Never nest try/except more than 1 level deep
+- zfill() is not supported by CircuitPython
 
 **Technical Details:** See `STACK_TEST_ANALYSIS.md` for complete testing methodology and findings.
 
@@ -465,14 +466,16 @@ The entire codebase currently resides in a single `code.py` file. This is a comm
 - Benefits: Simpler code, zero overhead, no session recreation, matches proven pattern
 - Daily restart provides natural cleanup boundary (sessions never open for days)
 - Result: ~200 lines of complexity removed, same reliability as regular cycles
-- 2.0.6.1
-  - Removed logic for feels like temperature for forecast
-  - Simplified missing image handling for weather, forecast, events and schedule
-- 2.0.6.2
-  - Simplified hour formatting and raised to module level
+- Removed logic for feels like temperature for forecast
+- Simplified missing image handling for weather, forecast, events and schedule
+- Simplified hour formatting and raised to module level
+- Simplify load_all_events() with dictionary approach
+- Maximize helper reuse in parse_events_csv_content()
+- Remove parse_event_line() wrapper for simpler code flow
+- HOTFIX: Replace zfill() with manual padding for CircuitPython
+- Apply same simplification pattern to schedule loading
 - Pending:
   - Phase 1 - Quick Wins (Biggest impact, lowest risk)
-    - Simplify load_all_events() with dictionary approach (79% reduction!)
     - Split fetch_github_data() with helper function
   - Phase 2 - API Simplification (Moderate complexity)
     - Split fetch_current_and_forecast_weather() into separate functions
