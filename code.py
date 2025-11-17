@@ -1,11 +1,10 @@
-##### PANTALLITA 2.0.6.2 #####
+##### PANTALLITA 2.0.7 #####
 # Stack exhaustion fix: Flattened nested try/except blocks to prevent crashes (v2.0.1)
 # Socket exhaustion fix: response.close() + smart caching (v2.0.2)
 # Comprehensive socket fix: Added response.close() to ALL HTTP requests - startup & runtime (v2.0.3)
 # CRITICAL socket pool fix: Reuse single global socket pool instead of creating new pools (v2.0.5)
 # Simplified approach: Removed mid-schedule cleanup - matches proven regular cycle behavior (v2.0.6)
-# Simplified and flattened: image fallbacks (v2.0.6.1) hour formatting (v2.0.6.2)
-# See STACK_TEST_ANALYSIS.md for technical details
+# Simplified and flattened: image fallbacks, hour formatting, csv parsing, GitHub imports and element display (v2.0.7)
 
 # === LIBRARIES ===
 # Standard library
@@ -2427,7 +2426,7 @@ def add_day_indicator_bitmap(main_group, rtc):
 			bitmap[x, y] = 0
 
 	# Fill 4x4 colored square (offset by 1 to leave left/top margin)
-	for y in range(1, DayIndicator.SIZE + 1):
+	for y in range(0, DayIndicator.SIZE):
 		for x in range(1, DayIndicator.SIZE + 1):
 			bitmap[x, y] = 1
 

@@ -1,4 +1,4 @@
-# Pantallita 2.0.6.3
+# Pantallita 2.0.7
 
 A dual RGB matrix weather display system running on MatrixPortal S3, showing real-time weather, forecasts, events, and scheduled activities for family use.
 
@@ -457,15 +457,7 @@ The entire codebase currently resides in a single `code.py` file. This is a comm
 
 ## Version History
 
-### 2.0.6 (Current)
-- **SIMPLIFIED:** Removed mid-schedule cleanup entirely - matches proven regular cycle behavior
-- Regular weather cycles run for hundreds of iterations without ANY cleanup - they just work!
-- Root insight: Mid-schedule cleanup was a workaround for missing `response.close()` (now fixed)
-- With v2.0.5 socket pool fix + all `response.close()` in place, cleanup is unnecessary
-- Scheduled displays now work identically to regular cycles: session stays alive, responses close properly
-- Benefits: Simpler code, zero overhead, no session recreation, matches proven pattern
-- Daily restart provides natural cleanup boundary (sessions never open for days)
-- Result: ~200 lines of complexity removed, same reliability as regular cycles
+### 2.0.7 (Current)
 - Removed logic for feels like temperature for forecast
 - Simplified missing image handling for weather, forecast, events and schedule
 - Simplified hour formatting and raised to module level
@@ -474,16 +466,27 @@ The entire codebase currently resides in a single `code.py` file. This is a comm
 - Remove parse_event_line() wrapper for simpler code flow
 - HOTFIX: Replace zfill() with manual padding for CircuitPython
 - Apply same simplification pattern to schedule loading
-- Pending:
-  - Phase 1 - Quick Wins (Biggest impact, lowest risk)
-    - Split fetch_github_data() with helper function
+- Split fetch_github_data() with helper function
+- Display Rendering Optimizatio - use Bitmaps in stead of lines for UV/Humidity and day indicator
+- Result: ~150 fewer lines with better display performance and code reusage
+
+Pending Simplification    
   - Phase 2 - API Simplification (Moderate complexity)
     - Split fetch_current_and_forecast_weather() into separate functions
     - Extract success/failure tracking
   - Phase 3 - Display Functions (More testing needed)
     - Extract show_weather_display() rendering helpers
     - Extract show_scheduled_display() sections
-  
+
+### 2.0.6 (Current)
+- **SIMPLIFIED:** Removed mid-schedule cleanup entirely - matches proven regular cycle behavior
+- Regular weather cycles run for hundreds of iterations without ANY cleanup - they just work!
+- Root insight: Mid-schedule cleanup was a workaround for missing `response.close()` (now fixed)
+- With v2.0.5 socket pool fix + all `response.close()` in place, cleanup is unnecessary
+- Scheduled displays now work identically to regular cycles: session stays alive, responses close properly
+- Benefits: Simpler code, zero overhead, no session recreation, matches proven pattern
+- Daily restart provides natural cleanup boundary (sessions never open for days)
+- Result: ~200 lines of complexity removed, same reliability as regular cycles  
 
 ### 2.0.5
 - **FIXED:** CRITICAL socket pool exhaustion - the root cause of ALL socket issues!
