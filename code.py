@@ -1871,14 +1871,9 @@ def normalize_date_key(date_str):
 	"""Normalize date string to MMDD format (e.g., '01-15' or '115' -> '0115')"""
 	return date_str.replace("-", "").zfill(4)
 
-def parse_event_line(parts):
-	"""Parse CSV parts into event data. Returns (date_key, event_data) or None if invalid."""
-	if len(parts) < 4:
-		return None
-
-	# Format: MM-DD,TopLine,BottomLine,ImageFile,Color[,StartHour,EndHour]
-	date_key = normalize_date_key(parts[0])
-	event_data = [
+def parse_event_data(parts):
+	"""Extract event data fields from CSV parts. Returns [top_line, bottom_line, image, color, start_hour, end_hour]"""
+	return [
 		parts[1],  # top_line
 		parts[2],  # bottom_line
 		parts[3],  # image
@@ -1886,7 +1881,13 @@ def parse_event_line(parts):
 		int(parts[5]) if len(parts) > 5 and parts[5].strip() else Timing.EVENT_ALL_DAY_START,
 		int(parts[6]) if len(parts) > 6 and parts[6].strip() else Timing.EVENT_ALL_DAY_END
 	]
-	return date_key, event_data
+
+def parse_event_line(parts):
+	"""Parse CSV parts into event data. Returns (date_key, event_data) or None if invalid."""
+	if len(parts) < 4:
+		return None
+	# Format: MM-DD,TopLine,BottomLine,ImageFile,Color[,StartHour,EndHour]
+	return normalize_date_key(parts[0]), parse_event_data(parts)
 
 def load_events_from_file(filepath):
 	"""Load events from CSV file. Returns dict of {date_key: [event_data, ...]}"""
@@ -1990,7 +1991,7 @@ def parse_events_csv_content(csv_content, rtc):
 	"""Parse events CSV content directly from string"""
 	events = {}
 	skipped_count = 0
-	
+
 	try:
 		# Get today's date for comparison
 		if rtc:
@@ -2002,22 +2003,14 @@ def parse_events_csv_content(csv_content, rtc):
 			today_year = 1900
 			today_month = 1
 			today_day = 1
-		
+
 		for line in csv_content.split('\n'):
 			line = line.strip()
 			if line and not line.startswith("#"):
 				parts = [part.strip() for part in line.split(",")]
 				if len(parts) >= 4:
 					date = parts[0]  # YYYY-MM-DD format
-					top_line = parts[1]
-					bottom_line = parts[2]
-					image = parts[3]
-					color = parts[4] if len(parts) > 4 else Strings.DEFAULT_EVENT_COLOR
-					
-					# Optional time window
-					start_hour = int(parts[5]) if len(parts) > 5 and parts[5].strip() else Timing.EVENT_ALL_DAY_START
-					end_hour = int(parts[6]) if len(parts) > 6 and parts[6].strip() else Timing.EVENT_ALL_DAY_END
-					
+
 					# Parse date to check if it's in the past
 					try:
 						date_parts = date.split("-")
@@ -2025,33 +2018,31 @@ def parse_events_csv_content(csv_content, rtc):
 							event_year = int(date_parts[0])
 							event_month = int(date_parts[1])
 							event_day = int(date_parts[2])
-							
+
 							# Skip if event is in the past
-							if (event_year < today_year or 
+							if (event_year < today_year or
 								(event_year == today_year and event_month < today_month) or
 								(event_year == today_year and event_month == today_month and event_day < today_day)):
 								skipped_count += 1
-								log_verbose(f"Skipping past event: {date} - {top_line} {bottom_line}")
+								log_verbose(f"Skipping past event: {date} - {parts[1]} {parts[2]}")
 								continue
-							
-							# Convert YYYY-MM-DD to MMDD for lookup
-							date_key = date_parts[1] + date_parts[2]  # MMDD only
-							
-							if date_key not in events:
-								events[date_key] = []
-							
-							events[date_key].append([top_line, bottom_line, image, color, start_hour, end_hour])
+
+							# Convert YYYY-MM-DD to MMDD and extract event data
+							date_key = normalize_date_key(f"{date_parts[1]}-{date_parts[2]}")
+							event_data = parse_event_data(parts)
+							events.setdefault(date_key, []).append(event_data)
+
 					except (ValueError, IndexError):
 						log_warning(f"Invalid date format in events: {date}")
 						continue
-		
+
 		if skipped_count > 0:
 			log_debug(f"Parsed {len(events)} event dates ({skipped_count} past events skipped)")
 		else:
 			log_debug(f"Parsed {len(events)} event dates")
-		
+
 		return events
-		
+
 	except Exception as e:
 		log_error(f"Error parsing events CSV: {e}")
 		return {}
