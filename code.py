@@ -1842,43 +1842,6 @@ def get_font_metrics(font, text="Aygjpq"):
 		# Safe fallback values for small font
 		return 8, 2
 
-def load_events_from_csv():
-	"""Load events from CSV file - supports multiple events per day with optional time windows"""
-	events = {}
-	try:
-		log_verbose(f"Loading events from {Paths.EVENTS_CSV}...")
-		with open(Paths.EVENTS_CSV, "r") as f:
-			for line in f:
-				line = line.strip()
-				if line and not line.startswith("#"):
-					parts = [part.strip() for part in line.split(",")]
-					if len(parts) >= 4:
-						date = parts[0]
-						top_line = parts[1]      # Shows on TOP
-						bottom_line = parts[2]   # Shows on BOTTOM
-						image = parts[3]
-						color = parts[4] if len(parts) > 4 else Strings.DEFAULT_EVENT_COLOR
-						
-						# Optional time window (24-hour format)
-						# Check if fields exist AND are not empty
-						start_hour = int(parts[5]) if len(parts) > 5 and parts[5].strip() else Timing.EVENT_ALL_DAY_START
-						end_hour = int(parts[6]) if len(parts) > 6 and parts[6].strip() else Timing.EVENT_ALL_DAY_END
-						
-						date_key = date.replace("-", "")
-						
-						if date_key not in events:
-							events[date_key] = []
-						
-						# Store as: [top_line, bottom_line, image, color, start_hour, end_hour]
-						events[date_key].append([top_line, bottom_line, image, color, start_hour, end_hour])
-			
-			return events
-			
-	except Exception as e:
-		log_warning(f"Failed to load events.csv: {e}")
-		log_warning("Using fallback hardcoded events")
-		return {}
-
 def fetch_ephemeral_events():
 	"""
 	Fetch ephemeral events from online source
@@ -1904,123 +1867,87 @@ def fetch_ephemeral_events():
 		log_warning(f"Failed to fetch ephemeral events: {e}")
 		return {}
 		
-def load_all_events():
-	"""Load and merge all event sources"""
-	
-	# Load permanent events from local CSV
-	permanent_events = {}
-	permanent_count = 0
-	
+def normalize_date_key(date_str):
+	"""Normalize date string to MMDD format (e.g., '01-15' or '115' -> '0115')"""
+	return date_str.replace("-", "").zfill(4)
+
+def parse_event_line(parts):
+	"""Parse CSV parts into event data. Returns (date_key, event_data) or None if invalid."""
+	if len(parts) < 4:
+		return None
+
+	# Format: MM-DD,TopLine,BottomLine,ImageFile,Color[,StartHour,EndHour]
+	date_key = normalize_date_key(parts[0])
+	event_data = [
+		parts[1],  # top_line
+		parts[2],  # bottom_line
+		parts[3],  # image
+		parts[4] if len(parts) > 4 and parts[4].strip() else Strings.DEFAULT_EVENT_COLOR,
+		int(parts[5]) if len(parts) > 5 and parts[5].strip() else Timing.EVENT_ALL_DAY_START,
+		int(parts[6]) if len(parts) > 6 and parts[6].strip() else Timing.EVENT_ALL_DAY_END
+	]
+	return date_key, event_data
+
+def load_events_from_file(filepath):
+	"""Load events from CSV file. Returns dict of {date_key: [event_data, ...]}"""
+	events = {}
+	count = 0
+
 	try:
-		with open(Paths.EVENTS_CSV, 'r') as f:
+		with open(filepath, 'r') as f:
 			for line_num, line in enumerate(f, 1):
 				line = line.strip()
 				if not line or line.startswith("#"):
 					continue
-				
+
 				try:
-					parts = [part.strip() for part in line.split(",")]
-					
-					if len(parts) < 4:
+					parts = [p.strip() for p in line.split(",")]
+					result = parse_event_line(parts)
+
+					if result is None:
 						log_warning(f"Line {line_num}: Not enough fields (need at least 4)")
 						continue
-					
-					# Format: MM-DD,TopLine,BottomLine,ImageFile,Color[,StartHour,EndHour]
-					date_str = str(parts[0])
-					top_line = str(parts[1])
-					bottom_line = str(parts[2])
-					image = str(parts[3])
-					color = str(parts[4]) if len(parts) > 4 else Strings.DEFAULT_EVENT_COLOR
-					
-					# Optional time window - no try/except needed (check before parsing)
-					start_hour = Timing.EVENT_ALL_DAY_START
-					end_hour = Timing.EVENT_ALL_DAY_END
 
-					if len(parts) > 5 and parts[5].strip():
-						hour_str = parts[5].strip().lstrip('-')  # Remove minus for isdigit check
-						if hour_str.isdigit():
-							start_hour = int(parts[5])
+					date_key, event_data = result
+					events.setdefault(date_key, []).append(event_data)
+					count += 1
+					log_verbose(f"Loaded: {date_key} - {event_data[0]} {event_data[1]}")
 
-					if len(parts) > 6 and parts[6].strip():
-						hour_str = parts[6].strip().lstrip('-')  # Remove minus for isdigit check
-						if hour_str.isdigit():
-							end_hour = int(parts[6])
-					
-					# Parse MM-DD to MMDD (without zfill)
-					if '-' in date_str:
-						date_parts = date_str.split('-')
-						month = date_parts[0]
-						day = date_parts[1]
-						
-						# Manual padding instead of zfill
-						if len(month) == 1:
-							month = '0' + month
-						if len(day) == 1:
-							day = '0' + day
-						
-						date_key = month + day
-					else:
-						# Fallback for MMDD format
-						date_key = date_str
-						# Manual padding to 4 digits
-						while len(date_key) < 4:
-							date_key = '0' + date_key
-					
-					if date_key not in permanent_events:
-						permanent_events[date_key] = []
-					
-					permanent_events[date_key].append([top_line, bottom_line, image, color, start_hour, end_hour])
-					permanent_count += 1
-					log_verbose(f"Loaded: {date_key} - {top_line} {bottom_line}")
-					
 				except Exception as e:
 					log_warning(f"Line {line_num} parse error: {e} | Line: {line}")
-					continue
-		
-		state.permanent_event_count = permanent_count
-		log_debug(f"Loaded {permanent_count} permanent events")
-		
+
+		log_debug(f"Loaded {count} events from {filepath}")
+		return events, count
+
 	except Exception as e:
-		log_warning(f"Failed to load permanent events file: {e}")
-		state.permanent_event_count = 0
-		permanent_events = {}
-	
+		log_warning(f"Failed to load {filepath}: {e}")
+		return {}, 0
+
+def load_all_events():
+	"""Load and merge all event sources"""
+	# Load permanent events from local CSV
+	permanent_events, permanent_count = load_events_from_file(Paths.EVENTS_CSV)
+	state.permanent_event_count = permanent_count
+
 	# Get ephemeral events - check temp storage first, then try fetching
-	ephemeral_events = {}
-	
 	if hasattr(state, '_github_events_temp') and state._github_events_temp:
-		# Use events fetched during initialization
 		ephemeral_events = state._github_events_temp
 		log_debug("Using GitHub events from initialization")
 	else:
-		# Fetch from GitHub (normal case for daily refresh)
 		ephemeral_events = fetch_ephemeral_events()
-	
-	# Count ephemeral events
-	ephemeral_count = sum(len(event_list) for event_list in ephemeral_events.values())
+
+	ephemeral_count = sum(len(events) for events in ephemeral_events.values())
 	state.ephemeral_event_count = ephemeral_count
 	log_debug(f"Loaded {ephemeral_count} ephemeral events")
-	
-	# Merge events
-	merged = {}
-	
-	# Add permanent events
-	for date_key, event_list in permanent_events.items():
-		merged[date_key] = list(event_list)
-	
-	# Add ephemeral events
+
+	# Merge events using dictionary approach
+	merged = dict(permanent_events)  # Start with copy of permanent events
 	for date_key, event_list in ephemeral_events.items():
-		if date_key in merged:
-			merged[date_key].extend(event_list)
-		else:
-			merged[date_key] = list(event_list)
-	
-	# Update total count
-	total_count = sum(len(event_list) for event_list in merged.values())
-	state.total_event_count = total_count
-	
-	log_debug(f"Events merged: {permanent_count} permanent + {ephemeral_count} ephemeral = {total_count} total")
-	
+		merged.setdefault(date_key, []).extend(event_list)
+
+	state.total_event_count = sum(len(events) for events in merged.values())
+	log_debug(f"Events merged: {permanent_count} permanent + {ephemeral_count} ephemeral = {state.total_event_count} total")
+
 	return merged
 	
 def is_event_active(event_data, current_hour):
