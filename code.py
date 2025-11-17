@@ -395,7 +395,11 @@ class DisplayConfig:
 		self.show_weekday_indicator = True
 		self.show_scheduled_displays = True
 		self.show_events_in_between_schedules = True
-		
+
+		# Performance optimizations (Bitmap vs Line objects)
+		self.use_bitmap_weekday = True   # True = 1 object (fast), False = 25 objects (fallback)
+		self.use_bitmap_bars = True      # True = 2 objects (fast), False = 4-10 objects (fallback)
+
 		# API controls (fetch real data vs use dummy data)
 		self.use_live_weather = True      # False = use dummy data
 		self.use_live_forecast = True     # False = use dummy data
@@ -2404,25 +2408,64 @@ def get_day_color(rtc):
 	weekday = rtc.datetime.tm_wday  # 0=Monday, 6=Sunday
 	return day_colors.get(weekday, state.colors["WHITE"])  # Default to white if error
 
-def add_day_indicator(main_group, rtc):
-	"""Add 4x4 day-of-week color indicator at top right"""
+def add_day_indicator_bitmap(main_group, rtc):
+	"""Add 4x4 day-of-week color indicator using Bitmap (OPTIMIZED: 1 object vs 25)"""
 	day_color = get_day_color(rtc)
-	
+
+	# Create 5x5 bitmap (4x4 square + 1px margin on left/bottom)
+	width = DayIndicator.SIZE + 1  # 5 pixels
+	height = DayIndicator.SIZE + 1  # 5 pixels
+
+	bitmap = displayio.Bitmap(width, height, 2)  # 2 colors: black, day color
+	palette = displayio.Palette(2)
+	palette[0] = state.colors["BLACK"]  # Margin color
+	palette[1] = day_color              # Day color
+
+	# Fill entire bitmap with black (margin)
+	for y in range(height):
+		for x in range(width):
+			bitmap[x, y] = 0
+
+	# Fill 4x4 colored square (offset by 1 to leave left/top margin)
+	for y in range(1, DayIndicator.SIZE + 1):
+		for x in range(1, DayIndicator.SIZE + 1):
+			bitmap[x, y] = 1
+
+	# Create TileGrid at correct position (offset -1 for margin)
+	day_grid = displayio.TileGrid(
+		bitmap,
+		pixel_shader=palette,
+		x=DayIndicator.MARGIN_LEFT_X,  # Position includes margin
+		y=DayIndicator.Y
+	)
+	main_group.append(day_grid)
+
+def add_day_indicator_line(main_group, rtc):
+	"""Add 4x4 day-of-week color indicator using Line objects (FALLBACK: 25 objects)"""
+	day_color = get_day_color(rtc)
+
 	# Create 4x4 rectangle at top right (64-4=60 pixels from left)
 	for x in range(DayIndicator.X, DayIndicator.X + DayIndicator.SIZE):
 		for y in range(DayIndicator.Y, DayIndicator.Y + DayIndicator.SIZE):
 			pixel_line = Line(x, y, x, y, day_color)
 			main_group.append(pixel_line)
-			
+
 	# Add 1-pixel black margin to the left (x=59)
 	for y in range(DayIndicator.Y, DayIndicator.MARGIN_BOTTOM_Y):
 		black_pixel = Line(DayIndicator.MARGIN_LEFT_X, y, DayIndicator.MARGIN_LEFT_X, y, state.colors["BLACK"])
 		main_group.append(black_pixel)
-	
+
 	# Add 1-pixel black margin to the bottom (y=4)
 	for x in range(DayIndicator.MARGIN_LEFT_X, DayIndicator.X+DayIndicator.SIZE):  # Include the corner pixel at (59,4)
 		black_pixel = Line(x, DayIndicator.MARGIN_BOTTOM_Y, x, DayIndicator.MARGIN_BOTTOM_Y, state.colors["BLACK"])
 		main_group.append(black_pixel)
+
+def add_day_indicator(main_group, rtc):
+	"""Add day-of-week indicator (chooses Bitmap or Line based on config)"""
+	if display_config.use_bitmap_weekday:
+		add_day_indicator_bitmap(main_group, rtc)
+	else:
+		add_day_indicator_line(main_group, rtc)
 
 def calculate_uv_bar_length(uv_index):
 	"""Calculate UV bar length with spacing for readability"""
@@ -2451,30 +2494,76 @@ def calculate_humidity_bar_length(humidity):
 	else:
 		return pixels + 4
 		
-def add_indicator_bars(main_group, x_start, uv_index, humidity):
-	"""Add UV and humidity indicator bars to display"""
-	
+def add_indicator_bars_bitmap(main_group, x_start, uv_index, humidity):
+	"""Add UV and humidity bars using Bitmap (OPTIMIZED: 2 objects vs 4-10)"""
+
+	# UV bar (only if UV > 0)
+	if uv_index > 0:
+		uv_length = calculate_uv_bar_length(uv_index)
+
+		# Create UV bar bitmap
+		uv_bitmap = displayio.Bitmap(uv_length, 1, 2)  # width x height, 2 colors
+		uv_palette = displayio.Palette(2)
+		uv_palette[0] = state.colors["BLACK"]  # Spacing dots
+		uv_palette[1] = state.colors["DIMMEST_WHITE"]  # Bar color
+
+		# Fill bar with color, add black spacing dots
+		for x in range(uv_length):
+			uv_bitmap[x, 0] = 0 if x in Visual.UV_SPACING_POSITIONS else 1
+
+		# Create TileGrid
+		uv_grid = displayio.TileGrid(uv_bitmap, pixel_shader=uv_palette, x=x_start, y=Layout.UV_BAR_Y)
+		main_group.append(uv_grid)
+
+	# Humidity bar
+	if humidity > 0:
+		humidity_length = calculate_humidity_bar_length(humidity)
+
+		# Create humidity bar bitmap
+		humidity_bitmap = displayio.Bitmap(humidity_length, 1, 2)
+		humidity_palette = displayio.Palette(2)
+		humidity_palette[0] = state.colors["BLACK"]  # Spacing dots
+		humidity_palette[1] = state.colors["DIMMEST_WHITE"]  # Bar color
+
+		# Fill bar with color, add black spacing dots
+		for x in range(humidity_length):
+			humidity_bitmap[x, 0] = 0 if x in Visual.HUMIDITY_SPACING_POSITIONS else 1
+
+		# Create TileGrid
+		humidity_grid = displayio.TileGrid(humidity_bitmap, pixel_shader=humidity_palette, x=x_start, y=Layout.HUMIDITY_BAR_Y)
+		main_group.append(humidity_grid)
+
+def add_indicator_bars_line(main_group, x_start, uv_index, humidity):
+	"""Add UV and humidity bars using Line objects (FALLBACK: 4-10 objects)"""
+
 	# UV bar (only if UV > 0)
 	if uv_index > 0:
 		uv_length = calculate_uv_bar_length(uv_index)
 		main_group.append(Line(x_start, Layout.UV_BAR_Y, x_start - 1 + uv_length, Layout.UV_BAR_Y, state.colors["DIMMEST_WHITE"]))
-		
+
 		# UV spacing dots (black pixels every 3)
 		for i in Visual.UV_SPACING_POSITIONS:
 			if i < uv_length:
 				main_group.append(Line(x_start + i, Layout.UV_BAR_Y, x_start + i, Layout.UV_BAR_Y, state.colors["BLACK"]))
-	
+
 	# Humidity bar
 	if humidity > 0:
 		humidity_length = calculate_humidity_bar_length(humidity)
-		
+
 		# Main humidity line
 		main_group.append(Line(x_start, Layout.HUMIDITY_BAR_Y, x_start - 1 + humidity_length, Layout.HUMIDITY_BAR_Y, state.colors["DIMMEST_WHITE"]))
-		
+
 		# Humidity spacing dots (black pixels every 2 = every 20%)
 		for i in Visual.HUMIDITY_SPACING_POSITIONS:  # Positions for 20%, 40%, 60%, 80%
 			if i < humidity_length:
 				main_group.append(Line(x_start + i, Layout.HUMIDITY_BAR_Y, x_start + i, Layout.HUMIDITY_BAR_Y, state.colors["BLACK"]))
+
+def add_indicator_bars(main_group, x_start, uv_index, humidity):
+	"""Add UV and humidity indicator bars (chooses Bitmap or Line based on config)"""
+	if display_config.use_bitmap_bars:
+		add_indicator_bars_bitmap(main_group, x_start, uv_index, humidity)
+	else:
+		add_indicator_bars_line(main_group, x_start, uv_index, humidity)
 
 
 def show_weather_display(rtc, duration, weather_data=None):
