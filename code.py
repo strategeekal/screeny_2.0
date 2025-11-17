@@ -2467,6 +2467,20 @@ def add_day_indicator(main_group, rtc):
 	else:
 		add_day_indicator_line(main_group, rtc)
 
+def add_weekday_indicator_if_enabled(main_group, rtc, display_name=""):
+	"""Add weekday indicator if enabled, with optional logging"""
+	if display_config.show_weekday_indicator:
+		add_day_indicator(main_group, rtc)
+		if display_name:
+			log_verbose(f"Showing Weekday Color Indicator on {display_name} Display")
+		else:
+			log_verbose("Showing Weekday Color Indicator")
+	else:
+		if display_name:
+			log_verbose(f"Weekday Color Indicator Disabled on {display_name} Display")
+		else:
+			log_verbose("Weekday Color Indicator Disabled")
+
 def calculate_uv_bar_length(uv_index):
 	"""Calculate UV bar length with spacing for readability"""
 	if uv_index <= Visual.UV_BREAKPOINT_1:
@@ -2684,13 +2698,9 @@ def show_weather_display(rtc, duration, weather_data=None):
 	
 	# Add UV and humidity indicator bars ONCE (they're static)
 	add_indicator_bars(state.main_group, temp_text.x, weather_data['uv_index'], weather_data['humidity'])
-	
+
 	# Add day indicator ONCE
-	if display_config.show_weekday_indicator:
-		add_day_indicator(state.main_group, rtc)
-		log_verbose(f"Showing Weekday Color Indicator on Weather Display")
-	else:
-		log_verbose("Weekday Color Indicator Disabled")
+	add_weekday_indicator_if_enabled(state.main_group, rtc, "Weather")
 	
 	# Optimized display update loop - ONLY update time text
 	start_time = time.monotonic()
@@ -2764,13 +2774,9 @@ def show_clock_display(rtc, duration=Timing.CLOCK_DISPLAY_DURATION):
 	
 	state.main_group.append(date_text)
 	state.main_group.append(time_text)
-	
+
 	# Add day indicator after other elements
-	if display_config.show_weekday_indicator:
-		add_day_indicator(state.main_group, rtc)
-		log_verbose(f"Showing Weekday Color Indicator on Clock Display")
-	else:
-		log_verbose("Weekday Color Indicator Disabled")
+	add_weekday_indicator_if_enabled(state.main_group, rtc, "Clock")
 	
 	start_time = time.monotonic()
 	while time.monotonic() - start_time < duration:
@@ -2937,11 +2943,9 @@ def _display_single_event_optimized(event_data, rtc, duration):
 			state.main_group.append(image_grid)
 			state.main_group.append(text1)
 			state.main_group.append(text2)
-			
+
 			# Add day indicator
-			if display_config.show_weekday_indicator:
-				add_day_indicator(state.main_group, rtc)
-				log_debug("Showing Weekday Color Indicator on Event Display")		
+			add_weekday_indicator_if_enabled(state.main_group, rtc, "Event")		
 		
 		# Simple strategy optimized for usage patterns
 		if duration <= Timing.EVENT_CHUNK_SIZE:
@@ -3307,10 +3311,9 @@ def show_forecast_display(current_data, forecast_data, display_duration, is_fres
 				y=temp_y
 			)
 			state.main_group.append(temp_label)
-		
+
 		# Add day indicator if enabled
-		if display_config.show_weekday_indicator:
-			add_day_indicator(state.main_group, state.rtc_instance)
+		add_weekday_indicator_if_enabled(state.main_group, state.rtc_instance, "Forecast")
 		
 		
 		# Display update loop - update column 1 time only when minute changes
@@ -3635,9 +3638,7 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 		state.main_group.append(time_label)
 
 		# === WEEKDAY INDICATOR (IF ENABLED) ===
-		if display_config.show_weekday_indicator:
-			add_day_indicator(state.main_group, rtc)
-			log_verbose("Showing Weekday Color Indicator on Schedule Display")
+		add_weekday_indicator_if_enabled(state.main_group, rtc, "Schedule")
 			
 		# LOG what's being displayed this segment
 		segment_num = int(elapsed / Timing.SCHEDULE_SEGMENT_DURATION) + 1
