@@ -2476,17 +2476,9 @@ def get_12h_hour(hour):
 
 def format_hour_12h(hour):
 	"""Convert 24-hour time to 12-hour format with AM/PM suffix (e.g., '3P', '12A')"""
-	# Handle midnight and noon specially
-	if hour == 0:
-		return Strings.NOON_12AM  # "12A"
-	if hour == 12:
-		return Strings.NOON_12PM  # "12P"
-
-	# Convert to 12-hour and add suffix
-	if hour < 12:
-		return f"{hour}{Strings.AM_SUFFIX}"  # "1A" to "11A"
-
-	return f"{hour - 12}{Strings.PM_SUFFIX}"  # "1P" to "11P"
+	h = get_12h_hour(hour)
+	suffix = Strings.AM_SUFFIX if hour < 12 else Strings.PM_SUFFIX
+	return f"{h}{suffix}"
 
 def get_day_color(rtc):
 	"""Get color for day of week indicator"""
