@@ -468,6 +468,19 @@ The entire codebase currently resides in a single `code.py` file. This is a comm
 - 2.0.6.1
   - Removed logic for feels like temperature for forecast
   - Simplified missing image handling for weather, forecast, events and schedule
+- 2.0.6.2
+  - Simplified hour formatting and raised to module level
+- Pending:
+  - Phase 1 - Quick Wins (Biggest impact, lowest risk)
+    - Simplify load_all_events() with dictionary approach (79% reduction!)
+    - Split fetch_github_data() with helper function
+  - Phase 2 - API Simplification (Moderate complexity)
+    - Split fetch_current_and_forecast_weather() into separate functions
+    - Extract success/failure tracking
+  - Phase 3 - Display Functions (More testing needed)
+    - Extract show_weather_display() rendering helpers
+    - Extract show_scheduled_display() sections
+  
 
 ### 2.0.5
 - **FIXED:** CRITICAL socket pool exhaustion - the root cause of ALL socket issues!

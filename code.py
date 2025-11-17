@@ -1,9 +1,10 @@
-##### PANTALLITA 2.0.6.1 #####
+##### PANTALLITA 2.0.6.2 #####
 # Stack exhaustion fix: Flattened nested try/except blocks to prevent crashes (v2.0.1)
 # Socket exhaustion fix: response.close() + smart caching (v2.0.2)
 # Comprehensive socket fix: Added response.close() to ALL HTTP requests - startup & runtime (v2.0.3)
 # CRITICAL socket pool fix: Reuse single global socket pool instead of creating new pools (v2.0.5)
 # Simplified approach: Removed mid-schedule cleanup - matches proven regular cycle behavior (v2.0.6)
+# Simplified and flattened: image fallbacks (v2.0.6.1) hour formatting (v2.0.6.2)
 # See STACK_TEST_ANALYSIS.md for technical details
 
 # === LIBRARIES ===
