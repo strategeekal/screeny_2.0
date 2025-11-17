@@ -1869,7 +1869,11 @@ def fetch_ephemeral_events():
 		
 def normalize_date_key(date_str):
 	"""Normalize date string to MMDD format (e.g., '01-15' or '115' -> '0115')"""
-	return date_str.replace("-", "").zfill(4)
+	date_key = date_str.replace("-", "")
+	# Manual padding for CircuitPython (no zfill support)
+	while len(date_key) < 4:
+		date_key = '0' + date_key
+	return date_key
 
 def parse_event_data(parts):
 	"""Extract event data fields from CSV parts. Returns [top_line, bottom_line, image, color, start_hour, end_hour]"""
