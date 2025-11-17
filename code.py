@@ -2468,19 +2468,17 @@ def right_align_text(text, font, right_edge):
 def center_text(text, font, area_x, area_width):
 	return area_x + (area_width - get_text_width(text, font)) // 2
 
+def get_12h_hour(hour):
+	"""Convert 24-hour to 12-hour format (returns 1-12)
+	Examples: 0→12, 1→1, 13→1, 23→11
+	"""
+	return hour % 12 or 12
+
 def format_hour_12h(hour):
 	"""Convert 24-hour time to 12-hour format with AM/PM suffix (e.g., '3P', '12A')"""
-	# Handle midnight and noon specially
-	if hour == 0:
-		return Strings.NOON_12AM  # "12A"
-	if hour == 12:
-		return Strings.NOON_12PM  # "12P"
-
-	# Convert to 12-hour and add suffix
-	if hour < 12:
-		return f"{hour}{Strings.AM_SUFFIX}"  # "1A" to "11A"
-
-	return f"{hour - 12}{Strings.PM_SUFFIX}"  # "1P" to "11P"
+	h = get_12h_hour(hour)
+	suffix = Strings.AM_SUFFIX if hour < 12 else Strings.PM_SUFFIX
+	return f"{h}{suffix}"
 
 def get_day_color(rtc):
 	"""Get color for day of week indicator"""
@@ -2717,7 +2715,7 @@ def show_weather_display(rtc, duration, weather_data=None):
 		
 		# Only update display when minute changes (not every second)
 		if minute != last_minute:
-			display_hour = hour % System.HOURS_IN_HALF_DAY if hour % System.HOURS_IN_HALF_DAY != 0 else System.HOURS_IN_HALF_DAY
+			display_hour = get_12h_hour(hour)
 			current_time = f"{display_hour}:{minute:02d}"
 			
 			# Update ONLY the time text content
@@ -2780,9 +2778,9 @@ def show_clock_display(rtc, duration=Timing.CLOCK_DISPLAY_DURATION):
 	while time.monotonic() - start_time < duration:
 		dt = rtc.datetime
 		date_str = f"{MONTHS[dt.tm_mon].upper()} {dt.tm_mday:02d}"
-		
+
 		hour = dt.tm_hour
-		display_hour = hour % System.HOURS_IN_HALF_DAY if hour % System.HOURS_IN_HALF_DAY != 0 else System.HOURS_IN_HALF_DAY
+		display_hour = get_12h_hour(hour)
 		time_str = f"{display_hour}:{dt.tm_min:02d}:{dt.tm_sec:02d}"
 		
 		date_text.text = date_str
@@ -3338,7 +3336,7 @@ def show_forecast_display(current_data, forecast_data, display_duration, is_fres
 			current_minute = state.rtc_instance.datetime.tm_min
 
 			if current_minute != last_minute:
-				display_hour = current_hour % System.HOURS_IN_HALF_DAY if current_hour % System.HOURS_IN_HALF_DAY != 0 else System.HOURS_IN_HALF_DAY
+				display_hour = get_12h_hour(current_hour)
 				new_time = f"{display_hour}:{current_minute:02d}"
 
 				# Update ONLY the first column time text
@@ -3701,7 +3699,7 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 			# Update clock
 			if current_minute != last_minute:
 				hour = rtc.datetime.tm_hour
-				display_hour = hour % System.HOURS_IN_HALF_DAY or System.HOURS_IN_HALF_DAY
+				display_hour = get_12h_hour(hour)
 				time_label.text = f"{display_hour}:{current_minute:02d}"
 				last_minute = current_minute
 			
