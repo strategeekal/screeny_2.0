@@ -396,10 +396,6 @@ class DisplayConfig:
 		self.show_scheduled_displays = True
 		self.show_events_in_between_schedules = True
 
-		# Performance optimizations (Bitmap vs Line objects)
-		self.use_bitmap_weekday = True   # True = 1 object (fast), False = 25 objects (fallback)
-		self.use_bitmap_bars = True      # True = 2 objects (fast), False = 4-10 objects (fallback)
-
 		# API controls (fetch real data vs use dummy data)
 		self.use_live_weather = True      # False = use dummy data
 		self.use_live_forecast = True     # False = use dummy data
@@ -2440,32 +2436,9 @@ def add_day_indicator_bitmap(main_group, rtc):
 	)
 	main_group.append(day_grid)
 
-def add_day_indicator_line(main_group, rtc):
-	"""Add 4x4 day-of-week color indicator using Line objects (FALLBACK: 25 objects)"""
-	day_color = get_day_color(rtc)
-
-	# Create 4x4 rectangle at top right (64-4=60 pixels from left)
-	for x in range(DayIndicator.X, DayIndicator.X + DayIndicator.SIZE):
-		for y in range(DayIndicator.Y, DayIndicator.Y + DayIndicator.SIZE):
-			pixel_line = Line(x, y, x, y, day_color)
-			main_group.append(pixel_line)
-
-	# Add 1-pixel black margin to the left (x=59)
-	for y in range(DayIndicator.Y, DayIndicator.MARGIN_BOTTOM_Y):
-		black_pixel = Line(DayIndicator.MARGIN_LEFT_X, y, DayIndicator.MARGIN_LEFT_X, y, state.colors["BLACK"])
-		main_group.append(black_pixel)
-
-	# Add 1-pixel black margin to the bottom (y=4)
-	for x in range(DayIndicator.MARGIN_LEFT_X, DayIndicator.X+DayIndicator.SIZE):  # Include the corner pixel at (59,4)
-		black_pixel = Line(x, DayIndicator.MARGIN_BOTTOM_Y, x, DayIndicator.MARGIN_BOTTOM_Y, state.colors["BLACK"])
-		main_group.append(black_pixel)
-
 def add_day_indicator(main_group, rtc):
-	"""Add day-of-week indicator (chooses Bitmap or Line based on config)"""
-	if display_config.use_bitmap_weekday:
-		add_day_indicator_bitmap(main_group, rtc)
-	else:
-		add_day_indicator_line(main_group, rtc)
+	"""Add day-of-week indicator using Bitmap (1 object vs 25 Line objects)"""
+	add_day_indicator_bitmap(main_group, rtc)
 
 def add_weekday_indicator_if_enabled(main_group, rtc, display_name=""):
 	"""Add weekday indicator if enabled, with optional logging"""
@@ -2547,37 +2520,9 @@ def add_indicator_bars_bitmap(main_group, x_start, uv_index, humidity):
 		humidity_grid = displayio.TileGrid(humidity_bitmap, pixel_shader=humidity_palette, x=x_start, y=Layout.HUMIDITY_BAR_Y)
 		main_group.append(humidity_grid)
 
-def add_indicator_bars_line(main_group, x_start, uv_index, humidity):
-	"""Add UV and humidity bars using Line objects (FALLBACK: 4-10 objects)"""
-
-	# UV bar (only if UV > 0)
-	if uv_index > 0:
-		uv_length = calculate_uv_bar_length(uv_index)
-		main_group.append(Line(x_start, Layout.UV_BAR_Y, x_start - 1 + uv_length, Layout.UV_BAR_Y, state.colors["DIMMEST_WHITE"]))
-
-		# UV spacing dots (black pixels every 3)
-		for i in Visual.UV_SPACING_POSITIONS:
-			if i < uv_length:
-				main_group.append(Line(x_start + i, Layout.UV_BAR_Y, x_start + i, Layout.UV_BAR_Y, state.colors["BLACK"]))
-
-	# Humidity bar
-	if humidity > 0:
-		humidity_length = calculate_humidity_bar_length(humidity)
-
-		# Main humidity line
-		main_group.append(Line(x_start, Layout.HUMIDITY_BAR_Y, x_start - 1 + humidity_length, Layout.HUMIDITY_BAR_Y, state.colors["DIMMEST_WHITE"]))
-
-		# Humidity spacing dots (black pixels every 2 = every 20%)
-		for i in Visual.HUMIDITY_SPACING_POSITIONS:  # Positions for 20%, 40%, 60%, 80%
-			if i < humidity_length:
-				main_group.append(Line(x_start + i, Layout.HUMIDITY_BAR_Y, x_start + i, Layout.HUMIDITY_BAR_Y, state.colors["BLACK"]))
-
 def add_indicator_bars(main_group, x_start, uv_index, humidity):
-	"""Add UV and humidity indicator bars (chooses Bitmap or Line based on config)"""
-	if display_config.use_bitmap_bars:
-		add_indicator_bars_bitmap(main_group, x_start, uv_index, humidity)
-	else:
-		add_indicator_bars_line(main_group, x_start, uv_index, humidity)
+	"""Add UV and humidity indicator bars using Bitmap (2 objects vs 4-10 Line objects)"""
+	add_indicator_bars_bitmap(main_group, x_start, uv_index, humidity)
 
 
 def show_weather_display(rtc, duration, weather_data=None):
