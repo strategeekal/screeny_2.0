@@ -476,7 +476,14 @@ The entire codebase currently resides in a single `code.py` file. This is a comm
 ## Version History
 
 ### 2.0.8 (Current)
-- Refactoring of fetch weather and forecast data into two independent functions + helpers
+- Split fetch_current_and_forecast_weather() into separate functions
+
+Pending Simplification    
+  - Phase 2 - API Simplification (Moderate complexity)
+    - Extract success/failure tracking
+  - Phase 3 - Display Functions (More testing needed)
+    - Extract show_weather_display() rendering helpers
+    - Extract show_scheduled_display() sections
 
 ### 2.0.7
 - Removed logic for feels like temperature for forecast
@@ -490,14 +497,6 @@ The entire codebase currently resides in a single `code.py` file. This is a comm
 - Split fetch_github_data() with helper function
 - Display Rendering Optimizatio - use Bitmaps in stead of lines for UV/Humidity and day indicator
 - Result: ~150 fewer lines with better display performance and code reusage
-
-Pending Simplification    
-  - Phase 2 - API Simplification (Moderate complexity)
-    - Split fetch_current_and_forecast_weather() into separate functions
-    - Extract success/failure tracking
-  - Phase 3 - Display Functions (More testing needed)
-    - Extract show_weather_display() rendering helpers
-    - Extract show_scheduled_display() sections
 
 ### 2.0.6 (Current)
 - **SIMPLIFIED:** Removed mid-schedule cleanup entirely - matches proven regular cycle behavior
