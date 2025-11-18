@@ -1,4 +1,4 @@
-# Pantallita 2.0.7
+# Pantallita 2.0.8
 
 A dual RGB matrix weather display system running on MatrixPortal S3, showing real-time weather, forecasts, events, and scheduled activities for family use.
 
@@ -278,6 +278,24 @@ Sleep,1,0123456,20,45,21,30,bed.bmp,0
 - Cached data indicator (LILAC color for stale data)
 - Multiple color schemes for text
 
+### Image Sizes and Format
+- .bmp optimized images in 8-bit format. (Screen has 4-bit depth)
+- Stored on device and on Github Repository pantallita-events: https://github.com/strategeekal/pantallita-events/tree/main
+- Current Weather images:
+  - 32 x 64 full screen images
+  - 44 icons with some skipped [ICON#.bmp]
+  - 0.bmp is blank
+- Forecast Weather images:
+  - 13 x 13 pixels
+  - 44 icons with some skipped [ICON#.bmp]
+  - 0.bmp is blank
+- Events images:
+  - 25 x 28 pixels
+  - blank.bmp is blank
+- Schedule images:
+  - 40 x 28 pixels
+  - blank.bmp is blank
+  
 ## Display Configuration
 
 Toggle features in `DisplayConfig` class (lines 357-447):
@@ -457,7 +475,10 @@ The entire codebase currently resides in a single `code.py` file. This is a comm
 
 ## Version History
 
-### 2.0.7 (Current)
+### 2.0.8 (Current)
+- Refactoring of fetch weather and forecast data into two independent functions + helpers
+
+### 2.0.7
 - Removed logic for feels like temperature for forecast
 - Simplified missing image handling for weather, forecast, events and schedule
 - Simplified hour formatting and raised to module level
