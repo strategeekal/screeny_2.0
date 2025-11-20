@@ -3768,9 +3768,9 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 		log_error(f"Scheduled display segment error: {e}")
 		
 		# CRITICAL: Add delay to prevent runaway loops on errors
-		
+
 		# Safety: If too many errors in a row, take a break
-		if state.consecutive_display_errors >= 5:
+		if state.tracker.consecutive_display_errors >= 5:
 			log_error("Too many consecutive errors - safe mode")
 			safe_duration = Timing.CLOCK_DISPLAY_DURATION  # 5 minutes
 		else:
