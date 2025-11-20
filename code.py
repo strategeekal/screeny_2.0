@@ -2479,30 +2479,6 @@ def apply_display_config(config_dict):
 		display_config.show_events_in_between_schedules = config_dict["show_events_in_between_schedules"]
 		applied += 1
 
-	# API controls
-	if "use_live_weather" in config_dict:
-		display_config.use_live_weather = config_dict["use_live_weather"]
-		applied += 1
-	if "use_live_forecast" in config_dict:
-		display_config.use_live_forecast = config_dict["use_live_forecast"]
-		applied += 1
-
-	# Development/Production
-	if "delayed_start" in config_dict:
-		display_config.delayed_start = config_dict["delayed_start"]
-		applied += 1
-
-	# Test modes
-	if "use_test_date" in config_dict:
-		display_config.use_test_date = config_dict["use_test_date"]
-		applied += 1
-	if "show_color_test" in config_dict:
-		display_config.show_color_test = config_dict["show_color_test"]
-		applied += 1
-	if "show_icon_test" in config_dict:
-		display_config.show_icon_test = config_dict["show_icon_test"]
-		applied += 1
-
 	log_debug(f"Applied {applied} config settings to display_config")
 
 

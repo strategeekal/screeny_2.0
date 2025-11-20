@@ -49,18 +49,6 @@ show_events,1
 show_weekday_indicator,1
 show_scheduled_displays,1
 show_events_in_between_schedules,1
-
-# API controls (1 = live data, 0 = dummy data)
-use_live_weather,1
-use_live_forecast,1
-
-# Development/Production
-delayed_start,0
-
-# Test/Debug modes (keep disabled in production)
-use_test_date,0
-show_color_test,0
-show_icon_test,0
 ```
 
 ## Available Settings
@@ -73,12 +61,8 @@ show_icon_test,0
 | `show_weekday_indicator` | Boolean | Show day-of-week colored square | 1 (on) |
 | `show_scheduled_displays` | Boolean | Enable scheduled displays | 1 (on) |
 | `show_events_in_between_schedules` | Boolean | Show events between schedule segments | 1 (on) |
-| `use_live_weather` | Boolean | Fetch real weather (0 = dummy data) | 1 (on) |
-| `use_live_forecast` | Boolean | Fetch real forecast (0 = dummy data) | 1 (on) |
-| `delayed_start` | Boolean | 10-second startup delay | 0 (off) |
-| `use_test_date` | Boolean | Override RTC with test date | 0 (off) |
-| `show_color_test` | Boolean | Display color test pattern | 0 (off) |
-| `show_icon_test` | Boolean | Display icon test grid | 0 (off) |
+
+**Note:** Dev/test settings (`use_live_weather`, `use_live_forecast`, `delayed_start`, `use_test_date`, `show_color_test`, `show_icon_test`) are hardcoded in `DisplayConfig` class and cannot be changed via CSV (they require USB access to modify code).
 
 ## How It Works
 
@@ -100,8 +84,8 @@ show_icon_test,0
 
 ```
 Loading display configuration...
-GitHub config loaded for MATRIX1: 12 settings
-Applied 12 config settings to display_config
+GitHub config loaded for MATRIX1: 6 settings
+Applied 6 config settings to display_config
 ```
 
 Or:
@@ -110,7 +94,7 @@ Or:
 Loading display configuration...
 No GitHub config URL set for MATRIX1
 Display config loaded from local file
-Applied 12 config settings to display_config
+Applied 6 config settings to display_config
 ```
 
 ## Use Cases
@@ -137,15 +121,6 @@ show_events,0
 show_scheduled_displays,0
 show_weekday_indicator,0
 ```
-
-### Development Mode
-**Local display_config.csv**:
-```csv
-use_live_weather,0
-use_live_forecast,0
-delayed_start,1
-```
-Uses dummy data, safer for testing
 
 ## Network Impact
 
