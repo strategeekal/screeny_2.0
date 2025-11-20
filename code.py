@@ -777,7 +777,106 @@ class MemoryMonitor:
 		for line in report.split("\n"):
 			log_debug(line)
 		
-	
+
+## State Tracker
+class StateTracker:
+	"""Centralized success/failure tracking for API calls, errors, and recovery logic"""
+
+	def __init__(self):
+		# API call tracking
+		self.api_call_count = 0
+		self.current_api_calls = 0
+		self.forecast_api_calls = 0
+		self.consecutive_failures = 0
+		self.last_successful_weather = 0
+
+		# WiFi failure management
+		self.wifi_reconnect_attempts = 0
+		self.last_wifi_attempt = 0
+		self.system_error_count = 0
+
+		# Extended failure tracking
+		self.in_extended_failure_mode = False
+		self.scheduled_display_error_count = 0
+		self.consecutive_display_errors = 0  # Fix uninitialized counter bug
+		self.has_permanent_error = False
+
+	# API Tracking Methods
+	def record_api_success(self, call_type):
+		"""Track successful API call (call_type: 'current' or 'forecast')"""
+		if call_type == "current":
+			self.current_api_calls += 1
+		elif call_type == "forecast":
+			self.forecast_api_calls += 1
+		self.api_call_count += 1
+
+	def get_api_stats(self):
+		"""Get formatted API stats string for logging"""
+		return f"Total={self.api_call_count}/{API.MAX_CALLS_BEFORE_RESTART}, Current={self.current_api_calls}, Forecast={self.forecast_api_calls}"
+
+	def reset_api_counters(self):
+		"""Reset API call tracking - returns old total for logging"""
+		old_total = self.api_call_count
+		self.api_call_count = 0
+		self.current_api_calls = 0
+		self.forecast_api_calls = 0
+		return old_total
+
+	# Weather Success/Failure Tracking
+	def record_weather_success(self):
+		"""Handle successful weather fetch - reset failure counters and log recovery"""
+		# Log recovery if coming out of extended failure mode
+		if self.in_extended_failure_mode:
+			recovery_time = int((time.monotonic() - self.last_successful_weather) / System.SECONDS_PER_MINUTE)
+			log_info(f"Weather API recovered after {recovery_time} minutes of failures")
+
+		self.consecutive_failures = 0
+		self.last_successful_weather = time.monotonic()
+		self.wifi_reconnect_attempts = 0
+		self.system_error_count = 0
+
+	def record_weather_failure(self):
+		"""Handle failed weather fetch - increment failure counters"""
+		self.consecutive_failures += 1
+		self.system_error_count += 1
+		log_warning(f"Consecutive failures: {self.consecutive_failures}, System errors: {self.system_error_count}")
+
+	def record_display_error(self):
+		"""Track display errors"""
+		self.consecutive_display_errors += 1
+		self.scheduled_display_error_count += 1
+
+	def reset_display_errors(self):
+		"""Reset display error counters"""
+		self.consecutive_display_errors = 0
+		self.scheduled_display_error_count = 0
+
+	# Decision Methods
+	def should_soft_reset(self):
+		"""Check if soft reset is needed due to consecutive failures"""
+		return self.consecutive_failures >= Recovery.SOFT_RESET_THRESHOLD
+
+	def should_hard_reset(self):
+		"""Check if hard reset is needed due to system errors"""
+		return self.system_error_count >= Recovery.HARD_RESET_THRESHOLD
+
+	def should_preventive_restart(self):
+		"""Check if preventive restart is needed due to API call limit"""
+		return self.api_call_count >= API.MAX_CALLS_BEFORE_RESTART
+
+	def should_enter_extended_failure_mode(self):
+		"""Check if extended failure mode should be entered"""
+		if self.has_permanent_error:
+			return True
+		if self.last_successful_weather == 0:
+			return False
+		time_since_success = time.monotonic() - self.last_successful_weather
+		return time_since_success > Recovery.EXTENDED_FAILURE_TIME
+
+	def reset_after_soft_reset(self):
+		"""Reset state after soft reset"""
+		self.consecutive_failures = 0
+
 ## State Class
 class WeatherDisplayState:
 	def __init__(self):
@@ -786,14 +885,10 @@ class WeatherDisplayState:
 		self.display = None
 		self.main_group = None
 		self.matrix_type_cache = None
-		
-		# API tracking
-		self.api_call_count = 0
-		self.current_api_calls = 0
-		self.forecast_api_calls = 0
-		self.consecutive_failures = 0
-		self.last_successful_weather = 0
-		
+
+		# Centralized success/failure tracking
+		self.tracker = StateTracker()
+
 		# Timing and cache
 		self.startup_time = 0
 		self.last_forecast_fetch = -Timing.FORECAST_UPDATE_INTERVAL
@@ -801,53 +896,30 @@ class WeatherDisplayState:
 		self.cached_current_weather_time = 0
 		self.cached_forecast_data = None
 		self.cached_events = None
-		
+
 		# Colors (set after matrix detection)
 		self.colors = {}
-		
+
 		# Network session
 		self.global_requests_session = None
-		
+
 		# Caches
 		self.image_cache = ImageCache(max_size=12)
 		self.text_cache = TextWidthCache()
-		
+
 		# Add memory monitor
 		self.memory_monitor = MemoryMonitor()
-		
-		# WiFi Failure Management
-		self.wifi_reconnect_attempts = 0
-		self.last_wifi_attempt = 0
-		self.system_error_count = 0
 
-		self.in_extended_failure_mode = False
-		self.scheduled_display_error_count = 0
-		self.has_permanent_error = False  # Track 401/404 errors
-
-		# Socket health monitoring (indirect)
-		self.http_requests_total = 0
-		self.http_requests_success = 0
-		self.http_requests_failed = 0
-		self.session_cleanup_count = 0
-		
-		# Event tracking
-		self.ephemeral_event_count = 0
-		self.permanent_event_count = 0
-		self.total_event_count = 0
-		
 		# Schedule session tracking (for segmented displays)
 		self.active_schedule_name = None
 		self.active_schedule_start_time = None  # monotonic time when schedule started
 		self.active_schedule_end_time = None    # monotonic time when schedule should end
 		self.active_schedule_segment_count = 0  # Count segments within current schedule (for display)
 		self.schedule_just_ended = False
-	
+
 	def reset_api_counters(self):
 		"""Reset API call tracking"""
-		old_total = self.api_call_count
-		self.api_call_count = 0
-		self.current_api_calls = 0
-		self.forecast_api_calls = 0
+		old_total = self.tracker.reset_api_counters()
 		log_debug(f"API counters reset (was {old_total} total calls)")
 	
 	def cleanup_session(self):
@@ -1089,16 +1161,16 @@ def check_and_recover_wifi():
 	try:
 		if wifi.radio.connected:
 			return True
-		
+
 		# Only attempt reconnection if enough time has passed
 		current_time = time.monotonic()
-		time_since_attempt = current_time - state.last_wifi_attempt
-		
+		time_since_attempt = current_time - state.tracker.last_wifi_attempt
+
 		if time_since_attempt < Recovery.WIFI_RECONNECT_COOLDOWN:
 			return False
-		
+
 		log_warning("WiFi DISCONNECTED, attempting recovery...")
-		state.last_wifi_attempt = current_time
+		state.tracker.last_wifi_attempt = current_time
 		return setup_wifi_with_recovery()
 		
 	except Exception as e:
@@ -1283,7 +1355,6 @@ def cleanup_global_session():
 	if _global_session is not None:
 		try:
 			log_debug("Destroying global session (keeping socket pool)")
-			state.session_cleanup_count += 1  # Track cleanups
 			# Try to close gracefully first
 			try:
 				_global_session.close()
@@ -1355,7 +1426,7 @@ def _process_response_status(response, context):
 
 	if status in permanent_errors:
 		log_error(f"{context}: {permanent_errors[status]}")
-		state.has_permanent_error = True
+		state.tracker.has_permanent_error = True
 		return None
 
 	# Retryable errors (return False to signal retry)
@@ -1395,11 +1466,9 @@ def fetch_weather_with_retries(url, max_retries=None, context="API"):
 		# Try to fetch - exception handling delegated to helper
 		response = None
 		try:
-			state.http_requests_total += 1  # Track all attempts
 			response = session.get(url)
 		except (RuntimeError, OSError) as e:
 			last_error = _handle_network_error(e, context, attempt, max_retries)
-			state.http_requests_failed += 1  # Track failure
 			continue  # Retry
 		except Exception as e:
 			log_error(f"{context} unexpected error: {type(e).__name__}: {e}")
@@ -1415,7 +1484,6 @@ def fetch_weather_with_retries(url, max_retries=None, context="API"):
 
 			# Success or permanent error
 			if result is not None and result is not False:
-				state.http_requests_success += 1  # Track success
 				return result
 
 			# Permanent error (None from helper)
@@ -1506,59 +1574,44 @@ def parse_forecast_weather(forecast_json):
 
 def track_api_call_success(call_type):
 	"""Track successful API call (call_type: 'current' or 'forecast')"""
-	if call_type == "current":
-		state.current_api_calls += 1
-	elif call_type == "forecast":
-		state.forecast_api_calls += 1
-
-	state.api_call_count += 1
-	log_debug(f"API Stats: Total={state.api_call_count}/{API.MAX_CALLS_BEFORE_RESTART}, Current={state.current_api_calls}, Forecast={state.forecast_api_calls}")
+	state.tracker.record_api_success(call_type)
+	log_debug(f"API Stats: {state.tracker.get_api_stats()}")
 
 def handle_weather_success():
 	"""Handle successful weather fetch - reset failure counters and log recovery"""
-	# Log recovery if coming out of extended failure mode
-	if state.in_extended_failure_mode:
-		recovery_time = int((time.monotonic() - state.last_successful_weather) / System.SECONDS_PER_MINUTE)
-		log_info(f"Weather API recovered after {recovery_time} minutes of failures")
-
-	state.consecutive_failures = 0
-	state.last_successful_weather = time.monotonic()
-	state.wifi_reconnect_attempts = 0  # Reset WiFi counter on success
-	state.system_error_count = 0  # Reset system errors on success
+	state.tracker.record_weather_success()
 
 def handle_weather_failure():
 	"""Handle failed weather fetch - increment failure counters and trigger recovery if needed"""
-	state.consecutive_failures += 1
-	state.system_error_count += 1  # Increment across soft resets
-	log_warning(f"Consecutive failures: {state.consecutive_failures}, System errors: {state.system_error_count}")
+	state.tracker.record_weather_failure()
 
 	# Soft reset on repeated failures
-	if state.consecutive_failures >= Recovery.SOFT_RESET_THRESHOLD:
+	if state.tracker.should_soft_reset():
 		log_warning("Soft reset: clearing network session")
 		cleanup_global_session()
-		state.consecutive_failures = 0
+		state.tracker.reset_after_soft_reset()
 
 		# Enter temporary extended failure mode for cooldown
-		was_in_extended_mode = state.in_extended_failure_mode
-		state.in_extended_failure_mode = True
+		was_in_extended_mode = state.tracker.in_extended_failure_mode
+		state.tracker.in_extended_failure_mode = True
 
 		# Show purple clock during 30s cooldown
 		log_info("Cooling down for 30 seconds before retry...")
 		show_clock_display(state.rtc_instance, 30)
 
 		# Restore previous extended mode state
-		state.in_extended_failure_mode = was_in_extended_mode
+		state.tracker.in_extended_failure_mode = was_in_extended_mode
 
 	# Hard reset if soft resets aren't helping
-	if state.system_error_count >= Recovery.HARD_RESET_THRESHOLD:
-		log_error(f"Hard reset after {state.system_error_count} system errors")
+	if state.tracker.should_hard_reset():
+		log_error(f"Hard reset after {state.tracker.system_error_count} system errors")
 		interruptible_sleep(Timing.RESTART_DELAY)
 		supervisor.reload()
 
 def check_preventive_restart():
 	"""Check if preventive restart is needed due to API call limit"""
-	if state.api_call_count >= API.MAX_CALLS_BEFORE_RESTART:
-		log_warning(f"Preventive restart after {state.api_call_count} API calls")
+	if state.tracker.should_preventive_restart():
+		log_warning(f"Preventive restart after {state.tracker.api_call_count} API calls")
 		cleanup_global_session()
 		interruptible_sleep(API.RETRY_DELAY)
 		supervisor.reload()
@@ -1741,37 +1794,37 @@ def get_api_key():
 	
 def get_current_error_state():
 	"""Determine current error state based on system status"""
-	
+
 	# During startup (before first weather attempt), show OK
 	if state.startup_time == 0:
 		return None
-	
+
 	# Extended failure mode takes priority over permanent errors
 	# (shows system is degraded, even if error is permanent)
-	if state.in_extended_failure_mode:
+	if state.tracker.in_extended_failure_mode:
 		return "extended"  # PURPLE
-	
+
 	# Check for permanent configuration errors
-	if hasattr(state, 'has_permanent_error') and state.has_permanent_error:
+	if state.tracker.has_permanent_error:
 		return "general"  # WHITE
-	
+
 	# Check for WiFi issues
 	if not is_wifi_connected():
 		return "wifi"  # RED
-	
+
 	# Check for schedule display errors (file system issues)
-	if state.scheduled_display_error_count >= 3:
+	if state.tracker.scheduled_display_error_count >= 3:
 		return "general"  # WHITE
-	
+
 	# Check for weather API failures (only after startup)
-	time_since_success = time.monotonic() - state.last_successful_weather
-	if state.last_successful_weather > 0 and time_since_success > 600:
+	time_since_success = time.monotonic() - state.tracker.last_successful_weather
+	if state.tracker.last_successful_weather > 0 and time_since_success > 600:
 		return "weather"  # YELLOW
-	
+
 	# Check for consecutive failures
-	if state.consecutive_failures >= 3:
+	if state.tracker.consecutive_failures >= 3:
 		return "weather"  # YELLOW
-	
+
 	# All OK
 	return None  # MINT
 	
@@ -2798,17 +2851,17 @@ def show_clock_display(rtc, duration=Timing.CLOCK_DISPLAY_DURATION):
 	
 	# Check for restart conditions ONLY if not in startup phase
 	if state.startup_time > 0:  # Only check if we've completed initialization
-		time_since_success = time.monotonic() - state.last_successful_weather
-		
+		time_since_success = time.monotonic() - state.tracker.last_successful_weather
+
 		# Hard reset after 1 hour of failures
 		if time_since_success > System.SECONDS_PER_HOUR:
 			log_error(f"Hard reset after {int(time_since_success/System.SECONDS_PER_MINUTE)} minutes without successful weather fetch")
 			interruptible_sleep(Timing.RESTART_DELAY)
 			supervisor.reload()
-		
+
 		# Warn after 30 minutes
-		elif time_since_success > System.SECONDS_HALF_HOUR and state.consecutive_failures >= System.MAX_LOG_FAILURES_BEFORE_RESTART:
-			log_warning(f"Extended failure: {int(time_since_success/System.SECONDS_PER_MINUTE)}min without success, {state.consecutive_failures} consecutive failures")
+		elif time_since_success > System.SECONDS_HALF_HOUR and state.tracker.consecutive_failures >= System.MAX_LOG_FAILURES_BEFORE_RESTART:
+			log_warning(f"Extended failure: {int(time_since_success/System.SECONDS_PER_MINUTE)}min without success, {state.tracker.consecutive_failures} consecutive failures")
 		
 def show_event_display(rtc, duration):
 	"""Display special calendar events - cycles through multiple events if present"""
@@ -3622,12 +3675,12 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 		schedule_img.x = Layout.SCHEDULE_IMAGE_X
 		schedule_img.y = Layout.SCHEDULE_IMAGE_Y
 		state.main_group.append(schedule_img)
-		state.scheduled_display_error_count = 0
+		state.tracker.reset_display_errors()
 	except Exception as e:
 		log_warning(f"Failed to load schedule image {schedule_config['image']}, skipping schedule display")
-		state.scheduled_display_error_count += 1
-		if state.scheduled_display_error_count >= 3:
-			log_error(f"Too many schedule errors ({state.scheduled_display_error_count}), disabling schedules")
+		state.tracker.record_display_error()
+		if state.tracker.scheduled_display_error_count >= 3:
+			log_error(f"Too many schedule errors ({state.tracker.scheduled_display_error_count}), disabling schedules")
 			display_config.show_scheduled_displays = False
 		return  # Skip schedule, return to normal cycle
 
@@ -3658,8 +3711,8 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 			log_info(f"Displaying Schedule: {schedule_name} - Segment {segment_num}/{total_segments} (Weather Skipped, progress: {progress*100:.0f}%)")
 		
 		# Override success tracking
-		state.last_successful_weather = time.monotonic()
-		state.consecutive_failures = 0
+		state.tracker.last_successful_weather = time.monotonic()
+		state.tracker.consecutive_failures = 0
 		
 		# === PROGRESS BAR ===
 		## Progress bar - based on FULL schedule progress, not segment
@@ -3942,9 +3995,9 @@ def setup_network_and_time(rtc):
 def handle_extended_failure_mode(rtc, time_since_success):
 	"""Handle extended failure mode with periodic recovery attempts"""
 	# Log entry into extended failure mode (only once)
-	if not state.in_extended_failure_mode:
+	if not state.tracker.in_extended_failure_mode:
 		log_warning(f"ENTERING extended failure mode after {int(time_since_success/System.SECONDS_PER_MINUTE)} minutes without success")
-		state.in_extended_failure_mode = True
+		state.tracker.in_extended_failure_mode = True
 	
 	log_debug(f"Extended failure mode active ({int(time_since_success/System.SECONDS_PER_MINUTE)}min since success) - showing clock only")
 	show_clock_display(rtc, Timing.CLOCK_DISPLAY_DURATION)
@@ -4015,13 +4068,13 @@ def _ensure_wifi_available(rtc):
 
 def _check_failure_mode(rtc):
 	"""Helper: Check and handle extended failure mode (Category A2)"""
-	time_since_success = time.monotonic() - state.last_successful_weather
+	time_since_success = time.monotonic() - state.tracker.last_successful_weather
 	in_failure_mode = time_since_success > Timing.EXTENDED_FAILURE_THRESHOLD
 
 	# Exit failure mode if recovered
-	if not in_failure_mode and state.in_extended_failure_mode:
+	if not in_failure_mode and state.tracker.in_extended_failure_mode:
 		log_info("EXITING extended failure mode")
-		state.in_extended_failure_mode = False
+		state.tracker.in_extended_failure_mode = False
 		return False
 
 	if in_failure_mode:
@@ -4050,8 +4103,8 @@ def _run_scheduled_cycle(rtc, cycle_count, cycle_start_time):
 		log_debug("Cache stale or missing - fetching fresh weather for schedule cycle")
 		current_data = fetch_current_weather_only()
 		if current_data:
-			state.last_successful_weather = time.monotonic()
-			state.consecutive_failures = 0
+			state.tracker.last_successful_weather = time.monotonic()
+			state.tracker.consecutive_failures = 0
 
 	# Display schedule segment
 	display_duration = get_remaining_schedule_time(rtc, schedule_config)
@@ -4077,7 +4130,7 @@ def _run_scheduled_cycle(rtc, cycle_count, cycle_start_time):
 	# Log cycle summary
 	cycle_duration = time.monotonic() - cycle_start_time
 	mem_stats = state.memory_monitor.get_memory_stats()
-	log_info(f"Cycle #{cycle_count} (SCHEDULED) complete in {cycle_duration/System.SECONDS_PER_MINUTE:.2f} min | UT: {state.memory_monitor.get_runtime()} | Mem: {mem_stats['usage_percent']:.1f}% | API: Total={state.api_call_count}/{API.MAX_CALLS_BEFORE_RESTART}, Current={state.current_api_calls}, Forecast={state.forecast_api_calls}\n")
+	log_info(f"Cycle #{cycle_count} (SCHEDULED) complete in {cycle_duration/System.SECONDS_PER_MINUTE:.2f} min | UT: {state.memory_monitor.get_runtime()} | Mem: {mem_stats['usage_percent']:.1f}% | API: {state.tracker.get_api_stats()}\n")
 	return True
 
 def _run_normal_cycle(rtc, cycle_count, cycle_start_time):
@@ -4137,7 +4190,7 @@ def _run_normal_cycle(rtc, cycle_count, cycle_start_time):
 
 	# Log completion
 	mem_stats = state.memory_monitor.get_memory_stats()
-	log_info(f"Cycle #{cycle_count} complete in {cycle_duration/System.SECONDS_PER_MINUTE:.2f} min | UT: {state.memory_monitor.get_runtime()} | Mem: {mem_stats['usage_percent']:.1f}% | API: Total={state.api_call_count}/{API.MAX_CALLS_BEFORE_RESTART}, Current={state.current_api_calls}, Forecast={state.forecast_api_calls}\n")
+	log_info(f"Cycle #{cycle_count} complete in {cycle_duration/System.SECONDS_PER_MINUTE:.2f} min | UT: {state.memory_monitor.get_runtime()} | Mem: {mem_stats['usage_percent']:.1f}% | API: {state.tracker.get_api_stats()}\n")
 
 def _log_cycle_complete(cycle_count, cycle_start_time, mode):
 	"""Helper: Log cycle completion (Category A2)"""
@@ -4202,7 +4255,7 @@ def main():
 		
 		# Set startup time
 		state.startup_time = time.monotonic()
-		state.last_successful_weather = state.startup_time
+		state.tracker.last_successful_weather = state.startup_time
 		state.memory_monitor.log_report()
 
 		# Log active display features
@@ -4227,12 +4280,12 @@ def main():
 			except Exception as e:
 				log_error(f"Display loop error: {e}")
 				state.memory_monitor.check_memory("display_loop_error")
-				
+
 				# CRITICAL: Add delay to prevent rapid retry loops
-				state.consecutive_failures += 1
-				
-				if state.consecutive_failures >= 3:
-					log_error(f"Multiple consecutive failures ({state.consecutive_failures}) - longer delay")
+				state.tracker.consecutive_failures += 1
+
+				if state.tracker.consecutive_failures >= 3:
+					log_error(f"Multiple consecutive failures ({state.tracker.consecutive_failures}) - longer delay")
 					interruptible_sleep(30)  # 30 second delay after repeated failures
 				else:
 					interruptible_sleep(Timing.SLEEP_BETWEEN_ERRORS)
