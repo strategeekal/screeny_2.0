@@ -2402,7 +2402,7 @@ def fetch_display_config_from_github():
 		return {}
 
 	# Determine which config to fetch based on matrix type
-	matrix_id = get_matrix_type()
+	matrix_id = detect_matrix_type()
 
 	# Get URL from settings (fallback to None if not set)
 	if matrix_id == "MATRIX1":
