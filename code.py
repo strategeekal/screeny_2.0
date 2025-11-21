@@ -431,8 +431,12 @@ class DisplayConfig:
 
 	
 	def should_fetch_weather(self):
-		"""Should we fetch current weather from API?"""
-		return self.show_weather and self.use_live_weather
+		"""Should we fetch current weather from API?
+
+		Note: Current weather data is needed by both weather display AND forecast display
+		(forecast uses it for the first column showing current conditions)
+		"""
+		return (self.show_weather or self.show_forecast) and self.use_live_weather
 	
 	def should_fetch_forecast(self):
 		"""Should we fetch forecast from API?"""
