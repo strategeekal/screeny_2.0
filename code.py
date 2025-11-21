@@ -413,18 +413,18 @@ class DisplayConfig:
 		"""Validate configuration and return list of issues"""
 		issues = []
 		warnings = []
-		
-		# Forecast requires weather
-		if self.show_forecast and not self.show_weather:
-			issues.append("Forecast display requires weather display to be enabled")
-		
+
+		# NOTE: Forecast can be shown without weather display
+		# The forecast display uses current weather data for the first column,
+		# but doesn't require the weather display to be enabled
+
 		# Warn about dummy modes
 		if not self.use_live_weather:
 			log_warning("Using DUMMY weather data (not fetching from API)")
-		
+
 		if not self.use_live_forecast:
 			log_warning("Using DUMMY forecast data (not fetching from API)")
-		
+
 		if self.use_test_date:
 			log_warning("Test date mode enabled - NTP sync will be skipped")
 
@@ -4206,11 +4206,13 @@ def fetch_cycle_data(rtc):
 			state.cached_forecast_data = forecast_data
 			state.last_forecast_fetch = time.monotonic()
 	else:
-		if display_config.show_weather and not display_config.use_live_weather:
+		# Fetch current weather if needed for weather OR forecast display
+		# (forecast needs current data for first column)
+		if (display_config.show_weather or display_config.show_forecast) and not display_config.use_live_weather:
 			current_data = TestData.DUMMY_WEATHER_DATA
 			log_debug("Using DUMMY weather data")
-		elif display_config.show_weather:
-			# Fetch only current weather (no forecast needed)
+		elif display_config.show_weather or display_config.show_forecast:
+			# Fetch current weather (needed by both weather and forecast displays)
 			current_data = fetch_current_weather()
 
 		forecast_data = state.cached_forecast_data
