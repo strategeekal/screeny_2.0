@@ -478,6 +478,7 @@ The entire codebase currently resides in a single `code.py` file. This is a comm
 ### 2.0.8 (Current)
 - Split fetch_current_and_forecast_weather() into separate functions
 - Extract success/failure tracking
+- Night mode using schedule displays and blank image running when a minimal display is needed
 
 Pending Simplification    
 - Phase 3 - Display Functions (More testing needed)
