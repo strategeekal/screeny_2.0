@@ -1,0 +1,14 @@
+# Display Configuration for Pantallita
+# Format: setting,value
+# Boolean values: 1 = True, 0 = False
+# This file can be overridden by GitHub remote config at startup
+
+# Core displays
+show_weather,1
+show_forecast,1
+show_events,1
+
+# Display elements
+show_weekday_indicator,1
+show_scheduled_displays,1
+show_events_in_between_schedules,1
