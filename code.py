@@ -4125,7 +4125,7 @@ def initialize_system(rtc):
 	github_config = fetch_display_config_from_github()
 	if github_config:
 		apply_display_config(github_config)
-		log_info(f"Display config loaded from GitHub")
+		log_debug(f"Display config loaded from GitHub")
 	else:
 		# Fallback to local file
 		local_config = load_display_config_from_csv("display_config.csv")
