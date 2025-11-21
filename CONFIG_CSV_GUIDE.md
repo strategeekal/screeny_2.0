@@ -49,6 +49,9 @@ show_events,1
 show_weekday_indicator,1
 show_scheduled_displays,1
 show_events_in_between_schedules,1
+
+# Safety features
+delayed_start,0
 ```
 
 ## Available Settings
@@ -61,8 +64,9 @@ show_events_in_between_schedules,1
 | `show_weekday_indicator` | Boolean | Show day-of-week colored square | 1 (on) |
 | `show_scheduled_displays` | Boolean | Enable scheduled displays | 1 (on) |
 | `show_events_in_between_schedules` | Boolean | Show events between schedule segments | 1 (on) |
+| `delayed_start` | Boolean | 10-second startup delay (boot loop protection) | 0 (off) |
 
-**Note:** Dev/test settings (`use_live_weather`, `use_live_forecast`, `delayed_start`, `use_test_date`, `show_color_test`, `show_icon_test`) are hardcoded in `DisplayConfig` class and cannot be changed via CSV (they require USB access to modify code).
+**Note:** Dev/test settings (`use_live_weather`, `use_live_forecast`, `use_test_date`, `show_color_test`, `show_icon_test`) are hardcoded in `DisplayConfig` class and cannot be changed via CSV (they require USB access to modify code).
 
 ## How It Works
 
@@ -84,8 +88,8 @@ show_events_in_between_schedules,1
 
 ```
 Loading display configuration...
-GitHub config loaded for MATRIX1: 6 settings
-Applied 6 config settings to display_config
+GitHub config loaded for MATRIX1: 7 settings
+Applied 7 config settings to display_config
 ```
 
 Or:
@@ -94,7 +98,7 @@ Or:
 Loading display configuration...
 No GitHub config URL set for MATRIX1
 Display config loaded from local file
-Applied 6 config settings to display_config
+Applied 7 config settings to display_config
 ```
 
 ## Use Cases

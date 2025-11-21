@@ -2479,6 +2479,11 @@ def apply_display_config(config_dict):
 		display_config.show_events_in_between_schedules = config_dict["show_events_in_between_schedules"]
 		applied += 1
 
+	# Safety features
+	if "delayed_start" in config_dict:
+		display_config.delayed_start = config_dict["delayed_start"]
+		applied += 1
+
 	log_debug(f"Applied {applied} config settings to display_config")
 
 
@@ -2938,6 +2943,27 @@ def show_weather_display(rtc, duration, weather_data=None):
 	
 	state.memory_monitor.check_memory("weather_display_complete")
 				
+def show_startup_message(duration=3):
+	"""Display 'Hola!!' startup message during initialization"""
+	log_debug("Displaying startup message...")
+	clear_display()
+
+	# Create centered "Hola!!" text
+	startup_text = bitmap_label.Label(
+		bg_font,
+		text="Hola!!",
+		color=state.colors.get("MINT", 0x00FF88),  # Use MINT color, fallback to green
+		x=12,  # Centered for "Hola!!" with big font
+		y=16   # Vertically centered
+	)
+
+	state.main_group.append(startup_text)
+	state.display.root_group = state.main_group
+
+	# Display for specified duration
+	interruptible_sleep(duration)
+	clear_display()
+
 def show_clock_display(rtc, duration=Timing.CLOCK_DISPLAY_DURATION):
 	"""Display clock as fallback when weather unavailable"""
 	log_warning(f"Displaying clock for {duration_message(duration)}...")
@@ -4399,7 +4425,10 @@ def main():
 	try:
 		# System initialization
 		events = initialize_system(rtc)
-		
+
+		# Show startup message
+		show_startup_message(duration=3)
+
 		# Brief startup delay to prevent rapid API calls on boot loops
 		if display_config.delayed_start:
 			STARTUP_DELAY = System.STARTUP_DELAY_TIME
