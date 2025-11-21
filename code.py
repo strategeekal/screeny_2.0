@@ -2403,19 +2403,19 @@ def fetch_display_config_from_github():
 		return {}
 
 	# Determine which config to fetch based on matrix type
-	matrix_id = detect_matrix_type()
+	matrix_type = detect_matrix_type()
 
 	# Get URL from settings (fallback to None if not set)
-	if matrix_id == "MATRIX1":
+	if matrix_type == "type1":
 		config_url = os.getenv("MATRIX1_CONFIG_URL")
-	elif matrix_id == "MATRIX2":
+	elif matrix_type == "type2":
 		config_url = os.getenv("MATRIX2_CONFIG_URL")
 	else:
-		log_warning(f"Unknown matrix ID: {matrix_id}")
+		log_warning(f"Unknown matrix type: {matrix_type}")
 		return {}
 
 	if not config_url:
-		log_debug(f"No GitHub config URL set for {matrix_id}")
+		log_debug(f"No GitHub config URL set for matrix type {matrix_type}")
 		return {}
 
 	# Add cache buster
@@ -2432,9 +2432,9 @@ def fetch_display_config_from_github():
 		try:
 			if response.status_code == 200:
 				config = parse_display_config_csv(response.text)
-				log_info(f"GitHub config loaded for {matrix_id}: {len(config)} settings")
+				log_info(f"GitHub config loaded for matrix {matrix_type}: {len(config)} settings")
 			elif response.status_code == 404:
-				log_debug(f"No GitHub config found for {matrix_id} (404)")
+				log_debug(f"No GitHub config found for matrix {matrix_type} (404)")
 			else:
 				log_warning(f"Failed to fetch config: HTTP {response.status_code}")
 		finally:
