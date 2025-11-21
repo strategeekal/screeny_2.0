@@ -3670,7 +3670,7 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 
 	# === SCHEDULE IMAGE (ALWAYS) - Skip schedule if image fails ===
 	try:
-		bitmap, palette = load_bmp_image(f"{Paths.SCHEDULE_IMAGES}/{schedule_config['image']}")
+		bitmap, palette = state.image_cache.get_image(f"{Paths.SCHEDULE_IMAGES}/{schedule_config['image']}")
 		schedule_img = displayio.TileGrid(bitmap, pixel_shader=palette)
 		schedule_img.x = Layout.SCHEDULE_IMAGE_X
 		schedule_img.y = Layout.SCHEDULE_IMAGE_Y

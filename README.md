@@ -477,13 +477,12 @@ The entire codebase currently resides in a single `code.py` file. This is a comm
 
 ### 2.0.8 (Current)
 - Split fetch_current_and_forecast_weather() into separate functions
+- Extract success/failure tracking
 
 Pending Simplification    
-  - Phase 2 - API Simplification (Moderate complexity)
-    - Extract success/failure tracking
-  - Phase 3 - Display Functions (More testing needed)
-    - Extract show_weather_display() rendering helpers
-    - Extract show_scheduled_display() sections
+- Phase 3 - Display Functions (More testing needed)
+  - Extract show_weather_display() rendering helpers
+  - Extract show_scheduled_display() sections
 
 ### 2.0.7
 - Removed logic for feels like temperature for forecast
