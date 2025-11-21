@@ -2342,7 +2342,146 @@ def load_schedules_from_csv():
 	except Exception as e:
 		log_warning(f"Failed to load schedules.csv: {e}")
 		return {}
-		
+
+# ============================================================================
+# Display Configuration Loading
+# ============================================================================
+
+def parse_display_config_csv(csv_content):
+	"""Parse display config CSV content. Returns dict of settings."""
+	config = {}
+
+	try:
+		lines = csv_content.strip().split('\n')
+
+		if not lines:
+			return config
+
+		# Parse key-value pairs
+		for line in lines:
+			line = line.strip()
+			if not line or line.startswith('#'):
+				continue
+
+			parts = [p.strip() for p in line.split(',')]
+
+			if len(parts) >= 2:
+				key = parts[0]
+				value = parts[1]
+
+				# Convert to boolean
+				if value in ('0', '1'):
+					config[key] = (value == '1')
+				else:
+					config[key] = value
+
+				log_verbose(f"Config: {key} = {config[key]}")
+
+		log_debug(f"Parsed {len(config)} config settings")
+		return config
+
+	except Exception as e:
+		log_error(f"Error parsing config CSV: {e}")
+		return {}
+
+def load_display_config_from_csv(filepath):
+	"""Load display config from local CSV file"""
+	try:
+		with open(filepath, 'r') as f:
+			csv_content = f.read()
+		return parse_display_config_csv(csv_content)
+
+	except Exception as e:
+		log_warning(f"Failed to load {filepath}: {e}")
+		return {}
+
+def fetch_display_config_from_github():
+	"""Fetch display config from GitHub based on matrix ID"""
+	session = get_requests_session()
+	if not session:
+		log_warning("No session available for config fetch")
+		return {}
+
+	# Determine which config to fetch based on matrix type
+	matrix_id = get_matrix_type()
+
+	# Get URL from settings (fallback to None if not set)
+	if matrix_id == "MATRIX1":
+		config_url = os.getenv("MATRIX1_CONFIG_URL")
+	elif matrix_id == "MATRIX2":
+		config_url = os.getenv("MATRIX2_CONFIG_URL")
+	else:
+		log_warning(f"Unknown matrix ID: {matrix_id}")
+		return {}
+
+	if not config_url:
+		log_debug(f"No GitHub config URL set for {matrix_id}")
+		return {}
+
+	# Add cache buster
+	cache_buster = int(time.monotonic())
+	url = f"{config_url}?t={cache_buster}"
+
+	response = None
+	config = {}
+
+	try:
+		log_verbose(f"Fetching config: {url}")
+		response = session.get(url, timeout=10)
+
+		try:
+			if response.status_code == 200:
+				config = parse_display_config_csv(response.text)
+				log_info(f"GitHub config loaded for {matrix_id}: {len(config)} settings")
+			elif response.status_code == 404:
+				log_debug(f"No GitHub config found for {matrix_id} (404)")
+			else:
+				log_warning(f"Failed to fetch config: HTTP {response.status_code}")
+		finally:
+			# CRITICAL: Close response to release socket
+			if response:
+				try:
+					response.close()
+				except:
+					pass
+
+	except Exception as e:
+		log_warning(f"Failed to fetch GitHub config: {e}")
+
+	return config
+
+def apply_display_config(config_dict):
+	"""Apply loaded config settings to display_config"""
+	if not config_dict:
+		return
+
+	applied = 0
+
+	# Core displays
+	if "show_weather" in config_dict:
+		display_config.show_weather = config_dict["show_weather"]
+		applied += 1
+	if "show_forecast" in config_dict:
+		display_config.show_forecast = config_dict["show_forecast"]
+		applied += 1
+	if "show_events" in config_dict:
+		display_config.show_events = config_dict["show_events"]
+		applied += 1
+
+	# Display elements
+	if "show_weekday_indicator" in config_dict:
+		display_config.show_weekday_indicator = config_dict["show_weekday_indicator"]
+		applied += 1
+	if "show_scheduled_displays" in config_dict:
+		display_config.show_scheduled_displays = config_dict["show_scheduled_displays"]
+		applied += 1
+	if "show_events_in_between_schedules" in config_dict:
+		display_config.show_events_in_between_schedules = config_dict["show_events_in_between_schedules"]
+		applied += 1
+
+	log_debug(f"Applied {applied} config settings to display_config")
+
+
 class ScheduledDisplay:
 	"""Configuration for time-based scheduled displays"""
 	
@@ -3768,9 +3907,9 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 		log_error(f"Scheduled display segment error: {e}")
 		
 		# CRITICAL: Add delay to prevent runaway loops on errors
-		
+
 		# Safety: If too many errors in a row, take a break
-		if state.consecutive_display_errors >= 5:
+		if state.tracker.consecutive_display_errors >= 5:
 			log_error("Too many consecutive errors - safe mode")
 			safe_duration = Timing.CLOCK_DISPLAY_DURATION  # 5 minutes
 		else:
@@ -3953,7 +4092,24 @@ def initialize_system(rtc):
 			log_debug(f"Local schedules: {len(local_schedules)} schedule(s)")
 		else:
 			log_warning("No schedules available")
-	
+
+	# Load display configuration
+	log_debug("Loading display configuration...")
+
+	# Try GitHub first
+	github_config = fetch_display_config_from_github()
+	if github_config:
+		apply_display_config(github_config)
+		log_info(f"Display config loaded from GitHub")
+	else:
+		# Fallback to local file
+		local_config = load_display_config_from_csv("display_config.csv")
+		if local_config:
+			apply_display_config(local_config)
+			log_info(f"Display config loaded from local file")
+		else:
+			log_debug("No display config file found, using defaults")
+
 	# Get event counts for today
 	total_today, all_today_events = get_today_all_events_info(rtc)
 	active_now, _ = get_today_events_info(rtc)
