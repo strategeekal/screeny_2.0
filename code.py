@@ -332,9 +332,9 @@ class TestData:
 
 	# Dummy stock data (for testing without API)
 	DUMMY_STOCKS = [
-		{"symbol": "AAPL", "name": "Apple", "price": 178.25, "change_percent": 2.34, "direction": "up"},
+		{"symbol": "AAPL", "name": "Apple", "price": 178.25, "change_percent": 12.34, "direction": "up"},
 		{"symbol": "MSFT", "name": "Microsoft", "price": 412.80, "change_percent": -1.12, "direction": "down"},
-		{"symbol": "GOOGL", "name": "Google", "price": 142.65, "change_percent": 0.87, "direction": "up"},
+		{"symbol": "GOOGL", "name": "Google", "price": 142.65, "change_percent": 10.87, "direction": "up"},
 		{"symbol": "TSLA", "name": "Tesla", "price": 248.50, "change_percent": -3.45, "direction": "down"},
 		{"symbol": "NVDA", "name": "Nvidia", "price": 495.22, "change_percent": 5.67, "direction": "up"},
 		{"symbol": "AMD", "name": "AMD", "price": 165.88, "change_percent": 1.92, "direction": "up"},
@@ -3424,7 +3424,7 @@ def show_stocks_display(duration):
 	try:
 		# Display 3 stocks in vertical rows
 		# Row positions (dividing 32px height into 3 sections)
-		row_positions = [6, 16, 26]  # Y positions for each row
+		row_positions = [2, 13, 24]  # Y positions for each row
 
 		for i, stock in enumerate(stocks_to_show):
 			if i >= 3:  # Only show 3 stocks
@@ -3464,7 +3464,7 @@ def show_stocks_display(duration):
 				font,
 				color=state.colors["DIMMEST_WHITE"],
 				text=stock["symbol"],
-				x=9,
+				x=8,
 				y=y_pos
 			)
 			state.main_group.append(ticker_label)

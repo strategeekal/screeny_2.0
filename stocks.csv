@@ -3,6 +3,7 @@
 # List your stock symbols here (3-6 recommended for rotation)
 # Can be overridden by GitHub remote config
 
+CRM,Salesforce
 AAPL,Apple
 MSFT,Microsoft
 GOOGL,Google
