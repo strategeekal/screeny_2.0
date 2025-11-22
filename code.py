@@ -3804,23 +3804,24 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 					state.main_group.append(uv_pixel)
 
 		y_offset = Layout.SCHEDULE_X_OFFSET if uv_index > 0 else 0
-
-		# Load weather icon - fallback to blank
-		bitmap, palette = state.image_cache.get_image(f"{Paths.COLUMN_IMAGES}/{weather_icon}")
-
-		# Try blank if primary failed (check return value, not exception)
-		if bitmap is None:
-			log_warning(f"Schedule weather icon {weather_icon} failed, trying blank")
-			bitmap, palette = state.image_cache.get_image(Paths.BLANK_COLUMN)
+		
+		if current_data and schedule_name not in ["Night Mode AM", "Night Mode"]:
+			# Load weather icon - fallback to blank
+			bitmap, palette = state.image_cache.get_image(f"{Paths.COLUMN_IMAGES}/{weather_icon}")
+	
+			# Try blank if primary failed (check return value, not exception)
 			if bitmap is None:
-				log_error(f"Schedule weather blank fallback failed, skipping icon")
-
-		# Add icon if successfully loaded
-		if bitmap:
-			weather_img = displayio.TileGrid(bitmap, pixel_shader=palette)
-			weather_img.x = Layout.SCHEDULE_LEFT_MARGIN_X
-			weather_img.y = Layout.SCHEDULE_W_IMAGE_Y + y_offset
-			state.main_group.append(weather_img)
+				log_warning(f"Schedule weather icon {weather_icon} failed, trying blank")
+				bitmap, palette = state.image_cache.get_image(Paths.BLANK_COLUMN)
+				if bitmap is None:
+					log_error(f"Schedule weather blank fallback failed, skipping icon")
+	
+			# Add icon if successfully loaded
+			if bitmap:
+				weather_img = displayio.TileGrid(bitmap, pixel_shader=palette)
+				weather_img.x = Layout.SCHEDULE_LEFT_MARGIN_X
+				weather_img.y = Layout.SCHEDULE_W_IMAGE_Y + y_offset
+				state.main_group.append(weather_img)
 
 		# Set temperature color based on cache status
 		temp_color = state.colors["LILAC"] if is_cached else state.colors["DIMMEST_WHITE"]
@@ -3864,7 +3865,8 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 		state.main_group.append(time_label)
 
 		# === WEEKDAY INDICATOR (IF ENABLED) ===
-		add_weekday_indicator_if_enabled(state.main_group, rtc, "Schedule")
+		if schedule_name not in ["Night Mode AM", "Night Mode"]:
+			add_weekday_indicator_if_enabled(state.main_group, rtc, "Schedule")
 			
 		# LOG what's being displayed this segment
 		segment_num = int(elapsed / Timing.SCHEDULE_SEGMENT_DURATION) + 1
