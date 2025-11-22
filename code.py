@@ -806,7 +806,7 @@ class StateTracker:
 		self.current_api_calls = 0
 		self.forecast_api_calls = 0
 		self.consecutive_failures = 0
-		self.last_successful_weather = 0
+		self.last_successful_display = 0  # Last time ANY display was successful (not just weather)
 
 		# WiFi failure management
 		self.wifi_reconnect_attempts = 0
@@ -840,16 +840,16 @@ class StateTracker:
 		self.forecast_api_calls = 0
 		return old_total
 
-	# Weather Success/Failure Tracking
-	def record_weather_success(self):
-		"""Handle successful weather fetch - reset failure counters and log recovery"""
+	# Display Success/Failure Tracking
+	def record_display_success(self):
+		"""Handle successful display - reset failure counters and log recovery"""
 		# Log recovery if coming out of extended failure mode
 		if self.in_extended_failure_mode:
-			recovery_time = int((time.monotonic() - self.last_successful_weather) / System.SECONDS_PER_MINUTE)
-			log_info(f"Weather API recovered after {recovery_time} minutes of failures")
+			recovery_time = int((time.monotonic() - self.last_successful_display) / System.SECONDS_PER_MINUTE)
+			log_info(f"Display recovered after {recovery_time} minutes of failures")
 
 		self.consecutive_failures = 0
-		self.last_successful_weather = time.monotonic()
+		self.last_successful_display = time.monotonic()
 		self.wifi_reconnect_attempts = 0
 		self.system_error_count = 0
 
@@ -886,9 +886,9 @@ class StateTracker:
 		"""Check if extended failure mode should be entered"""
 		if self.has_permanent_error:
 			return True
-		if self.last_successful_weather == 0:
+		if self.last_successful_display == 0:
 			return False
-		time_since_success = time.monotonic() - self.last_successful_weather
+		time_since_success = time.monotonic() - self.last_successful_display
 		return time_since_success > Recovery.EXTENDED_FAILURE_TIME
 
 	def reset_after_soft_reset(self):
@@ -1835,10 +1835,10 @@ def get_current_error_state():
 	if state.tracker.scheduled_display_error_count >= 3:
 		return "general"  # WHITE
 
-	# Check for weather API failures (only after startup)
-	time_since_success = time.monotonic() - state.tracker.last_successful_weather
-	if state.tracker.last_successful_weather > 0 and time_since_success > 600:
-		return "weather"  # YELLOW
+	# Check for display failures (only after startup)
+	time_since_success = time.monotonic() - state.tracker.last_successful_display
+	if state.tracker.last_successful_display > 0 and time_since_success > 600:
+		return "display"  # YELLOW
 
 	# Check for consecutive failures
 	if state.tracker.consecutive_failures >= 3:
@@ -3110,11 +3110,11 @@ def show_clock_display(rtc, duration=Timing.CLOCK_DISPLAY_DURATION):
 	
 	# Check for restart conditions ONLY if not in startup phase
 	if state.startup_time > 0:  # Only check if we've completed initialization
-		time_since_success = time.monotonic() - state.tracker.last_successful_weather
+		time_since_success = time.monotonic() - state.tracker.last_successful_display
 
 		# Hard reset after 1 hour of failures
 		if time_since_success > System.SECONDS_PER_HOUR:
-			log_error(f"Hard reset after {int(time_since_success/System.SECONDS_PER_MINUTE)} minutes without successful weather fetch")
+			log_error(f"Hard reset after {int(time_since_success/System.SECONDS_PER_MINUTE)} minutes without successful display")
 			interruptible_sleep(Timing.RESTART_DELAY)
 			supervisor.reload()
 
@@ -4077,9 +4077,8 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 		else:
 			log_info(f"Displaying Schedule: {schedule_name} - Segment {segment_num}/{total_segments} (Weather Skipped, progress: {progress*100:.0f}%)")
 		
-		# Override success tracking
-		state.tracker.last_successful_weather = time.monotonic()
-		state.tracker.consecutive_failures = 0
+		# Mark display as successful
+		state.tracker.record_display_success()
 		
 		# === PROGRESS BAR ===
 		## Progress bar - based on FULL schedule progress, not segment
@@ -4468,7 +4467,7 @@ def _ensure_wifi_available(rtc):
 
 def _check_failure_mode(rtc):
 	"""Helper: Check and handle extended failure mode (Category A2)"""
-	time_since_success = time.monotonic() - state.tracker.last_successful_weather
+	time_since_success = time.monotonic() - state.tracker.last_successful_display
 	in_failure_mode = time_since_success > Timing.EXTENDED_FAILURE_THRESHOLD
 
 	# Exit failure mode if recovered
@@ -4503,8 +4502,7 @@ def _run_scheduled_cycle(rtc, cycle_count, cycle_start_time):
 		log_debug("Cache stale or missing - fetching fresh weather for schedule cycle")
 		current_data = fetch_current_weather_only()
 		if current_data:
-			state.tracker.last_successful_weather = time.monotonic()
-			state.tracker.consecutive_failures = 0
+			state.tracker.record_display_success()
 
 	# Display schedule segment
 	display_duration = get_remaining_schedule_time(rtc, schedule_config)
@@ -4546,6 +4544,8 @@ def _run_normal_cycle(rtc, cycle_count, cycle_start_time):
 	if display_config.show_forecast and current_data and forecast_data:
 		forecast_shown = show_forecast_display(current_data, forecast_data, forecast_duration, forecast_is_fresh)
 		something_displayed = something_displayed or forecast_shown
+		if forecast_shown:
+			state.tracker.record_display_success()
 
 	if not forecast_shown:
 		current_duration += forecast_duration
@@ -4554,18 +4554,23 @@ def _run_normal_cycle(rtc, cycle_count, cycle_start_time):
 	if display_config.show_weather and current_data:
 		show_weather_display(rtc, current_duration, current_data)
 		something_displayed = True
+		state.tracker.record_display_success()
 
 	# Events display
 	if display_config.show_events and event_duration > 0:
 		event_shown = show_event_display(rtc, event_duration)
 		something_displayed = something_displayed or event_shown
-		if not event_shown:
+		if event_shown:
+			state.tracker.record_display_success()
+		else:
 			interruptible_sleep(1)
 
 	# Stocks display
 	if display_config.show_stocks:
 		stocks_shown = show_stocks_display(Timing.DEFAULT_EVENT)  # Use same duration as events for now
 		something_displayed = something_displayed or stocks_shown
+		if stocks_shown:
+			state.tracker.record_display_success()
 
 	# Test modes
 	if display_config.show_color_test:
@@ -4663,7 +4668,7 @@ def main():
 		
 		# Set startup time
 		state.startup_time = time.monotonic()
-		state.tracker.last_successful_weather = state.startup_time
+		state.tracker.last_successful_display = state.startup_time
 		state.memory_monitor.log_report()
 
 		# Log active display features
