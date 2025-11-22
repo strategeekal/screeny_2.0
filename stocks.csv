@@ -1,0 +1,11 @@
+# Stock Ticker Configuration
+# Format: symbol,name
+# List your stock symbols here (3-6 recommended for rotation)
+# Can be overridden by GitHub remote config
+
+AAPL,Apple
+MSFT,Microsoft
+GOOGL,Google
+TSLA,Tesla
+NVDA,Nvidia
+AMD,AMD

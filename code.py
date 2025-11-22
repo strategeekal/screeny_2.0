@@ -328,7 +328,17 @@ class TestData:
 	}
 	
 	TEST_ICONS = [1, 2, 3] # If None, screen will batch through all icons
-	
+
+	# Dummy stock data (for testing without API)
+	DUMMY_STOCKS = [
+		{"symbol": "AAPL", "name": "Apple", "price": 178.25, "change_percent": 2.34, "direction": "up"},
+		{"symbol": "MSFT", "name": "Microsoft", "price": 412.80, "change_percent": -1.12, "direction": "down"},
+		{"symbol": "GOOGL", "name": "Google", "price": 142.65, "change_percent": 0.87, "direction": "up"},
+		{"symbol": "TSLA", "name": "Tesla", "price": 248.50, "change_percent": -3.45, "direction": "down"},
+		{"symbol": "NVDA", "name": "Nvidia", "price": 495.22, "change_percent": 5.67, "direction": "up"},
+		{"symbol": "AMD", "name": "AMD", "price": 165.88, "change_percent": 1.92, "direction": "up"},
+	]
+
 ## String Constants
 class Strings:
 	DEFAULT_EVENT_COLOR = "MINT"
@@ -389,7 +399,8 @@ class DisplayConfig:
 		self.show_weather = True
 		self.show_forecast = True
 		self.show_events = True
-		
+		self.show_stocks = False  # Stock market display (disabled by default)
+
 		# Display Elements
 		self.show_weekday_indicator = True
 		self.show_scheduled_displays = True
@@ -448,8 +459,9 @@ class DisplayConfig:
 		if self.show_weather: features.append("weather")
 		if self.show_forecast: features.append("forecast")
 		if self.show_events: features.append("events")
+		if self.show_stocks: features.append("stocks")
 		if self.show_weekday_indicator: features.append("weekday_indicator")
-		
+
 		# Add data source info
 		if not self.use_live_weather: features.append("dummy_weather")
 		if not self.use_live_forecast: features.append("dummy_forecast")
@@ -2347,6 +2359,33 @@ def load_schedules_from_csv():
 		log_warning(f"Failed to load schedules.csv: {e}")
 		return {}
 
+def load_stocks_from_csv():
+	"""Load stock symbols from CSV file"""
+	stocks = []
+	try:
+		log_verbose("Loading stocks from stocks.csv...")
+		with open("stocks.csv", "r") as f:
+			for line in f:
+				line = line.strip()
+				if line and not line.startswith("#"):
+					parts = [part.strip() for part in line.split(",")]
+					if len(parts) >= 2:
+						symbol = parts[0].upper()  # Ticker symbols always uppercase
+						name = parts[1]
+						stocks.append({"symbol": symbol, "name": name})
+
+		# Log successful load
+		if stocks:
+			log_debug(f"{len(stocks)} stock symbols loaded")
+		else:
+			log_warning("No stocks found in stocks.csv")
+
+		return stocks
+
+	except Exception as e:
+		log_warning(f"Failed to load stocks.csv: {e}")
+		return []
+
 # ============================================================================
 # Display Configuration Loading
 # ============================================================================
@@ -2470,6 +2509,9 @@ def apply_display_config(config_dict):
 		applied += 1
 	if "show_events" in config_dict:
 		display_config.show_events = config_dict["show_events"]
+		applied += 1
+	if "show_stocks" in config_dict:
+		display_config.show_stocks = config_dict["show_stocks"]
 		applied += 1
 
 	# Display elements
@@ -3357,7 +3399,95 @@ def _display_icon_batch(icon_numbers, batch_num=None, total_batches=None, manual
 			
 	except Exception as e:
 		log_error(f"Icon display error: {e}")
-	
+
+def show_stocks_display(duration):
+	"""Display stock market data - 3 stocks at a time with ticker, arrow, and percentage change"""
+	state.memory_monitor.check_memory("stocks_display_start")
+
+	# For now, use dummy data
+	# TODO: Replace with real API data in future
+	stocks_data = TestData.DUMMY_STOCKS
+
+	if not stocks_data:
+		log_warning("No stock data available")
+		return False
+
+	# Display first 3 stocks
+	stocks_to_show = stocks_data[:3]
+
+	log_info(f"Displaying Stocks: {', '.join([s['symbol'] for s in stocks_to_show])} ({duration/60:.1f} min)")
+
+	clear_display()
+	gc.collect()
+
+	try:
+		# Display 3 stocks in vertical rows
+		# Row positions (dividing 32px height into 3 sections)
+		row_positions = [6, 16, 26]  # Y positions for each row
+
+		for i, stock in enumerate(stocks_to_show):
+			if i >= 3:  # Only show 3 stocks
+				break
+
+			y_pos = row_positions[i]
+
+			# Determine color and arrow based on direction
+			if stock["direction"] == "up":
+				color = state.colors["GREEN"]
+				arrow = "^"  # Up arrow
+			else:
+				color = state.colors["RED"]
+				arrow = "v"  # Down arrow
+
+			# Format percentage with sign
+			pct = stock["change_percent"]
+			pct_text = f"{pct:+.1f}%"  # e.g., "+2.3%" or "-1.5%"
+
+			# Create labels for this row
+			# Arrow (left side)
+			arrow_label = bitmap_label.Label(
+				font,
+				color=color,
+				text=arrow,
+				x=1,
+				y=y_pos
+			)
+			state.main_group.append(arrow_label)
+
+			# Ticker symbol
+			ticker_label = bitmap_label.Label(
+				font,
+				color=state.colors["DIMMEST_WHITE"],
+				text=stock["symbol"],
+				x=9,
+				y=y_pos
+			)
+			state.main_group.append(ticker_label)
+
+			# Percentage change (right side)
+			pct_label = bitmap_label.Label(
+				font,
+				color=color,
+				text=pct_text,
+				x=40,
+				y=y_pos
+			)
+			state.main_group.append(pct_label)
+
+		# Display for specified duration
+		start_time = time.monotonic()
+		while time.monotonic() - start_time < duration:
+			interruptible_sleep(1)
+
+	except Exception as e:
+		log_error(f"Stocks display error: {e}")
+		state.memory_monitor.check_memory("stocks_display_error")
+		return False
+
+	gc.collect()
+	state.memory_monitor.check_memory("stocks_display_complete")
+	return True
+
 def show_forecast_display(current_data, forecast_data, display_duration, is_fresh=False):
 	"""Optimized forecast display with smart precipitation detection"""
 	
@@ -4360,6 +4490,11 @@ def _run_normal_cycle(rtc, cycle_count, cycle_start_time):
 		something_displayed = something_displayed or event_shown
 		if not event_shown:
 			interruptible_sleep(1)
+
+	# Stocks display
+	if display_config.show_stocks:
+		stocks_shown = show_stocks_display(Timing.DEFAULT_EVENT)  # Use same duration as events for now
+		something_displayed = something_displayed or stocks_shown
 
 	# Test modes
 	if display_config.show_color_test:
