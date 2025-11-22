@@ -806,7 +806,8 @@ class StateTracker:
 		self.current_api_calls = 0
 		self.forecast_api_calls = 0
 		self.consecutive_failures = 0
-		self.last_successful_display = 0  # Last time ANY display was successful (not just weather)
+		self.last_successful_display = 0  # Last time ANY display was successful
+		self.last_successful_weather = 0  # Last time weather API was successful (for hard reset)
 
 		# WiFi failure management
 		self.wifi_reconnect_attempts = 0
@@ -852,6 +853,11 @@ class StateTracker:
 		self.last_successful_display = time.monotonic()
 		self.wifi_reconnect_attempts = 0
 		self.system_error_count = 0
+
+	def record_weather_success(self):
+		"""Handle successful weather fetch - updates both display and weather timestamps"""
+		self.record_display_success()  # Update display success (for extended failure mode)
+		self.last_successful_weather = time.monotonic()  # Update weather success (for hard reset)
 
 	def record_weather_failure(self):
 		"""Handle failed weather fetch - increment failure counters"""
@@ -3110,11 +3116,11 @@ def show_clock_display(rtc, duration=Timing.CLOCK_DISPLAY_DURATION):
 	
 	# Check for restart conditions ONLY if not in startup phase
 	if state.startup_time > 0:  # Only check if we've completed initialization
-		time_since_success = time.monotonic() - state.tracker.last_successful_display
+		time_since_weather = time.monotonic() - state.tracker.last_successful_weather
 
-		# Hard reset after 1 hour of failures
-		if time_since_success > System.SECONDS_PER_HOUR:
-			log_error(f"Hard reset after {int(time_since_success/System.SECONDS_PER_MINUTE)} minutes without successful display")
+		# Hard reset after 1 hour without weather (even if other displays work)
+		if time_since_weather > System.SECONDS_PER_HOUR:
+			log_error(f"Hard reset after {int(time_since_weather/System.SECONDS_PER_MINUTE)} minutes without successful weather fetch")
 			interruptible_sleep(Timing.RESTART_DELAY)
 			supervisor.reload()
 
@@ -4502,7 +4508,7 @@ def _run_scheduled_cycle(rtc, cycle_count, cycle_start_time):
 		log_debug("Cache stale or missing - fetching fresh weather for schedule cycle")
 		current_data = fetch_current_weather_only()
 		if current_data:
-			state.tracker.record_display_success()
+			state.tracker.record_weather_success()  # Weather-related display
 
 	# Display schedule segment
 	display_duration = get_remaining_schedule_time(rtc, schedule_config)
@@ -4545,7 +4551,7 @@ def _run_normal_cycle(rtc, cycle_count, cycle_start_time):
 		forecast_shown = show_forecast_display(current_data, forecast_data, forecast_duration, forecast_is_fresh)
 		something_displayed = something_displayed or forecast_shown
 		if forecast_shown:
-			state.tracker.record_display_success()
+			state.tracker.record_weather_success()  # Weather-related display
 
 	if not forecast_shown:
 		current_duration += forecast_duration
@@ -4554,7 +4560,7 @@ def _run_normal_cycle(rtc, cycle_count, cycle_start_time):
 	if display_config.show_weather and current_data:
 		show_weather_display(rtc, current_duration, current_data)
 		something_displayed = True
-		state.tracker.record_display_success()
+		state.tracker.record_weather_success()  # Weather-related display
 
 	# Events display
 	if display_config.show_events and event_duration > 0:
@@ -4669,6 +4675,7 @@ def main():
 		# Set startup time
 		state.startup_time = time.monotonic()
 		state.tracker.last_successful_display = state.startup_time
+		state.tracker.last_successful_weather = state.startup_time  # Initialize both timestamps
 		state.memory_monitor.log_report()
 
 		# Log active display features
