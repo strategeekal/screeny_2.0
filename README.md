@@ -475,15 +475,14 @@ The entire codebase currently resides in a single `code.py` file. This is a comm
 
 ## Version History
 
-### 2.0.8 (Current)
+### 2.0.9 (Current)
+- Added remote display control via csv parsing. allowing users to remotely control what is shown on each display
+- Added logic to show or hide weather icon and weekday indicator during night mode
+
+### 2.0.8
 - Split fetch_current_and_forecast_weather() into separate functions
 - Extract success/failure tracking
 - Night mode using schedule displays and blank image running when a minimal display is needed
-
-Pending Simplification    
-- Phase 3 - Display Functions (More testing needed)
-  - Extract show_weather_display() rendering helpers
-  - Extract show_scheduled_display() sections
 
 ### 2.0.7
 - Removed logic for feels like temperature for forecast

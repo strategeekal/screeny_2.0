@@ -1,4 +1,4 @@
-##### PANTALLITA 2.0.8 #####
+##### PANTALLITA 2.0.9 #####
 # Stack exhaustion fix: Flattened nested try/except blocks to prevent crashes (v2.0.1)
 # Socket exhaustion fix: response.close() + smart caching (v2.0.2)
 # Comprehensive socket fix: Added response.close() to ALL HTTP requests - startup & runtime (v2.0.3)
@@ -6,6 +6,7 @@
 # Simplified approach: Removed mid-schedule cleanup - matches proven regular cycle behavior (v2.0.6)
 # Simplified and flattened: image fallbacks, hour formatting, csv parsing, GitHub imports and element display (v2.0.7)
 # Split forecast and current weather functions into fully independent functions and helpers (v2.0.8)
+# Added remote display control via .csv like events and schedules (v2.0.9)
 
 # === LIBRARIES ===
 # Standard library
