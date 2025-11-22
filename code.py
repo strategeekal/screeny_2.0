@@ -394,6 +394,7 @@ class DisplayConfig:
 		self.show_weekday_indicator = True
 		self.show_scheduled_displays = True
 		self.show_events_in_between_schedules = True
+		self.night_mode_minimal_display = True  # Hide weather icon & weekday indicator during night mode schedules
 
 		# API controls (fetch real data vs use dummy data)
 		self.use_live_weather = True      # False = use dummy data
@@ -2481,6 +2482,9 @@ def apply_display_config(config_dict):
 	if "show_events_in_between_schedules" in config_dict:
 		display_config.show_events_in_between_schedules = config_dict["show_events_in_between_schedules"]
 		applied += 1
+	if "night_mode_minimal_display" in config_dict:
+		display_config.night_mode_minimal_display = config_dict["night_mode_minimal_display"]
+		applied += 1
 
 	# Safety features
 	if "delayed_start" in config_dict:
@@ -3804,8 +3808,12 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 					state.main_group.append(uv_pixel)
 
 		y_offset = Layout.SCHEDULE_X_OFFSET if uv_index > 0 else 0
-		
-		if current_data and schedule_name not in ["Night Mode AM", "Night Mode"]:
+
+		# Check if we should hide elements during night mode
+		is_night_mode = schedule_name in ["Night Mode AM", "Night Mode"]
+		show_weather_icon = not (display_config.night_mode_minimal_display and is_night_mode)
+
+		if current_data and show_weather_icon:
 			# Load weather icon - fallback to blank
 			bitmap, palette = state.image_cache.get_image(f"{Paths.COLUMN_IMAGES}/{weather_icon}")
 	
@@ -3865,7 +3873,9 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 		state.main_group.append(time_label)
 
 		# === WEEKDAY INDICATOR (IF ENABLED) ===
-		if schedule_name not in ["Night Mode AM", "Night Mode"]:
+		# Check if we should hide weekday indicator during night mode
+		show_weekday = not (display_config.night_mode_minimal_display and is_night_mode)
+		if show_weekday:
 			add_weekday_indicator_if_enabled(state.main_group, rtc, "Schedule")
 			
 		# LOG what's being displayed this segment
