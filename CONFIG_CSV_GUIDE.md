@@ -49,6 +49,7 @@ show_events,1
 show_weekday_indicator,1
 show_scheduled_displays,1
 show_events_in_between_schedules,1
+night_mode_minimal_display,1
 
 # Safety features
 delayed_start,0
@@ -64,6 +65,7 @@ delayed_start,0
 | `show_weekday_indicator` | Boolean | Show day-of-week colored square | 1 (on) |
 | `show_scheduled_displays` | Boolean | Enable scheduled displays | 1 (on) |
 | `show_events_in_between_schedules` | Boolean | Show events between schedule segments | 1 (on) |
+| `night_mode_minimal_display` | Boolean | Hide weather icon & weekday indicator during night mode schedules | 1 (on) |
 | `delayed_start` | Boolean | 10-second startup delay (boot loop protection) | 0 (off) |
 
 **Note:** Dev/test settings (`use_live_weather`, `use_live_forecast`, `use_test_date`, `show_color_test`, `show_icon_test`) are hardcoded in `DisplayConfig` class and cannot be changed via CSV (they require USB access to modify code).
@@ -88,8 +90,8 @@ delayed_start,0
 
 ```
 Loading display configuration...
-GitHub config loaded for MATRIX1: 7 settings
-Applied 7 config settings to display_config
+GitHub config loaded for MATRIX1: 8 settings
+Applied 8 config settings to display_config
 ```
 
 Or:
@@ -98,7 +100,7 @@ Or:
 Loading display configuration...
 No GitHub config URL set for MATRIX1
 Display config loaded from local file
-Applied 7 config settings to display_config
+Applied 8 config settings to display_config
 ```
 
 ## Use Cases
