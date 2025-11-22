@@ -452,23 +452,13 @@ The entire codebase currently resides in a single `code.py` file. This is a comm
    - Separate test/production configurations
 
 ### Planned Features
-2. **Minimal display mode**
- - Time-based activation (e.g., 10pm-6am)
- - Clock + temperature only
- - Reduced brightness
- - Lower API frequency
 
-3. **GitHub-based config control**
-   - Remote feature toggles without USB connection
-   - JSON config file fetched at startup
-   - Validation and fallback to local config
-
-4. **Stock prices module**
+2. **Stock prices module**
    - Ticker symbols from config
    - Update frequency: 5-15 minutes
    - Rotating display with multiple stocks
 
-5. **Sports scores** (World Cup 2026!)
+3. **Sports scores** (World Cup 2026!)
    - Game schedule tracking
    - Live score updates during matches
    - Team logos and match status
@@ -497,7 +487,7 @@ The entire codebase currently resides in a single `code.py` file. This is a comm
 - Display Rendering Optimizatio - use Bitmaps in stead of lines for UV/Humidity and day indicator
 - Result: ~150 fewer lines with better display performance and code reusage
 
-### 2.0.6 (Current)
+### 2.0.6
 - **SIMPLIFIED:** Removed mid-schedule cleanup entirely - matches proven regular cycle behavior
 - Regular weather cycles run for hundreds of iterations without ANY cleanup - they just work!
 - Root insight: Mid-schedule cleanup was a workaround for missing `response.close()` (now fixed)
