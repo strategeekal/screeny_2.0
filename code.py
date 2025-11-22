@@ -3434,14 +3434,18 @@ def show_stocks_display(duration):
 			# Determine color and arrow based on direction
 			if stock["direction"] == "up":
 				color = state.colors["GREEN"]
-				arrow = "^"  # Up arrow
+				arrow = "+"  # Up indicator
 			else:
 				color = state.colors["RED"]
-				arrow = "v"  # Down arrow
+				arrow = "-"  # Down indicator
 
 			# Format percentage with sign
 			pct = stock["change_percent"]
 			pct_text = f"{pct:+.1f}%"  # e.g., "+2.3%" or "-1.5%"
+
+			# Calculate right-aligned position for percentage (1px margin from right edge)
+			pct_width = get_text_width(pct_text, font)
+			pct_x = Display.WIDTH - pct_width - 1  # Right-align with 1px margin
 
 			# Create labels for this row
 			# Arrow (left side)
@@ -3464,12 +3468,12 @@ def show_stocks_display(duration):
 			)
 			state.main_group.append(ticker_label)
 
-			# Percentage change (right side)
+			# Percentage change (right-aligned)
 			pct_label = bitmap_label.Label(
 				font,
 				color=color,
 				text=pct_text,
-				x=40,
+				x=pct_x,
 				y=y_pos
 			)
 			state.main_group.append(pct_label)
