@@ -2430,93 +2430,120 @@ def fetch_stock_prices(symbols_to_fetch):
 		return {}
 
 	stock_data = {}
-	response = None
 
 	try:
-		# Build comma-separated symbol list (batch request)
-		# Limit to 8 symbols to stay well within 8 calls/minute rate limit
-		symbols_list = [s["symbol"] for s in symbols_to_fetch[:8]]
-		symbols_str = ",".join(symbols_list)
+		# Split into batches of 8 symbols (API limit)
+		# If we have 9-12 stocks, we'll need multiple requests with delays
+		BATCH_SIZE = 8
+		total_symbols = len(symbols_to_fetch)
+		batches = []
 
-		# Twelve Data Quote API endpoint (batch)
-		url = f"https://api.twelvedata.com/quote?symbol={symbols_str}&apikey={api_key}"
+		for i in range(0, total_symbols, BATCH_SIZE):
+			batch = symbols_to_fetch[i:i + BATCH_SIZE]
+			batches.append(batch)
 
-		log_verbose(f"Fetching stock prices for: {symbols_str}")
-		response = session.get(url, timeout=10)
+		log_verbose(f"Fetching {total_symbols} stocks in {len(batches)} batch(es)")
 
-		# Check if response is valid
-		if not response:
-			log_warning("Failed to fetch stock prices: No response from server")
-			return stock_data
+		# Process each batch
+		for batch_num, batch in enumerate(batches):
+			response = None
 
-		try:
-			if response.status_code == 200:
-				import json
-				data = json.loads(response.text)
+			try:
+				# Add delay between batches to avoid rate limit (8 credits/minute)
+				if batch_num > 0:
+					delay = 65  # 65 seconds to be safe
+					log_info(f"Waiting {delay}s before batch {batch_num + 1}/{len(batches)} (rate limit)")
+					time.sleep(delay)
 
-				# Handle Twelve Data response formats:
-				# Single symbol: {"symbol": "AAPL", "name": ..., "close": ..., "percent_change": ...}
-				# Multiple symbols: {"AAPL": {"symbol": "AAPL", "close": ...}, "MSFT": {...}}
+				# Build comma-separated symbol list
+				symbols_list = [s["symbol"] for s in batch]
+				symbols_str = ",".join(symbols_list)
 
-				# Check if it's a single quote (has "symbol" key at top level)
-				if "symbol" in data:
-					quotes = [data]
-				# Otherwise it's a batch response (dict with ticker keys)
-				elif isinstance(data, dict):
-					quotes = list(data.values())
+				# Twelve Data Quote API endpoint (batch)
+				url = f"https://api.twelvedata.com/quote?symbol={symbols_str}&apikey={api_key}"
+
+				log_verbose(f"Batch {batch_num + 1}/{len(batches)}: {symbols_str}")
+				response = session.get(url, timeout=10)
+
+				# Check if response is valid
+				if not response:
+					log_warning(f"Batch {batch_num + 1}: No response from server")
+					continue
+
+				if response.status_code == 200:
+					import json
+					data = json.loads(response.text)
+
+					# Handle Twelve Data response formats:
+					# Single symbol: {"symbol": "AAPL", "name": ..., "close": ..., "percent_change": ...}
+					# Multiple symbols: {"AAPL": {"symbol": "AAPL", "close": ...}, "MSFT": {...}}
+
+					# Check if it's a single quote (has "symbol" key at top level)
+					if "symbol" in data:
+						quotes = [data]
+					# Otherwise it's a batch response (dict with ticker keys)
+					elif isinstance(data, dict):
+						quotes = list(data.values())
+					else:
+						log_warning(f"Unexpected API response format: {type(data)}")
+						quotes = []
+
+					log_verbose(f"Batch {batch_num + 1}: Processing {len(quotes)} quote(s)")
+
+					for quote in quotes:
+						# Check if quote has error
+						if "status" in quote and quote["status"] == "error":
+							log_warning(f"Error fetching {quote.get('symbol', 'unknown')}: {quote.get('message', 'unknown error')}")
+							continue
+
+						symbol = quote.get("symbol")
+						if not symbol:
+							log_warning(f"Quote missing symbol field: {str(quote)[:100]}")
+							continue
+
+						# Extract price and change data
+						try:
+							price = float(quote.get("close", 0))
+							change_percent = float(quote.get("percent_change", 0))
+							direction = "up" if change_percent >= 0 else "down"
+
+							stock_data[symbol] = {
+								"price": price,
+								"change_percent": change_percent,
+								"direction": direction,
+								"timestamp": int(time.monotonic())
+							}
+
+							log_verbose(f"{symbol}: ${price:.2f} ({change_percent:+.2f}%)")
+						except (ValueError, TypeError) as e:
+							log_warning(f"Error parsing data for {symbol}: {e}")
+							log_warning(f"Quote data: {str(quote)[:150]}")
+							continue
+
+					# Log which symbols succeeded/failed in this batch
+					batch_success = len([s for s in symbols_list if s in stock_data])
+					log_verbose(f"Batch {batch_num + 1}: {batch_success}/{len(symbols_list)} stocks")
+
+					if batch_success < len(symbols_list):
+						failed = [sym for sym in symbols_list if sym not in stock_data]
+						log_warning(f"Batch {batch_num + 1} failures: {', '.join(failed)}")
 				else:
-					log_warning(f"Unexpected API response format: {type(data)}")
-					quotes = []
+					log_warning(f"Batch {batch_num + 1}: HTTP {response.status_code}")
+					if response.text:
+						log_verbose(f"Response: {response.text[:200]}")
 
-				log_verbose(f"Processing {len(quotes)} quote(s) from API")
-
-				for quote in quotes:
-					# Check if quote has error
-					if "status" in quote and quote["status"] == "error":
-						log_warning(f"Error fetching {quote.get('symbol', 'unknown')}: {quote.get('message', 'unknown error')}")
-						continue
-
-					symbol = quote.get("symbol")
-					if not symbol:
-						log_warning(f"Quote missing symbol field: {str(quote)[:100]}")
-						continue
-
-					# Extract price and change data
+			finally:
+				# CRITICAL: Close response to release socket
+				if response:
 					try:
-						price = float(quote.get("close", 0))
-						change_percent = float(quote.get("percent_change", 0))
-						direction = "up" if change_percent >= 0 else "down"
+						response.close()
+					except:
+						pass
 
-						stock_data[symbol] = {
-							"price": price,
-							"change_percent": change_percent,
-							"direction": direction,
-							"timestamp": int(time.monotonic())
-						}
+		# Final summary across all batches
+		if len(batches) > 1:
+			log_info(f"Fetched {len(stock_data)}/{total_symbols} stocks across {len(batches)} batches")
 
-						log_verbose(f"{symbol}: ${price:.2f} ({change_percent:+.2f}%)")
-					except (ValueError, TypeError) as e:
-						log_warning(f"Error parsing data for {symbol}: {e}")
-						log_warning(f"Quote data: {str(quote)[:150]}")
-						continue
-
-				log_verbose(f"Fetched prices for {len(stock_data)}/{len(symbols_list)} stocks")
-
-				# Log which symbols succeeded/failed
-				if len(stock_data) < len(symbols_list):
-					failed = [sym for sym in symbols_list if sym not in stock_data]
-					log_warning(f"Failed to fetch: {', '.join(failed)}")
-			else:
-				log_warning(f"Failed to fetch stock prices: HTTP {response.status_code}")
-				if response.text:
-					log_verbose(f"Response: {response.text[:200]}")  # First 200 chars
-		finally:
-			# CRITICAL: Close response to release socket
-			if response:
-				try:
-					response.close()
-				except:
-					pass
 	except Exception as e:
 		import sys
 		log_warning(f"Failed to fetch stock prices: {e}")
