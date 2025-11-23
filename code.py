@@ -2454,11 +2454,15 @@ def fetch_stock_prices(symbols_to_fetch):
 				import json
 				data = json.loads(response.text)
 
+				# Log raw response for debugging
+				log_info(f"API Response preview: {str(data)[:200]}")
+
 				# Handle both single and batch responses
 				# Single symbol: {"symbol": "AAPL", "name": ..., "price": ..., "percent_change": ...}
 				# Multiple symbols: [{"symbol": "AAPL", ...}, {"symbol": "MSFT", ...}]
 
 				quotes = data if isinstance(data, list) else [data]
+				log_verbose(f"Processing {len(quotes)} quote(s) from API")
 
 				for quote in quotes:
 					# Check if quote has error
@@ -2468,6 +2472,7 @@ def fetch_stock_prices(symbols_to_fetch):
 
 					symbol = quote.get("symbol")
 					if not symbol:
+						log_warning(f"Quote missing symbol field: {str(quote)[:100]}")
 						continue
 
 					# Extract price and change data
@@ -2483,9 +2488,10 @@ def fetch_stock_prices(symbols_to_fetch):
 							"timestamp": int(time.monotonic())
 						}
 
-						log_verbose(f"{symbol}: ${price:.2f} ({change_percent:+.2f}%)")
+						log_info(f"{symbol}: ${price:.2f} ({change_percent:+.2f}%)")
 					except (ValueError, TypeError) as e:
 						log_warning(f"Error parsing data for {symbol}: {e}")
+						log_warning(f"Quote data: {str(quote)[:150]}")
 						continue
 
 				log_info(f"Fetched prices for {len(stock_data)}/{len(symbols_list)} stocks")
