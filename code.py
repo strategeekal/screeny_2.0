@@ -27,6 +27,7 @@ import rgbmatrix
 from adafruit_display_text import bitmap_label
 from adafruit_bitmap_font import bitmap_font
 from adafruit_display_shapes.line import Line
+from adafruit_display_shapes.triangle import Triangle
 import adafruit_imageload
 
 # Network
@@ -3852,13 +3853,11 @@ def show_stocks_display(duration, offset, rtc):
 
 			y_pos = row_positions[i]
 
-			# Determine color and arrow based on direction
+			# Determine color based on direction
 			if stock["direction"] == "up":
 				color = state.colors["GREEN"]
-				arrow = "+"  # Up indicator
 			else:
 				color = state.colors["RED"]
-				arrow = "-"  # Down indicator
 
 			# Format percentage with sign
 			pct = stock["change_percent"]
@@ -3868,16 +3867,24 @@ def show_stocks_display(duration, offset, rtc):
 			pct_width = get_text_width(pct_text, font)
 			pct_x = Display.WIDTH - pct_width - 1  # Right-align with 1px margin
 
-			# Create labels for this row
-			# Arrow (left side)
-			arrow_label = bitmap_label.Label(
-				font,
-				color=color,
-				text=arrow,
-				x=1,
-				y=y_pos
-			)
-			state.main_group.append(arrow_label)
+			# Create triangle arrow indicator (left side)
+			if stock["direction"] == "up":
+				# Up triangle: ▲ pointing upward
+				arrow_triangle = Triangle(
+					1, y_pos + 2,   # Bottom left
+					3, y_pos - 1,   # Top peak
+					5, y_pos + 2,   # Bottom right
+					fill=color
+				)
+			else:
+				# Down triangle: ▼ pointing downward
+				arrow_triangle = Triangle(
+					1, y_pos - 1,   # Top left
+					3, y_pos + 2,   # Bottom peak
+					5, y_pos - 1,   # Top right
+					fill=color
+				)
+			state.main_group.append(arrow_triangle)
 
 			# Ticker symbol
 			ticker_label = bitmap_label.Label(
