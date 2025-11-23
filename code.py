@@ -138,8 +138,11 @@ class Timing:
 	SCHEDULE_SEGMENT_DURATION = 300
 	MIN_SLEEP_INTERVAL = 1 # Minimum sleep between display updates
 	MAX_SLEEP_INTERVAL = 5 # Maximum sleep between display updates
-	
-	
+
+	# Stock update constants
+	STOCK_UPDATE_INTERVAL = 900  # 15 minutes between stock price updates
+	STOCK_CACHE_MAX_AGE = 1800  # 30 minutes max age for cached prices
+
 	FORECAST_UPDATE_INTERVAL = 900  # - 3 cycles
 	DAILY_RESET_HOUR = 3
 	DAILY_RESET_MINUTE_DEVICE1 = 0
@@ -352,6 +355,7 @@ class Strings:
 	API_KEY_TYPE2 = "ACCUWEATHER_API_KEY_TYPE2"
 	API_KEY_FALLBACK = "ACCUWEATHER_API_KEY"
 	API_LOCATION_KEY = "ACCUWEATHER_LOCATION_KEY"
+	TWELVE_DATA_API_KEY = "TWELVE_DATA_API_KEY"
 	
 	# Environment variables
 	WIFI_SSID_VAR = "CIRCUITPY_WIFI_SSID"
@@ -928,6 +932,8 @@ class WeatherDisplayState:
 		self.cached_forecast_data = None
 		self.cached_events = None
 		self.cached_stocks = []
+		self.cached_stock_prices = {}  # {symbol: {price, change_percent, direction, timestamp}}
+		self.last_stock_fetch_time = 0
 
 		# Colors (set after matrix detection)
 		self.colors = {}
@@ -2393,6 +2399,108 @@ def fetch_stocks_from_github(session, cache_buster):
 
 	return stocks
 
+def fetch_stock_prices(symbols_to_fetch):
+	"""
+	Fetch current stock prices from Twelve Data API.
+	Supports batch fetching (up to 8 symbols per call to stay within rate limit).
+
+	Args:
+		symbols_to_fetch: List of stock symbol dicts [{"symbol": "AAPL", "name": "Apple"}, ...]
+
+	Returns:
+		dict: {symbol: {"price": float, "change_percent": float, "direction": str, "timestamp": int}}
+	"""
+	import time
+
+	if not symbols_to_fetch:
+		log_verbose("No stock symbols to fetch")
+		return {}
+
+	# Get API key
+	api_key = os.getenv(Strings.TWELVE_DATA_API_KEY)
+	if not api_key:
+		log_warning("TWELVE_DATA_API_KEY not configured")
+		return {}
+
+	session = get_requests_session()
+	if not session:
+		log_warning("No session available for stock fetch")
+		return {}
+
+	stock_data = {}
+	response = None
+
+	try:
+		# Build comma-separated symbol list (batch request)
+		# Limit to 8 symbols to stay well within 8 calls/minute rate limit
+		symbols_list = [s["symbol"] for s in symbols_to_fetch[:8]]
+		symbols_str = ",".join(symbols_list)
+
+		# Twelve Data Quote API endpoint (batch)
+		url = f"https://api.twelvedata.com/quote?symbol={symbols_str}&apikey={api_key}"
+
+		log_verbose(f"Fetching stock prices for: {symbols_str}")
+		response = session.get(url, timeout=10)
+
+		# Check if response is valid
+		if not response:
+			log_warning("Failed to fetch stock prices: No response from server")
+			return stock_data
+
+		try:
+			if response.status_code == 200:
+				import json
+				data = json.loads(response.text)
+
+				# Handle both single and batch responses
+				# Single symbol: {"symbol": "AAPL", "name": ..., "price": ..., "percent_change": ...}
+				# Multiple symbols: [{"symbol": "AAPL", ...}, {"symbol": "MSFT", ...}]
+
+				quotes = data if isinstance(data, list) else [data]
+
+				for quote in quotes:
+					# Check if quote has error
+					if "status" in quote and quote["status"] == "error":
+						log_warning(f"Error fetching {quote.get('symbol', 'unknown')}: {quote.get('message', 'unknown error')}")
+						continue
+
+					symbol = quote.get("symbol")
+					if not symbol:
+						continue
+
+					# Extract price and change data
+					try:
+						price = float(quote.get("close", 0))
+						change_percent = float(quote.get("percent_change", 0))
+						direction = "up" if change_percent >= 0 else "down"
+
+						stock_data[symbol] = {
+							"price": price,
+							"change_percent": change_percent,
+							"direction": direction,
+							"timestamp": int(time.monotonic())
+						}
+
+						log_verbose(f"{symbol}: ${price:.2f} ({change_percent:+.2f}%)")
+					except (ValueError, TypeError) as e:
+						log_warning(f"Error parsing data for {symbol}: {e}")
+						continue
+
+				log_info(f"Fetched prices for {len(stock_data)}/{len(symbols_list)} stocks")
+			else:
+				log_warning(f"Failed to fetch stock prices: HTTP {response.status_code}")
+		finally:
+			# CRITICAL: Close response to release socket
+			if response:
+				try:
+					response.close()
+				except:
+					pass
+	except Exception as e:
+		log_warning(f"Failed to fetch stock prices: {e}")
+
+	return stock_data
+
 def fetch_github_data(rtc):
 	"""
 	Fetch events, schedules, and stocks from GitHub in one operation
@@ -3529,17 +3637,55 @@ def show_stocks_display(duration, offset):
 		offset = 0
 
 	# Get 3 stocks starting from offset (wrapping around if needed)
-	stocks_to_show = []
+	stocks_to_fetch = []
 	for i in range(3):
 		idx = (offset + i) % len(stocks_list)
-		stock_symbol = stocks_list[idx]
+		stocks_to_fetch.append(stocks_list[idx])
 
-		# Generate random price change between -10% and +15%
+	# Check if we need to fetch fresh prices
+	import time
+	current_time = time.monotonic()
+	time_since_fetch = current_time - state.last_stock_fetch_time
+	need_update = time_since_fetch >= Timing.STOCK_UPDATE_INTERVAL
+
+	# Fetch prices if needed
+	if need_update:
+		log_verbose(f"Fetching fresh stock prices ({int(time_since_fetch/60)} min since last fetch)")
+		new_prices = fetch_stock_prices(stocks_to_fetch)
+		if new_prices:
+			# Update cache with new data
+			state.cached_stock_prices.update(new_prices)
+			state.last_stock_fetch_time = current_time
+		else:
+			log_warning("Failed to fetch stock prices, using cached/fallback data")
+
+	# Build display data from cache or fallback
+	stocks_to_show = []
+	for stock_symbol in stocks_to_fetch:
+		symbol = stock_symbol["symbol"]
+
+		# Try to get cached price data
+		if symbol in state.cached_stock_prices:
+			cached = state.cached_stock_prices[symbol]
+			# Check if cached data is still valid
+			age = current_time - cached.get("timestamp", 0)
+			if age < Timing.STOCK_CACHE_MAX_AGE:
+				# Use cached data
+				stocks_to_show.append({
+					"symbol": symbol,
+					"name": stock_symbol["name"],
+					"change_percent": cached["change_percent"],
+					"direction": cached["direction"]
+				})
+				continue
+
+		# Fallback: generate random data if no valid cache
+		log_verbose(f"No valid cached data for {symbol}, using random fallback")
 		change_percent = random.uniform(-10.0, 15.0)
 		direction = "up" if change_percent >= 0 else "down"
 
 		stocks_to_show.append({
-			"symbol": stock_symbol["symbol"],
+			"symbol": symbol,
 			"name": stock_symbol["name"],
 			"change_percent": change_percent,
 			"direction": direction
