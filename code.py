@@ -4609,8 +4609,17 @@ def _run_normal_cycle(rtc, cycle_count, cycle_start_time):
 
 	# Stocks display (with frequency control)
 	if display_config.show_stocks:
-		# Only show stocks every N cycles (e.g., frequency=3 means cycles 1, 4, 7, 10...)
-		if (cycle_count - 1) % display_config.stocks_display_frequency == 0:
+		# Smart frequency: show every cycle if stocks are the only display, otherwise respect frequency
+		other_displays_active = (display_config.show_weather or display_config.show_forecast or display_config.show_events)
+
+		if other_displays_active:
+			# Other displays active - respect frequency (e.g., frequency=3 means cycles 1, 4, 7, 10...)
+			should_show_stocks = (cycle_count - 1) % display_config.stocks_display_frequency == 0
+		else:
+			# Stocks are the only display - show every cycle to avoid clock fallback
+			should_show_stocks = True
+
+		if should_show_stocks:
 			stocks_shown, next_offset = show_stocks_display(Timing.DEFAULT_EVENT, state.tracker.current_stock_offset)
 			something_displayed = something_displayed or stocks_shown
 			if stocks_shown:
