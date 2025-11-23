@@ -2320,7 +2320,14 @@ def parse_schedule_csv_content(csv_content, rtc):
 		return {}
 
 def parse_stocks_csv_content(csv_content):
-	"""Parse stock CSV content directly from string. Returns list of stock symbols."""
+	"""Parse stock CSV content directly from string. Returns list of stock/forex symbols.
+
+	Format: symbol,name,type,display_name
+	- symbol: Ticker or forex pair (required)
+	- name: Full name for reference (required)
+	- type: "stock" or "forex" (optional, default: "stock")
+	- display_name: Short name for display (optional, default: symbol)
+	"""
 	stocks = []
 
 	try:
@@ -2340,10 +2347,22 @@ def parse_stocks_csv_content(csv_content):
 			if len(parts) >= 2:
 				symbol = parts[0].upper()  # Ticker symbols always uppercase
 				name = parts[1]
-				stocks.append({"symbol": symbol, "name": name})
-				log_verbose(f"Parsed stock: {symbol} ({name})")
 
-		log_debug(f"Parsed {len(stocks)} stocks from CSV")
+				# Parse optional type field (default: "stock")
+				item_type = parts[2].lower() if len(parts) >= 3 and parts[2] else "stock"
+
+				# Parse optional display_name field (default: symbol)
+				display_name = parts[3].upper() if len(parts) >= 4 and parts[3] else symbol
+
+				stocks.append({
+					"symbol": symbol,
+					"name": name,
+					"type": item_type,
+					"display_name": display_name
+				})
+				log_verbose(f"Parsed {item_type}: {symbol} ({name}) -> display as '{display_name}'")
+
+		log_debug(f"Parsed {len(stocks)} stocks/forex from CSV")
 		return stocks
 
 	except Exception as e:
@@ -3716,7 +3735,10 @@ def _display_icon_batch(icon_numbers, batch_num=None, total_batches=None, manual
 		log_error(f"Icon display error: {e}")
 
 def show_stocks_display(duration, offset, rtc):
-	"""Display stock market data - 3 stocks at a time with ticker, arrow, and percentage change
+	"""Display stock/forex market data - 3 items at a time with indicators and values
+
+	Stocks: Shows triangle arrows (▲▼) + ticker + percentage change
+	Forex: Shows dollar sign ($) + ticker + exchange rate
 
 	Args:
 		duration: How long to display in seconds
@@ -3826,6 +3848,8 @@ def show_stocks_display(duration, offset, rtc):
 			stocks_to_show.append({
 				"symbol": symbol,
 				"name": stock_symbol["name"],
+				"type": stock_symbol.get("type", "stock"),  # Default to stock for backward compatibility
+				"display_name": stock_symbol.get("display_name", symbol),  # Use symbol if no display_name
 				"price": stock_prices[symbol]["price"],
 				"change_percent": stock_prices[symbol]["change_percent"],
 				"direction": stock_prices[symbol]["direction"]
@@ -3848,9 +3872,10 @@ def show_stocks_display(duration, offset, rtc):
 	# Calculate next offset (advance by 4 to include buffer, wrap around)
 	next_offset = (offset + 4) % len(stocks_list)
 
-	# Build condensed log message with market status and stock details
+	# Build condensed log message with market status and stock/forex details
 	stock_details = ", ".join([
-		f"{s['symbol']} ${s['price']:.2f} ({s['change_percent']:+.2f}%)"
+		f"{s.get('display_name', s['symbol'])} {s['change_percent']:+.2f}%" if s.get('type', 'stock') == 'stock'
+		else f"{s.get('display_name', s['symbol'])} ${s['price']:.2f}"
 		for s in stocks_to_show
 	])
 
@@ -3865,15 +3890,16 @@ def show_stocks_display(duration, offset, rtc):
 	gc.collect()
 
 	try:
-		# Display stocks in vertical rows (2-3 stocks depending on buffer success)
+		# Display stocks/forex in vertical rows (2-3 items depending on buffer success)
 		# Row positions (dividing 32px height into 3 sections)
 		row_positions = [2, 13, 24]  # Y positions for each row
 
 		for i, stock in enumerate(stocks_to_show):
-			if i >= 3:  # Max 3 stocks per display
+			if i >= 3:  # Max 3 items (stocks/forex) per display
 				break
 
 			y_pos = row_positions[i]
+			item_type = stock.get("type", "stock")
 
 			# Determine color based on direction
 			if stock["direction"] == "up":
@@ -3881,52 +3907,70 @@ def show_stocks_display(duration, offset, rtc):
 			else:
 				color = state.colors["RED"]
 
-			# Format percentage with sign
-			pct = stock["change_percent"]
-			pct_text = f"{pct:+.1f}%"  # e.g., "+2.3%" or "-1.5%"
-
-			# Calculate right-aligned position for percentage (1px margin from right edge)
-			pct_width = get_text_width(pct_text, font)
-			pct_x = Display.WIDTH - pct_width - 1  # Right-align with 1px margin
-
-			# Create triangle arrow indicator (left side, centered with text)
-			if stock["direction"] == "up":
-				# Up triangle: ▲ pointing upward
-				arrow_triangle = Triangle(
-					1, y_pos + 4,   # Bottom left
-					3, y_pos + 1,   # Top peak
-					5, y_pos + 4,   # Bottom right
-					fill=color
-				)
+			# Format value based on type
+			if item_type == "forex":
+				# Forex: Show exchange rate (e.g., "20.15")
+				value_text = f"{stock['price']:.2f}"
 			else:
-				# Down triangle: ▼ pointing downward
-				arrow_triangle = Triangle(
-					1, y_pos + 1,   # Top left
-					3, y_pos + 4,   # Bottom peak
-					5, y_pos + 1,   # Top right
-					fill=color
-				)
-			state.main_group.append(arrow_triangle)
+				# Stock: Show percentage change (e.g., "+2.3%")
+				pct = stock["change_percent"]
+				value_text = f"{pct:+.1f}%"
 
-			# Ticker symbol
+			# Calculate right-aligned position for value (1px margin from right edge)
+			value_width = get_text_width(value_text, font)
+			value_x = Display.WIDTH - value_width - 1  # Right-align with 1px margin
+
+			# Create indicator (left side, centered with text)
+			if item_type == "forex":
+				# Forex: Dollar sign indicator
+				indicator_label = bitmap_label.Label(
+					font,
+					color=state.colors["DIMMEST_WHITE"],
+					text="$",
+					x=1,
+					y=y_pos
+				)
+				state.main_group.append(indicator_label)
+			else:
+				# Stock: Triangle arrow indicator
+				if stock["direction"] == "up":
+					# Up triangle: ▲ pointing upward
+					arrow_triangle = Triangle(
+						1, y_pos + 4,   # Bottom left
+						3, y_pos + 1,   # Top peak
+						5, y_pos + 4,   # Bottom right
+						fill=color
+					)
+				else:
+					# Down triangle: ▼ pointing downward
+					arrow_triangle = Triangle(
+						1, y_pos + 1,   # Top left
+						3, y_pos + 4,   # Bottom peak
+						5, y_pos + 1,   # Top right
+						fill=color
+					)
+				state.main_group.append(arrow_triangle)
+
+			# Ticker symbol (use display_name if available)
+			display_text = stock.get("display_name", stock["symbol"])
 			ticker_label = bitmap_label.Label(
 				font,
 				color=state.colors["DIMMEST_WHITE"],
-				text=stock["symbol"],
+				text=display_text,
 				x=8,
 				y=y_pos
 			)
 			state.main_group.append(ticker_label)
 
-			# Percentage change (right-aligned)
-			pct_label = bitmap_label.Label(
+			# Value (percentage or price, right-aligned)
+			value_label = bitmap_label.Label(
 				font,
-				color=color,
-				text=pct_text,
-				x=pct_x,
+				color=color if item_type == "stock" else state.colors["DIMMEST_WHITE"],  # Color only for stocks
+				text=value_text,
+				x=value_x,
 				y=y_pos
 			)
-			state.main_group.append(pct_label)
+			state.main_group.append(value_label)
 
 		# Display for specified duration
 		start_time = time.monotonic()

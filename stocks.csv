@@ -1,12 +1,20 @@
-# Stock Ticker Configuration
-# Format: symbol,name
-# List your stock symbols here (3-6 recommended for rotation)
+# Stock & Forex Ticker Configuration
+# Format: symbol,name,type,display_name
+# - symbol: Ticker or forex pair for API (required)
+# - name: Full name for reference/web app (required)
+# - type: "stock" or "forex" (optional, default: stock)
+# - display_name: Short name for 64x32 display (optional, default: symbol)
+#
+# Examples:
+#   CRM,Salesforce,stock,        <- stock with default display (CRM)
+#   USDMXN,USD to MXN,forex,MXN  <- forex with custom display (MXN)
+#
 # Can be overridden by GitHub remote config
 
-CRM,Salesforce
-AAPL,Apple
-MSFT,Microsoft
-GOOGL,Google
-TSLA,Tesla
-NVDA,Nvidia
-AMD,AMD
+CRM,Salesforce,stock,
+AAPL,Apple,stock,
+MSFT,Microsoft,stock,
+GOOGL,Google,stock,
+TSLA,Tesla,stock,
+NVDA,Nvidia,stock,
+AMD,AMD,stock,
