@@ -8,6 +8,7 @@ show_weather,1
 show_forecast,1
 show_events,1
 show_stocks,1
+stocks_display_frequency,3
 
 # Display elements
 show_weekday_indicator,1

@@ -17,6 +17,7 @@ import gc
 import time
 import ssl
 import microcontroller
+import random
 
 # Display
 import displayio
@@ -358,7 +359,11 @@ class Strings:
 	
 	# Event sources
 	GITHUB_REPO_URL = os.getenv("GITHUB_REPO_URL")
+<<<<<<< HEAD
+	STOCKS_CSV_URL = os.getenv("STOCKS_CSV_URL")
+=======
 	GITHUB_STOCKS_FILE = "stocks.csv"  # Stocks file in GitHub repo
+>>>>>>> d6bdfdcb985e436729eecca8773a8b33ea53d0cc
 
 	# Font test characters
 	FONT_METRICS_TEST_CHARS = "Aygjpq"
@@ -403,6 +408,7 @@ class DisplayConfig:
 		self.show_forecast = True
 		self.show_events = True
 		self.show_stocks = False  # Stock market display (disabled by default)
+		self.stocks_display_frequency = 3  # Show stocks every N cycles (e.g., 3 = every 15 min)
 
 		# Display Elements
 		self.show_weekday_indicator = True
@@ -807,7 +813,8 @@ class StateTracker:
 		self.current_api_calls = 0
 		self.forecast_api_calls = 0
 		self.consecutive_failures = 0
-		self.last_successful_weather = 0
+		self.last_successful_display = 0  # Last time ANY display was successful
+		self.last_successful_weather = 0  # Last time weather API was successful (for hard reset)
 
 		# WiFi failure management
 		self.wifi_reconnect_attempts = 0
@@ -819,6 +826,9 @@ class StateTracker:
 		self.scheduled_display_error_count = 0
 		self.consecutive_display_errors = 0  # Fix uninitialized counter bug
 		self.has_permanent_error = False
+
+		# Stock rotation tracking
+		self.current_stock_offset = 0  # Current page offset (increments by 3 each display)
 
 	# API Tracking Methods
 	def record_api_success(self, call_type):
@@ -841,18 +851,23 @@ class StateTracker:
 		self.forecast_api_calls = 0
 		return old_total
 
-	# Weather Success/Failure Tracking
-	def record_weather_success(self):
-		"""Handle successful weather fetch - reset failure counters and log recovery"""
+	# Display Success/Failure Tracking
+	def record_display_success(self):
+		"""Handle successful display - reset failure counters and log recovery"""
 		# Log recovery if coming out of extended failure mode
 		if self.in_extended_failure_mode:
-			recovery_time = int((time.monotonic() - self.last_successful_weather) / System.SECONDS_PER_MINUTE)
-			log_info(f"Weather API recovered after {recovery_time} minutes of failures")
+			recovery_time = int((time.monotonic() - self.last_successful_display) / System.SECONDS_PER_MINUTE)
+			log_info(f"Display recovered after {recovery_time} minutes of failures")
 
 		self.consecutive_failures = 0
-		self.last_successful_weather = time.monotonic()
+		self.last_successful_display = time.monotonic()
 		self.wifi_reconnect_attempts = 0
 		self.system_error_count = 0
+
+	def record_weather_success(self):
+		"""Handle successful weather fetch - updates both display and weather timestamps"""
+		self.record_display_success()  # Update display success (for extended failure mode)
+		self.last_successful_weather = time.monotonic()  # Update weather success (for hard reset)
 
 	def record_weather_failure(self):
 		"""Handle failed weather fetch - increment failure counters"""
@@ -887,9 +902,9 @@ class StateTracker:
 		"""Check if extended failure mode should be entered"""
 		if self.has_permanent_error:
 			return True
-		if self.last_successful_weather == 0:
+		if self.last_successful_display == 0:
 			return False
-		time_since_success = time.monotonic() - self.last_successful_weather
+		time_since_success = time.monotonic() - self.last_successful_display
 		return time_since_success > Recovery.EXTENDED_FAILURE_TIME
 
 	def reset_after_soft_reset(self):
@@ -915,7 +930,11 @@ class WeatherDisplayState:
 		self.cached_current_weather_time = 0
 		self.cached_forecast_data = None
 		self.cached_events = None
+<<<<<<< HEAD
+		self.cached_stocks = []
+=======
 		self.cached_stocks = None
+>>>>>>> d6bdfdcb985e436729eecca8773a8b33ea53d0cc
 
 		# Colors (set after matrix detection)
 		self.colors = {}
@@ -1836,10 +1855,10 @@ def get_current_error_state():
 	if state.tracker.scheduled_display_error_count >= 3:
 		return "general"  # WHITE
 
-	# Check for weather API failures (only after startup)
-	time_since_success = time.monotonic() - state.tracker.last_successful_weather
-	if state.tracker.last_successful_weather > 0 and time_since_success > 600:
-		return "weather"  # YELLOW
+	# Check for display failures (only after startup)
+	time_since_success = time.monotonic() - state.tracker.last_successful_display
+	if state.tracker.last_successful_display > 0 and time_since_success > 600:
+		return "display"  # YELLOW
 
 	# Check for consecutive failures
 	if state.tracker.consecutive_failures >= 3:
@@ -2343,15 +2362,29 @@ def fetch_github_schedules(session, github_base, cache_buster, rtc, date_str):
 
 	return schedules, schedule_source
 
+<<<<<<< HEAD
+def fetch_stocks_from_github(session, cache_buster):
+	"""Fetch stock symbols from GitHub. Returns stocks list."""
+	if not Strings.STOCKS_CSV_URL:
+		log_verbose("No STOCKS_CSV_URL configured")
+		return []
+
+	stocks_url = f"{Strings.STOCKS_CSV_URL}?t={cache_buster}"
+=======
 def fetch_github_stocks(session, github_base, cache_buster):
 	"""Fetch stocks from GitHub. Returns stocks list."""
+>>>>>>> d6bdfdcb985e436729eecca8773a8b33ea53d0cc
 	stocks = []
 	response = None
 
 	try:
+<<<<<<< HEAD
+		log_verbose(f"Fetching: {stocks_url}")
+=======
 		stocks_url = f"{github_base}/{Strings.GITHUB_STOCKS_FILE}?t={cache_buster}"
 		log_verbose(f"Fetching: {stocks_url}")
 
+>>>>>>> d6bdfdcb985e436729eecca8773a8b33ea53d0cc
 		response = session.get(stocks_url, timeout=10)
 
 		# Check if response is valid before accessing attributes
@@ -2361,8 +2394,21 @@ def fetch_github_stocks(session, github_base, cache_buster):
 
 		try:
 			if response.status_code == 200:
+<<<<<<< HEAD
+				# Parse CSV content
+				for line in response.text.split('\n'):
+					line = line.strip()
+					if line and not line.startswith("#"):
+						parts = [part.strip() for part in line.split(",")]
+						if len(parts) >= 2:
+							symbol = parts[0].upper()
+							name = parts[1]
+							stocks.append({"symbol": symbol, "name": name})
+				log_verbose(f"Stocks fetched: {len(stocks)} symbols")
+=======
 				stocks = parse_stocks_csv_content(response.text)
 				log_verbose(f"Stocks fetched: {len(stocks)} ticker(s)")
+>>>>>>> d6bdfdcb985e436729eecca8773a8b33ea53d0cc
 			else:
 				log_warning(f"Failed to fetch stocks: HTTP {response.status_code}")
 		finally:
@@ -2373,7 +2419,11 @@ def fetch_github_stocks(session, github_base, cache_buster):
 				except:
 					pass  # Ignore close errors
 	except Exception as e:
+<<<<<<< HEAD
+		log_warning(f"Failed to fetch stocks from GitHub: {e}")
+=======
 		log_warning(f"Failed to fetch stocks: {e}")
+>>>>>>> d6bdfdcb985e436729eecca8773a8b33ea53d0cc
 
 	return stocks
 
@@ -2396,7 +2446,7 @@ def fetch_github_data(rtc):
 
 	import time
 	cache_buster = int(time.monotonic())
-	github_base = Strings.GITHUB_REPO_URL.rsplit('/', 1)[0]
+	github_base = Strings.GITHUB_REPO_URL.rsplit('/', 1)[0] if Strings.GITHUB_REPO_URL else None
 
 	# Fetch events, schedules, and stocks
 	events = fetch_github_events(session, cache_buster, rtc)
@@ -2405,7 +2455,11 @@ def fetch_github_data(rtc):
 	date_str = f"{now.tm_year:04d}-{now.tm_mon:02d}-{now.tm_mday:02d}"
 	schedules, schedule_source = fetch_github_schedules(session, github_base, cache_buster, rtc, date_str)
 
+<<<<<<< HEAD
+	stocks = fetch_stocks_from_github(session, cache_buster)
+=======
 	stocks = fetch_github_stocks(session, github_base, cache_buster)
+>>>>>>> d6bdfdcb985e436729eecca8773a8b33ea53d0cc
 
 	return events, schedules, schedule_source, stocks
 	
@@ -2588,6 +2642,9 @@ def apply_display_config(config_dict):
 		applied += 1
 	if "show_stocks" in config_dict:
 		display_config.show_stocks = config_dict["show_stocks"]
+		applied += 1
+	if "stocks_display_frequency" in config_dict:
+		display_config.stocks_display_frequency = config_dict["stocks_display_frequency"]
 		applied += 1
 
 	# Display elements
@@ -3145,11 +3202,11 @@ def show_clock_display(rtc, duration=Timing.CLOCK_DISPLAY_DURATION):
 	
 	# Check for restart conditions ONLY if not in startup phase
 	if state.startup_time > 0:  # Only check if we've completed initialization
-		time_since_success = time.monotonic() - state.tracker.last_successful_weather
+		time_since_weather = time.monotonic() - state.tracker.last_successful_weather
 
-		# Hard reset after 1 hour of failures
-		if time_since_success > System.SECONDS_PER_HOUR:
-			log_error(f"Hard reset after {int(time_since_success/System.SECONDS_PER_MINUTE)} minutes without successful weather fetch")
+		# Hard reset after 1 hour without weather (even if other displays work)
+		if time_since_weather > System.SECONDS_PER_HOUR:
+			log_error(f"Hard reset after {int(time_since_weather/System.SECONDS_PER_MINUTE)} minutes without successful weather fetch")
 			interruptible_sleep(Timing.RESTART_DELAY)
 			supervisor.reload()
 
@@ -3480,10 +3537,24 @@ def _display_icon_batch(icon_numbers, batch_num=None, total_batches=None, manual
 	except Exception as e:
 		log_error(f"Icon display error: {e}")
 
-def show_stocks_display(duration):
-	"""Display stock market data - 3 stocks at a time with ticker, arrow, and percentage change"""
+def show_stocks_display(duration, offset):
+	"""Display stock market data - 3 stocks at a time with ticker, arrow, and percentage change
+
+	Args:
+		duration: How long to display in seconds
+		offset: Starting index in stocks list (for rotation)
+
+	Returns:
+		tuple: (success: bool, next_offset: int)
+	"""
 	state.memory_monitor.check_memory("stocks_display_start")
 
+<<<<<<< HEAD
+	# Check if stocks are configured
+	if not state.cached_stocks:
+		log_verbose("No stock symbols configured")
+		return (False, offset)
+=======
 	# Use ticker symbols from GitHub (or local CSV), but generate random data for now
 	# TODO: Replace with real API data in future
 	import random
@@ -3503,13 +3574,39 @@ def show_stocks_display(duration):
 	else:
 		log_warning("No stock symbols loaded, using fallback dummy data")
 		stocks_data = TestData.DUMMY_STOCKS
+>>>>>>> d6bdfdcb985e436729eecca8773a8b33ea53d0cc
 
-	if not stocks_data:
-		log_warning("No stock data available")
-		return False
+	# Limit to max 12 stocks (4 pages of 3 stocks each)
+	MAX_STOCKS = 12
+	stocks_list = state.cached_stocks[:MAX_STOCKS]
 
-	# Display first 3 stocks
-	stocks_to_show = stocks_data[:3]
+	if not stocks_list:
+		log_warning("No stock symbols available")
+		return (False, offset)
+
+	# Wrap offset if needed
+	if offset >= len(stocks_list):
+		offset = 0
+
+	# Get 3 stocks starting from offset (wrapping around if needed)
+	stocks_to_show = []
+	for i in range(3):
+		idx = (offset + i) % len(stocks_list)
+		stock_symbol = stocks_list[idx]
+
+		# Generate random price change between -10% and +15%
+		change_percent = random.uniform(-10.0, 15.0)
+		direction = "up" if change_percent >= 0 else "down"
+
+		stocks_to_show.append({
+			"symbol": stock_symbol["symbol"],
+			"name": stock_symbol["name"],
+			"change_percent": change_percent,
+			"direction": direction
+		})
+
+	# Calculate next offset (advance by 3, wrap around)
+	next_offset = (offset + 3) % len(stocks_list)
 
 	log_info(f"Displaying Stocks: {', '.join([s['symbol'] for s in stocks_to_show])} ({duration/60:.1f} min)")
 
@@ -3582,11 +3679,11 @@ def show_stocks_display(duration):
 	except Exception as e:
 		log_error(f"Stocks display error: {e}")
 		state.memory_monitor.check_memory("stocks_display_error")
-		return False
+		return (False, offset)
 
 	gc.collect()
 	state.memory_monitor.check_memory("stocks_display_complete")
-	return True
+	return (True, next_offset)
 
 def show_forecast_display(current_data, forecast_data, display_duration, is_fresh=False):
 	"""Optimized forecast display with smart precipitation detection"""
@@ -4016,6 +4113,9 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 		current_data = None
 		is_cached = False
 
+	# Check if we should hide elements during night mode (used by weather and weekday sections)
+	is_night_mode = schedule_name in ["Night Mode AM", "Night Mode"]
+
 	# === WEATHER SECTION (CONDITIONAL) - No parent try block ===
 	if current_data:
 		# Extract weather data
@@ -4039,8 +4139,7 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 
 		y_offset = Layout.SCHEDULE_X_OFFSET if uv_index > 0 else 0
 
-		# Check if we should hide elements during night mode
-		is_night_mode = schedule_name in ["Night Mode AM", "Night Mode"]
+		# Determine if weather icon should be shown based on night mode setting
 		show_weather_icon = not (display_config.night_mode_minimal_display and is_night_mode)
 
 		if current_data and show_weather_icon:
@@ -4120,9 +4219,8 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 		else:
 			log_info(f"Displaying Schedule: {schedule_name} - Segment {segment_num}/{total_segments} (Weather Skipped, progress: {progress*100:.0f}%)")
 		
-		# Override success tracking
-		state.tracker.last_successful_weather = time.monotonic()
-		state.tracker.consecutive_failures = 0
+		# Mark display as successful
+		state.tracker.record_display_success()
 		
 		# === PROGRESS BAR ===
 		## Progress bar - based on FULL schedule progress, not segment
@@ -4318,7 +4416,11 @@ def initialize_system(rtc):
 	# Fetch events, schedules, and stocks from GitHub
 	log_debug("Fetching data from GitHub...")
 	github_events, github_schedules, schedule_source, github_stocks = fetch_github_data(rtc)
+<<<<<<< HEAD
+	
+=======
 
+>>>>>>> d6bdfdcb985e436729eecca8773a8b33ea53d0cc
 	# Initialize events - DON'T set state.cached_events yet, let load_all_events() handle it
 	# But store github_events temporarily so load_all_events() can access it
 	if github_events:
@@ -4371,6 +4473,20 @@ def initialize_system(rtc):
 			log_debug(f"Local schedules: {len(local_schedules)} schedule(s)")
 		else:
 			log_warning("No schedules available")
+
+	# Initialize stocks
+	if github_stocks:
+		state.cached_stocks = github_stocks
+		log_debug(f"GitHub stocks: {len(github_stocks)} symbols")
+	else:
+		log_verbose("Failed to fetch stocks from GitHub, trying local file")
+		local_stocks = load_stocks_from_csv()
+		if local_stocks:
+			state.cached_stocks = local_stocks
+			log_debug(f"Local stocks: {len(local_stocks)} symbols")
+		else:
+			log_verbose("No stocks available")
+			state.cached_stocks = []
 
 	# Load display configuration
 	log_debug("Loading display configuration...")
@@ -4505,7 +4621,7 @@ def _ensure_wifi_available(rtc):
 
 def _check_failure_mode(rtc):
 	"""Helper: Check and handle extended failure mode (Category A2)"""
-	time_since_success = time.monotonic() - state.tracker.last_successful_weather
+	time_since_success = time.monotonic() - state.tracker.last_successful_display
 	in_failure_mode = time_since_success > Timing.EXTENDED_FAILURE_THRESHOLD
 
 	# Exit failure mode if recovered
@@ -4540,8 +4656,7 @@ def _run_scheduled_cycle(rtc, cycle_count, cycle_start_time):
 		log_debug("Cache stale or missing - fetching fresh weather for schedule cycle")
 		current_data = fetch_current_weather_only()
 		if current_data:
-			state.tracker.last_successful_weather = time.monotonic()
-			state.tracker.consecutive_failures = 0
+			state.tracker.record_weather_success()  # Weather-related display
 
 	# Display schedule segment
 	display_duration = get_remaining_schedule_time(rtc, schedule_config)
@@ -4583,6 +4698,8 @@ def _run_normal_cycle(rtc, cycle_count, cycle_start_time):
 	if display_config.show_forecast and current_data and forecast_data:
 		forecast_shown = show_forecast_display(current_data, forecast_data, forecast_duration, forecast_is_fresh)
 		something_displayed = something_displayed or forecast_shown
+		if forecast_shown:
+			state.tracker.record_weather_success()  # Weather-related display
 
 	if not forecast_shown:
 		current_duration += forecast_duration
@@ -4591,18 +4708,35 @@ def _run_normal_cycle(rtc, cycle_count, cycle_start_time):
 	if display_config.show_weather and current_data:
 		show_weather_display(rtc, current_duration, current_data)
 		something_displayed = True
+		state.tracker.record_weather_success()  # Weather-related display
 
 	# Events display
 	if display_config.show_events and event_duration > 0:
 		event_shown = show_event_display(rtc, event_duration)
 		something_displayed = something_displayed or event_shown
-		if not event_shown:
+		if event_shown:
+			state.tracker.record_display_success()
+		else:
 			interruptible_sleep(1)
 
-	# Stocks display
+	# Stocks display (with frequency control)
 	if display_config.show_stocks:
-		stocks_shown = show_stocks_display(Timing.DEFAULT_EVENT)  # Use same duration as events for now
-		something_displayed = something_displayed or stocks_shown
+		# Smart frequency: show every cycle if stocks are the only display, otherwise respect frequency
+		other_displays_active = (display_config.show_weather or display_config.show_forecast or display_config.show_events)
+
+		if other_displays_active:
+			# Other displays active - respect frequency (e.g., frequency=3 means cycles 1, 4, 7, 10...)
+			should_show_stocks = (cycle_count - 1) % display_config.stocks_display_frequency == 0
+		else:
+			# Stocks are the only display - show every cycle to avoid clock fallback
+			should_show_stocks = True
+
+		if should_show_stocks:
+			stocks_shown, next_offset = show_stocks_display(Timing.DEFAULT_EVENT, state.tracker.current_stock_offset)
+			something_displayed = something_displayed or stocks_shown
+			if stocks_shown:
+				state.tracker.current_stock_offset = next_offset  # Update for next display
+				state.tracker.record_display_success()
 
 	# Test modes
 	if display_config.show_color_test:
@@ -4700,7 +4834,8 @@ def main():
 		
 		# Set startup time
 		state.startup_time = time.monotonic()
-		state.tracker.last_successful_weather = state.startup_time
+		state.tracker.last_successful_display = state.startup_time
+		state.tracker.last_successful_weather = state.startup_time  # Initialize both timestamps
 		state.memory_monitor.log_report()
 
 		# Log active display features
