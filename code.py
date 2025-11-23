@@ -17,6 +17,7 @@ import gc
 import time
 import ssl
 import microcontroller
+import random
 
 # Display
 import displayio
@@ -402,6 +403,7 @@ class DisplayConfig:
 		self.show_forecast = True
 		self.show_events = True
 		self.show_stocks = False  # Stock market display (disabled by default)
+		self.stocks_display_frequency = 3  # Show stocks every N cycles (e.g., 3 = every 15 min)
 
 		# Display Elements
 		self.show_weekday_indicator = True
@@ -819,6 +821,9 @@ class StateTracker:
 		self.scheduled_display_error_count = 0
 		self.consecutive_display_errors = 0  # Fix uninitialized counter bug
 		self.has_permanent_error = False
+
+		# Stock rotation tracking
+		self.current_stock_offset = 0  # Current page offset (increments by 3 each display)
 
 	# API Tracking Methods
 	def record_api_success(self, call_type):
@@ -2564,6 +2569,9 @@ def apply_display_config(config_dict):
 	if "show_stocks" in config_dict:
 		display_config.show_stocks = config_dict["show_stocks"]
 		applied += 1
+	if "stocks_display_frequency" in config_dict:
+		display_config.stocks_display_frequency = config_dict["stocks_display_frequency"]
+		applied += 1
 
 	# Display elements
 	if "show_weekday_indicator" in config_dict:
@@ -3451,28 +3459,54 @@ def _display_icon_batch(icon_numbers, batch_num=None, total_batches=None, manual
 	except Exception as e:
 		log_error(f"Icon display error: {e}")
 
-def show_stocks_display(duration):
-	"""Display stock market data - 3 stocks at a time with ticker, arrow, and percentage change"""
+def show_stocks_display(duration, offset):
+	"""Display stock market data - 3 stocks at a time with ticker, arrow, and percentage change
+
+	Args:
+		duration: How long to display in seconds
+		offset: Starting index in stocks list (for rotation)
+
+	Returns:
+		tuple: (success: bool, next_offset: int)
+	"""
 	state.memory_monitor.check_memory("stocks_display_start")
 
 	# Check if stocks are configured
-	# Note: state.cached_stocks contains symbols from CSV (GitHub or local)
-	# TODO: When real API is added, fetch prices for symbols in state.cached_stocks
-	# For now, using dummy data with hardcoded prices
 	if not state.cached_stocks:
 		log_verbose("No stock symbols configured")
-		return False
+		return (False, offset)
 
-	# Use dummy data for prices until API integration
-	# In future: fetch real prices for symbols in state.cached_stocks
-	stocks_data = TestData.DUMMY_STOCKS
+	# Limit to max 12 stocks (4 pages of 3 stocks each)
+	MAX_STOCKS = 12
+	stocks_list = state.cached_stocks[:MAX_STOCKS]
 
-	if not stocks_data:
-		log_warning("No stock data available")
-		return False
+	if not stocks_list:
+		log_warning("No stock symbols available")
+		return (False, offset)
 
-	# Display first 3 stocks
-	stocks_to_show = stocks_data[:3]
+	# Wrap offset if needed
+	if offset >= len(stocks_list):
+		offset = 0
+
+	# Get 3 stocks starting from offset (wrapping around if needed)
+	stocks_to_show = []
+	for i in range(3):
+		idx = (offset + i) % len(stocks_list)
+		stock_symbol = stocks_list[idx]
+
+		# Generate random price change between -10% and +15%
+		change_percent = random.uniform(-10.0, 15.0)
+		direction = "up" if change_percent >= 0 else "down"
+
+		stocks_to_show.append({
+			"symbol": stock_symbol["symbol"],
+			"name": stock_symbol["name"],
+			"change_percent": change_percent,
+			"direction": direction
+		})
+
+	# Calculate next offset (advance by 3, wrap around)
+	next_offset = (offset + 3) % len(stocks_list)
 
 	log_info(f"Displaying Stocks: {', '.join([s['symbol'] for s in stocks_to_show])} ({duration/60:.1f} min)")
 
@@ -3545,11 +3579,11 @@ def show_stocks_display(duration):
 	except Exception as e:
 		log_error(f"Stocks display error: {e}")
 		state.memory_monitor.check_memory("stocks_display_error")
-		return False
+		return (False, offset)
 
 	gc.collect()
 	state.memory_monitor.check_memory("stocks_display_complete")
-	return True
+	return (True, next_offset)
 
 def show_forecast_display(current_data, forecast_data, display_duration, is_fresh=False):
 	"""Optimized forecast display with smart precipitation detection"""
@@ -4571,12 +4605,15 @@ def _run_normal_cycle(rtc, cycle_count, cycle_start_time):
 		else:
 			interruptible_sleep(1)
 
-	# Stocks display
+	# Stocks display (with frequency control)
 	if display_config.show_stocks:
-		stocks_shown = show_stocks_display(Timing.DEFAULT_EVENT)  # Use same duration as events for now
-		something_displayed = something_displayed or stocks_shown
-		if stocks_shown:
-			state.tracker.record_display_success()
+		# Only show stocks every N cycles (e.g., frequency=3 means every 3 cycles)
+		if cycle_count % display_config.stocks_display_frequency == 0:
+			stocks_shown, next_offset = show_stocks_display(Timing.DEFAULT_EVENT, state.tracker.current_stock_offset)
+			something_displayed = something_displayed or stocks_shown
+			if stocks_shown:
+				state.tracker.current_stock_offset = next_offset  # Update for next display
+				state.tracker.record_display_success()
 
 	# Test modes
 	if display_config.show_color_test:
