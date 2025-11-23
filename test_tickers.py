@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """
 Test script to verify stock tickers are available in Twelve Data API
+NOTE: This script uses API credits! Each symbol tested = 1 credit.
+Free tier limit: 8 credits/minute. Test script will add delays to avoid rate limits.
 """
 
 import os
 import sys
+import time
 import requests
 
 # Your tickers from GitHub stocks.csv
@@ -99,33 +102,43 @@ def test_tickers():
             print(f"❌ Error: {e}")
             return False
 
-    # Test S&P 500 alternatives
+    # Test S&P 500 alternatives in batch
     if "S&P 500" in TICKERS:
         print(f"\n⚠️  'S&P 500' is not a valid ticker symbol format!")
-        print(f"Testing alternatives for S&P 500 index...\n")
+        print(f"Testing alternatives for S&P 500 index...")
+        print(f"(Waiting 60 seconds to avoid rate limit...)\n")
 
-        for alt_symbol, alt_name in SP500_ALTERNATIVES.items():
-            try:
-                url = f"https://api.twelvedata.com/quote?symbol={alt_symbol}&apikey={api_key}"
-                response = requests.get(url, timeout=10)
+        # Wait to avoid hitting 8 credits/minute limit
+        time.sleep(60)
 
-                if response.status_code == 200:
-                    data = response.json()
+        try:
+            # Batch request for all S&P 500 alternatives
+            alt_symbols_str = ",".join(SP500_ALTERNATIVES.keys())
+            url = f"https://api.twelvedata.com/quote?symbol={alt_symbols_str}&apikey={api_key}"
+            response = requests.get(url, timeout=10)
 
-                    if "status" not in data or data["status"] != "error":
-                        price = data.get("close", "N/A")
-                        change = data.get("percent_change", "N/A")
+            if response.status_code == 200:
+                data = response.json()
+                alt_quotes = data if isinstance(data, list) else [data]
+
+                for quote in alt_quotes:
+                    symbol = quote.get("symbol", "UNKNOWN")
+
+                    if "status" not in quote or quote["status"] != "error":
+                        alt_name = SP500_ALTERNATIVES.get(symbol, "Unknown")
+                        price = quote.get("close", "N/A")
+                        change = quote.get("percent_change", "N/A")
 
                         if price != "N/A":
-                            print(f"✅ {alt_symbol:8s} - {alt_name:30s} ${float(price):>8.2f} ({change:>6s}%)")
-                            print(f"   → Recommendation: Use '{alt_symbol}' instead of 'S&P 500'")
+                            print(f"✅ {symbol:8s} - {alt_name:30s} ${float(price):>8.2f} ({change:>6s}%)")
+                            print(f"   → Recommendation: Use '{symbol}' instead of 'S&P 500'")
                         else:
-                            print(f"⚠️  {alt_symbol:8s} - {alt_name:30s} (No data available)")
+                            print(f"⚠️  {symbol:8s} - {alt_name:30s} (No data available)")
                     else:
-                        print(f"❌ {alt_symbol:8s} - Not available")
+                        print(f"❌ {symbol:8s} - {quote.get('message', 'Not available')}")
 
-            except Exception as e:
-                print(f"❌ {alt_symbol:8s} - Error: {e}")
+        except Exception as e:
+            print(f"❌ Error testing S&P 500 alternatives: {e}")
 
     print("-" * 70)
     print(f"\nSummary: {success_count}/{len(valid_tickers)} valid tickers available")
