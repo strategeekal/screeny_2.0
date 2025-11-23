@@ -4013,6 +4013,9 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 		current_data = None
 		is_cached = False
 
+	# Check if we should hide elements during night mode (used by weather and weekday sections)
+	is_night_mode = schedule_name in ["Night Mode AM", "Night Mode"]
+
 	# === WEATHER SECTION (CONDITIONAL) - No parent try block ===
 	if current_data:
 		# Extract weather data
@@ -4036,8 +4039,7 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 
 		y_offset = Layout.SCHEDULE_X_OFFSET if uv_index > 0 else 0
 
-		# Check if we should hide elements during night mode
-		is_night_mode = schedule_name in ["Night Mode AM", "Night Mode"]
+		# Determine if weather icon should be shown based on night mode setting
 		show_weather_icon = not (display_config.night_mode_minimal_display and is_night_mode)
 
 		if current_data and show_weather_icon:
