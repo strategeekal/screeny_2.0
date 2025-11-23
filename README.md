@@ -1,10 +1,10 @@
-# Pantallita 2.0.8
+# Pantallita 2.1.0
 
-A dual RGB matrix weather display system running on MatrixPortal S3, showing real-time weather, forecasts, events, and scheduled activities for family use.
+A dual RGB matrix weather display system running on MatrixPortal S3, showing real-time weather, forecasts, stock prices, events, and scheduled activities for family use.
 
 ## Overview
 
-Pantallita displays weather information, 12-hour forecasts, family events (birthdays, special occasions), and scheduled activities (morning/evening routines) on two 64×32 RGB LED matrices. The system runs continuously with automatic daily restarts, defensive error handling, and smart caching to manage CircuitPython's memory and socket constraints.
+Pantallita displays weather information, 12-hour forecasts, stock market data, family events (birthdays, special occasions), and scheduled activities (morning/evening routines) on two 64×32 RGB LED matrices. The system runs continuously with automatic daily restarts, defensive error handling, and smart caching to manage CircuitPython's memory and socket constraints.
 
 ## Hardware
 
@@ -19,7 +19,8 @@ Pantallita displays weather information, 12-hour forecasts, family events (birth
 - **Language:** CircuitPython 9.2.8
 - **APIs:**
   - AccuWeather API (current conditions & 12-hour forecast)
-  - GitHub raw content (remote events/schedules)
+  - Twelve Data API (real-time stock prices)
+  - GitHub raw content (remote events/schedules/stocks)
 - **Libraries:**
   - `adafruit_requests` - HTTP client
   - `adafruit_ntp` - Time synchronization
@@ -32,10 +33,11 @@ Pantallita displays weather information, 12-hour forecasts, family events (birth
 
 ```
 screeny_2.0/
-├── code.py                    # Main program (4117 lines)
+├── code.py                    # Main program (~4500 lines)
 ├── settings.toml              # Environment variables (not in repo)
 ├── events.csv                 # Local events database
 ├── schedules.csv              # Local schedules database
+├── stocks.csv                 # Local stocks database
 ├── fonts/
 │   ├── bigbit10-16.bdf       # Large font (16pt)
 │   └── tinybit6-16.bdf       # Small font (6pt)
@@ -61,6 +63,9 @@ ACCUWEATHER_API_KEY_TYPE1 = "key-for-matrix-1"
 ACCUWEATHER_API_KEY_TYPE2 = "key-for-matrix-2"
 ACCUWEATHER_LOCATION_KEY = "location-code"
 
+# Twelve Data Stock API
+TWELVE_DATA_API_KEY = "your-twelve-data-api-key"
+
 # Timezone
 TIMEZONE = "America/Chicago"
 
@@ -68,14 +73,22 @@ TIMEZONE = "America/Chicago"
 MATRIX1 = "abc123"
 MATRIX2 = "def456"
 
-# GitHub (optional - for remote events/schedules)
+# GitHub (optional - for remote events/schedules/stocks)
 GITHUB_REPO_URL = "https://raw.githubusercontent.com/user/repo/main/ephemeral_events.csv"
+STOCKS_CSV_URL = "https://raw.githubusercontent.com/user/repo/main/stocks.csv"
 ```
 
 ### Getting AccuWeather Location Key
 1. Visit AccuWeather and search for your location
 2. Look at the URL: `accuweather.com/en/us/city/12345/weather-forecast/12345`
 3. The number (12345) is your location key
+
+### Getting Twelve Data API Key
+1. Visit [Twelve Data](https://twelvedata.com/) and create a free account
+2. Navigate to your API dashboard
+3. Copy your API key
+4. **Free tier limits:** 800 API calls/day, 8 calls/minute
+5. Each stock symbol = 1 API credit (batch requests supported)
 
 ### Determining Device ID
 The device ID is automatically detected from the ESP32-S3's unique CPU UID. Check logs at startup to see your device ID, then add it to `settings.toml`.
@@ -108,9 +121,10 @@ The device ID is automatically detected from the ESP32-S3's unique CPU UID. Chec
 - `load_schedules_from_csv()` - Local schedules
 - `fetch_github_data()` - Remote schedules (startup only)
 
-**5. Display Functions (Lines 2480-3625)**
+**5. Display Functions (Lines 2480-3800)**
 - `show_weather_display()` - Current conditions with UV/humidity bars
 - `show_forecast_display()` - 3-column hourly forecast
+- `show_stocks_display()` - Real-time stock prices (3 stocks per rotation)
 - `show_event_display()` - Birthday/event cards
 - `show_scheduled_display()` - Time-based activities (segmented for long displays)
 - `show_clock_display()` - Fallback/error mode
@@ -148,12 +162,19 @@ The device ID is automatically detected from the ESP32-S3's unique CPU UID. Chec
 
 ### API Call Management
 
-**Budget:** 15,000 calls/month per device = ~500 calls/day
+**AccuWeather Budget:** 15,000 calls/month per device = ~500 calls/day
 
-**Current Usage Pattern:**
+**AccuWeather Usage Pattern:**
 - Weather: Every cycle (5 min) = ~288 calls/day
 - Forecast: Every 3 cycles (15 min) = ~96 calls/day
 - **Total:** ~384 calls/day (77% of budget)
+
+**Twelve Data Budget (Free Tier):** 800 calls/day, 8 calls/minute
+
+**Twelve Data Usage Pattern:**
+- Stocks: 3 symbols per rotation = ~12 calls/hour = ~288 calls/day
+- Rate limiting: 65-second minimum between fetches
+- **Total:** ~288 calls/day (36% of budget)
 
 **Call Tracking:**
 - `state.api_call_count` tracks total calls
@@ -228,6 +249,22 @@ Sleep,1,0123456,20,45,21,30,bed.bmp,0
 - `days`: String of digits (0=Mon, 6=Sun), e.g., "0123456" for all days
 - `progressbar`: 1=show progress bar, 0=hide
 
+### stocks.csv
+```csv
+# Format: symbol,name
+CRM,Salesforce
+AAPL,Apple Inc
+MSFT,Microsoft
+GOOGL,Alphabet Inc
+```
+
+**Fields:**
+- `symbol`: Stock ticker symbol (e.g., AAPL, MSFT, TSLA)
+- `name`: Company name (for reference, not displayed)
+- Displays 3 stocks at a time with rotation
+- Supports unlimited stocks (no hard limit)
+- Can be overridden by remote GitHub CSV via `STOCKS_CSV_URL`
+
 ## Features
 
 ### Weather Display
@@ -246,6 +283,16 @@ Sleep,1,0123456,20,45,21,30,bed.bmp,0
   - Skips redundant times
 - Each column: Time, icon, temperature
 - "NOW" indicator for current hour
+
+### Stock Market Display
+- Real-time stock prices from Twelve Data API
+- Displays 3 stocks at a time with automatic rotation
+- Shows: ticker symbol, price change indicator (+/-), percentage change
+- Color-coded: Green for gains, Red for losses
+- Rate-limited to respect API limits (65s minimum between fetches)
+- Supports unlimited stocks with rotation
+- Works with both local CSV and remote GitHub configuration
+- Natural display rotation prevents API rate limit issues
 
 ### Events
 - Date-based display (MM-DD format)
@@ -305,6 +352,7 @@ def __init__(self):
     # Core displays
     self.show_weather = True
     self.show_forecast = True
+    self.show_stocks = True
     self.show_events = True
 
     # Display elements
@@ -453,20 +501,37 @@ The entire codebase currently resides in a single `code.py` file. This is a comm
 
 ### Planned Features
 
-2. **Stock prices module**
-   - Ticker symbols from config
-   - Update frequency: 5-15 minutes
-   - Rotating display with multiple stocks
+2. **Stock display variations**
+   - **Single stock view:** Full-screen display with detailed stock info (price, change, volume, high/low)
+   - **Command center:** Hybrid view showing time, compact weather, and horizontally scrolling stock ticker
+   - **Stock charts:** Mini price trend visualization using line graphs or sparklines
 
 3. **Sports scores** (World Cup 2026!)
    - Game schedule tracking
    - Live score updates during matches
    - Team logos and match status
 
+4. **News headlines**
+   - RSS feed integration
+   - Scrolling news ticker
+   - Category filtering (tech, sports, finance)
+
 ## Version History
 
-### 2.0.9 (Current)
-- Added remote display control via csv parsing. allowing users to remotely control what is shown on each display
+### 2.1.0 (Current)
+- **Stock Market Integration:** Added real-time stock price display using Twelve Data API
+  - Displays 3 stocks at a time with automatic rotation
+  - Color-coded price changes (green/red) with percentage indicators
+  - Rate-limited API calls (65s minimum between fetches)
+  - Supports unlimited stocks via local CSV or remote GitHub configuration
+  - Smart rotation leverages natural display cycle timing to avoid rate limits
+  - Added `stocks.csv` for local stock symbols
+  - Added `fetch_stock_prices()` with batch request support
+  - Added `show_stocks_display()` with 3-row vertical layout
+  - Integration with display rotation cycle
+
+### 2.0.9
+- Added remote display control via CSV parsing, allowing users to remotely control what is shown on each display
 - Added logic to show or hide weather icon and weekday indicator during night mode
 
 ### 2.0.8
