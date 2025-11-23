@@ -2501,6 +2501,11 @@ def fetch_stock_prices(symbols_to_fetch):
 						continue
 
 				log_verbose(f"Fetched prices for {len(stock_data)}/{len(symbols_list)} stocks")
+
+				# Log which symbols succeeded/failed
+				if len(stock_data) < len(symbols_list):
+					failed = [sym for sym in symbols_list if sym not in stock_data]
+					log_warning(f"Failed to fetch: {', '.join(failed)}")
 			else:
 				log_warning(f"Failed to fetch stock prices: HTTP {response.status_code}")
 				if response.text:

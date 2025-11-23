@@ -66,8 +66,15 @@ def test_tickers():
 
             data = response.json()
 
-            # Handle both single and batch responses
-            quotes = data if isinstance(data, list) else [data]
+            # Handle Twelve Data response formats:
+            # Single symbol: {"symbol": "AAPL", ...}
+            # Batch (2+ symbols): {"AAPL": {...}, "MSFT": {...}}
+            if "symbol" in data:
+                quotes = [data]
+            elif isinstance(data, dict):
+                quotes = list(data.values())
+            else:
+                quotes = []
 
             print("Results:")
             print("-" * 70)
@@ -119,7 +126,14 @@ def test_tickers():
 
             if response.status_code == 200:
                 data = response.json()
-                alt_quotes = data if isinstance(data, list) else [data]
+
+                # Handle dict format response
+                if "symbol" in data:
+                    alt_quotes = [data]
+                elif isinstance(data, dict):
+                    alt_quotes = list(data.values())
+                else:
+                    alt_quotes = []
 
                 for quote in alt_quotes:
                     symbol = quote.get("symbol", "UNKNOWN")
