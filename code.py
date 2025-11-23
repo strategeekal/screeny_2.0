@@ -3693,12 +3693,13 @@ def _display_icon_batch(icon_numbers, batch_num=None, total_batches=None, manual
 	except Exception as e:
 		log_error(f"Icon display error: {e}")
 
-def show_stocks_display(duration, offset):
+def show_stocks_display(duration, offset, rtc):
 	"""Display stock market data - 3 stocks at a time with ticker, arrow, and percentage change
 
 	Args:
 		duration: How long to display in seconds
 		offset: Starting index in stocks list (for rotation)
+		rtc: Real-time clock object for market hours detection
 
 	Returns:
 		tuple: (success: bool, next_offset: int)
@@ -3728,7 +3729,7 @@ def show_stocks_display(duration, offset):
 	# Check market hours FIRST before attempting to fetch or display
 	import time
 	has_any_cached = len(state.cached_stock_prices) > 0
-	should_fetch, should_display, reason = is_market_hours_or_cache_valid(state.rtc.datetime, has_any_cached)
+	should_fetch, should_display, reason = is_market_hours_or_cache_valid(rtc.datetime, has_any_cached)
 
 	if not should_display:
 		# Markets closed and no valid cache - skip display entirely
@@ -4924,7 +4925,7 @@ def _run_normal_cycle(rtc, cycle_count, cycle_start_time):
 			should_show_stocks = True
 
 		if should_show_stocks:
-			stocks_shown, next_offset = show_stocks_display(Timing.DEFAULT_EVENT, state.tracker.current_stock_offset)
+			stocks_shown, next_offset = show_stocks_display(Timing.DEFAULT_EVENT, state.tracker.current_stock_offset, rtc)
 			something_displayed = something_displayed or stocks_shown
 			if stocks_shown:
 				state.tracker.current_stock_offset = next_offset  # Update for next display
