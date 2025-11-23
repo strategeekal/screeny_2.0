@@ -409,6 +409,7 @@ class DisplayConfig:
 		self.show_events = True
 		self.show_stocks = False  # Stock market display (disabled by default)
 		self.stocks_display_frequency = 3  # Show stocks every N cycles (e.g., 3 = every 15 min)
+		self.stocks_respect_market_hours = True  # True = only show during market hours + grace period, False = always show (for testing)
 
 		# Display Elements
 		self.show_weekday_indicator = True
@@ -2820,6 +2821,9 @@ def apply_display_config(config_dict):
 	if "stocks_display_frequency" in config_dict:
 		display_config.stocks_display_frequency = config_dict["stocks_display_frequency"]
 		applied += 1
+	if "stocks_respect_market_hours" in config_dict:
+		display_config.stocks_respect_market_hours = config_dict["stocks_respect_market_hours"]
+		applied += 1
 
 	# Display elements
 	if "show_weekday_indicator" in config_dict:
@@ -3747,12 +3751,21 @@ def show_stocks_display(duration, offset, rtc):
 	# Check market hours FIRST before attempting to fetch or display
 	import time
 	has_any_cached = len(state.cached_stock_prices) > 0
-	should_fetch, should_display, reason = is_market_hours_or_cache_valid(rtc.datetime, has_any_cached)
 
-	if not should_display:
-		# Markets closed and no valid cache - skip display entirely
-		log_verbose(f"Stocks skipped: {reason}")
-		return (False, offset)
+	# Respect market hours toggle (can be disabled for testing)
+	if display_config.stocks_respect_market_hours:
+		should_fetch, should_display, reason = is_market_hours_or_cache_valid(rtc.datetime, has_any_cached)
+
+		if not should_display:
+			# Markets closed and no valid cache - skip display entirely
+			log_verbose(f"Stocks skipped: {reason}")
+			return (False, offset)
+	else:
+		# Market hours check disabled - always fetch and display (testing mode)
+		should_fetch = True
+		should_display = True
+		reason = "Market hours check disabled (testing mode)"
+		log_verbose(reason)
 
 	# Initialize stock_prices - will be either fresh or from cache
 	stock_prices = {}
