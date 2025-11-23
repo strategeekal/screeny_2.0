@@ -2354,6 +2354,11 @@ def fetch_github_stocks(session, github_base, cache_buster):
 
 		response = session.get(stocks_url, timeout=10)
 
+		# Check if response is valid before accessing attributes
+		if not response:
+			log_warning("Failed to fetch stocks: No response from server")
+			return stocks
+
 		try:
 			if response.status_code == 200:
 				stocks = parse_stocks_csv_content(response.text)
@@ -2382,6 +2387,11 @@ def fetch_github_data(rtc):
 	session = get_requests_session()
 	if not session:
 		log_warning("No session available for GitHub fetch")
+		return None, None, None, None
+
+	# Check if GitHub URL is configured
+	if not Strings.GITHUB_REPO_URL:
+		log_warning("GITHUB_REPO_URL not configured")
 		return None, None, None, None
 
 	import time
