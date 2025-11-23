@@ -172,14 +172,14 @@ The device ID is automatically detected from the ESP32-S3's unique CPU UID. Chec
 **Twelve Data Budget (Free Tier):** 800 calls/day, 8 calls/minute
 
 **Twelve Data Usage Pattern:**
-- Stocks: 3 symbols per rotation during market hours (9:30 AM - 4:00 PM ET)
+- Stocks: 4 symbols per rotation (3 displayed + 1 buffer) during market hours (9:30 AM - 4:00 PM ET)
 - Market hours: 6.5 hours/day, weekdays only
-- Calls: ~12 calls/hour × 6.5 hours = ~78 calls/day
+- Calls: ~16 calls/hour × 6.5 hours = ~104 calls/day
 - After-hours: Uses cached data (1.5 hour grace period, 4:00 PM - 5:30 PM ET)
 - Holidays: 1 call to detect, then cached for day (~770 calls/year saved)
-- Weekends: No API calls, display skipped
+- Weekends: No API calls (default), or always-on for testing
 - Rate limiting: 65-second minimum between fetches
-- **Total:** ~84 calls/day (11% of budget, includes grace period)
+- **Total:** ~112 calls/day (14% of budget, includes grace period + buffer)
 
 **Call Tracking:**
 - `state.api_call_count` tracks total calls
@@ -292,14 +292,20 @@ GOOGL,Alphabet Inc
 ### Stock Market Display
 - Real-time stock prices from Twelve Data API
 - Displays 3 stocks at a time with automatic rotation
-- Shows: ticker symbol, price change indicator (+/-), percentage change
+- Shows: ticker symbol, **triangle arrows** (▲▼), percentage change
 - Color-coded: Green for gains, Red for losses
+- **Resilient 4-Ticker Buffer:**
+  - Fetches 4 stocks but displays 3 (protects against invalid tickers)
+  - Progressive degradation: Shows 3→2→skip based on API successes
+  - Logs warnings for failed tickers (e.g., typos like "IBT" instead of "IBIT")
+  - Never crashes from bad ticker symbols
 - **Market Hours Aware:**
   - Only fetches during US market hours (9:30 AM - 4:00 PM ET, weekdays)
   - Shows cached data for 1.5 hours after close (until 5:30 PM ET)
   - **Automatic holiday detection** via API (Thanksgiving, Christmas, MLK Day, etc.)
   - Logs market status (e.g., "markets closed, displaying cached data")
-  - Skips display on weekends, holidays, and outside market hours
+  - **Configurable:** `stocks_respect_market_hours` toggle (1=prod, 0=testing)
+  - Skips display on weekends/holidays (default) or always-on for testing
   - Automatically converts user's timezone to Eastern Time
   - Falls back to clock display when stocks unavailable
 - Rate-limited to respect API limits (65s minimum between fetches)
@@ -534,15 +540,30 @@ The entire codebase currently resides in a single `code.py` file. This is a comm
 ### 2.1.0 (Current)
 - **Stock Market Integration:** Added real-time stock price display using Twelve Data API
   - Displays 3 stocks at a time with automatic rotation
+  - **Triangle Arrow Indicators:** Visual up ▲ / down ▼ arrows (5×4px) instead of text +/-
   - Color-coded price changes (green/red) with percentage indicators
+  - **4-Ticker Buffer System:** Fetches 4 stocks but displays 3 for resilience
+    - Progressive degradation: 3/4 or 4/4 → show 3, 2/4 → show 2, <2 → skip
+    - Handles invalid tickers gracefully (no crashes)
+    - Clear warning logs for failed symbols (e.g., "IBT" typo)
+    - API cost: ~112 calls/day (14% of 800/day limit)
   - **Market Hours Awareness:** Only fetches during market hours (9:30 AM - 4:00 PM ET, weekdays)
   - Shows cached data for 1.5 hours after close (until 5:30 PM ET)
+  - **Configurable Market Hours Toggle:** `stocks_respect_market_hours` in display_config.csv
+    - Set to 1 (default): Respects market hours, skips weekends/holidays
+    - Set to 0 (testing): Always displays stocks regardless of time/day
+    - Allows weekend testing of stock display and visual elements
   - **Automatic Holiday Detection:** Detects market holidays via API (no extra cost)
     - Caches holiday status for entire day after first detection
     - Saves ~770 API calls/year on 10 market holidays
     - Skips display on Thanksgiving, Christmas, MLK Day, etc.
+    - Respects market hours toggle when holiday detected
+  - **Enhanced Startup Messages:** Context-aware market status at boot
+    - "markets closed - weekend" (Saturday/Sunday)
+    - "markets closed - holiday" (detected holidays)
+    - "markets open 9:30 AM ET" (early morning weekdays)
+    - "markets closed today" (after grace period)
   - Logs market status (e.g., "markets closed, displaying cached data")
-  - Skips display on weekends and outside market/grace hours
   - Automatic timezone conversion from user's local time to Eastern Time
   - Falls back to clock display when stocks unavailable
   - Rate-limited API calls (65s minimum between fetches)
@@ -553,7 +574,6 @@ The entire codebase currently resides in a single `code.py` file. This is a comm
   - Added `show_stocks_display()` with 3-row vertical layout and caching
   - Added `is_market_hours_or_cache_valid()` for market hours detection
   - Integration with display rotation cycle
-  - Reduced API usage from ~288 calls/day to ~84 calls/day (71% savings)
 
 ### 2.0.9
 - Added remote display control via CSV parsing, allowing users to remotely control what is shown on each display

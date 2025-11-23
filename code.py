@@ -3734,9 +3734,6 @@ def show_stocks_display(duration, offset, rtc):
 		return (False, offset)
 
 	stocks_list = state.cached_stocks
-	if not stocks_list:
-		log_warning("No stock symbols available")
-		return (False, offset)
 
 	# Wrap offset if needed
 	if offset >= len(stocks_list):
