@@ -3805,8 +3805,11 @@ def show_stocks_display(duration, offset, rtc):
 				today = f"{rtc.datetime.tm_year:04d}-{rtc.datetime.tm_mon:02d}-{rtc.datetime.tm_mday:02d}"
 				state.market_holiday_date = today
 				log_info(f"Market holiday detected and cached: {today}")
-				# Don't display on holidays - skip
-				return (False, offset)
+				# Only skip display if respecting market hours
+				if display_config.stocks_respect_market_hours:
+					return (False, offset)
+				else:
+					log_verbose("Holiday detected but market hours check disabled - continuing display")
 
 			log_verbose(f"Cached {len(stock_prices)} stock prices ({reason})")
 		else:
