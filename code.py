@@ -3655,12 +3655,22 @@ def show_stocks_display(duration, offset):
 		idx = (offset + i) % len(stocks_list)
 		stocks_to_display.append(stocks_list[idx])
 
-	# Fetch prices for just the 3 stocks being displayed
-	# The natural display rotation (weather, forecast, events, etc.) provides enough time
-	# between stock displays to avoid rate limits (60s between calls), so no caching needed
+	# Rate limit protection: Ensure 65 seconds between API calls
+	# This matters when stocks are the only display (would cycle every 30s otherwise)
 	import time
+	current_time = time.monotonic()
+	time_since_last_fetch = current_time - state.last_stock_fetch_time
+	MIN_FETCH_INTERVAL = 65  # Seconds between API calls (rate limit is 8 credits/minute)
+
+	if time_since_last_fetch < MIN_FETCH_INTERVAL and state.last_stock_fetch_time > 0:
+		wait_time = MIN_FETCH_INTERVAL - time_since_last_fetch
+		log_info(f"Rate limit: waiting {int(wait_time)}s before next fetch")
+		time.sleep(wait_time)
+
+	# Fetch prices for just the 3 stocks being displayed
 	log_verbose(f"Fetching prices for: {', '.join([s['symbol'] for s in stocks_to_display])}")
 	stock_prices = fetch_stock_prices(stocks_to_display)
+	state.last_stock_fetch_time = time.monotonic()
 
 	# Skip display if fetch failed
 	if not stock_prices:
