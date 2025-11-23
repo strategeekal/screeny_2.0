@@ -175,10 +175,11 @@ The device ID is automatically detected from the ESP32-S3's unique CPU UID. Chec
 - Stocks: 3 symbols per rotation during market hours (9:30 AM - 4:00 PM ET)
 - Market hours: 6.5 hours/day, weekdays only
 - Calls: ~12 calls/hour × 6.5 hours = ~78 calls/day
-- After-hours: Uses cached data (1 hour grace period)
+- After-hours: Uses cached data (1.5 hour grace period, 4:00 PM - 5:30 PM ET)
+- Holidays: 1 call to detect, then cached for day (~770 calls/year saved)
 - Weekends: No API calls, display skipped
 - Rate limiting: 65-second minimum between fetches
-- **Total:** ~78 calls/day (10% of budget)
+- **Total:** ~84 calls/day (11% of budget, includes grace period)
 
 **Call Tracking:**
 - `state.api_call_count` tracks total calls
@@ -295,8 +296,10 @@ GOOGL,Alphabet Inc
 - Color-coded: Green for gains, Red for losses
 - **Market Hours Aware:**
   - Only fetches during US market hours (9:30 AM - 4:00 PM ET, weekdays)
-  - Shows cached data for 1 hour after close (until 5:00 PM ET)
-  - Skips display on weekends and outside market hours
+  - Shows cached data for 1.5 hours after close (until 5:30 PM ET)
+  - **Automatic holiday detection** via API (Thanksgiving, Christmas, MLK Day, etc.)
+  - Displays "CLOSED" indicator during grace period
+  - Skips display on weekends, holidays, and outside market hours
   - Automatically converts user's timezone to Eastern Time
   - Falls back to clock display when stocks unavailable
 - Rate-limited to respect API limits (65s minimum between fetches)
@@ -533,7 +536,12 @@ The entire codebase currently resides in a single `code.py` file. This is a comm
   - Displays 3 stocks at a time with automatic rotation
   - Color-coded price changes (green/red) with percentage indicators
   - **Market Hours Awareness:** Only fetches during market hours (9:30 AM - 4:00 PM ET, weekdays)
-  - Shows cached data for 1 hour after close (until 5:00 PM ET)
+  - Shows cached data for 1.5 hours after close (until 5:30 PM ET)
+  - **Automatic Holiday Detection:** Detects market holidays via API (no extra cost)
+    - Caches holiday status for entire day after first detection
+    - Saves ~770 API calls/year on 10 market holidays
+    - Skips display on Thanksgiving, Christmas, MLK Day, etc.
+  - Visual "CLOSED" indicator during grace period
   - Skips display on weekends and outside market/grace hours
   - Automatic timezone conversion from user's local time to Eastern Time
   - Falls back to clock display when stocks unavailable
@@ -545,7 +553,7 @@ The entire codebase currently resides in a single `code.py` file. This is a comm
   - Added `show_stocks_display()` with 3-row vertical layout and caching
   - Added `is_market_hours_or_cache_valid()` for market hours detection
   - Integration with display rotation cycle
-  - Reduced API usage from ~288 calls/day to ~78 calls/day (73% savings)
+  - Reduced API usage from ~288 calls/day to ~84 calls/day (71% savings)
 
 ### 2.0.9
 - Added remote display control via CSV parsing, allowing users to remotely control what is shown on each display
