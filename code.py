@@ -343,16 +343,6 @@ class TestData:
 	
 	TEST_ICONS = [1, 2, 3] # If None, screen will batch through all icons
 
-	# Dummy stock data (for testing without API)
-	DUMMY_STOCKS = [
-		{"symbol": "AAPL", "name": "Apple", "price": 178.25, "change_percent": 12.34, "direction": "up"},
-		{"symbol": "MSFT", "name": "Microsoft", "price": 412.80, "change_percent": -1.12, "direction": "down"},
-		{"symbol": "GOOGL", "name": "Google", "price": 142.65, "change_percent": 10.87, "direction": "up"},
-		{"symbol": "TSLA", "name": "Tesla", "price": 248.50, "change_percent": -3.45, "direction": "down"},
-		{"symbol": "NVDA", "name": "Nvidia", "price": 495.22, "change_percent": 5.67, "direction": "up"},
-		{"symbol": "AMD", "name": "AMD", "price": 165.88, "change_percent": 1.92, "direction": "up"},
-	]
-
 ## String Constants
 class Strings:
 	DEFAULT_EVENT_COLOR = "MINT"
