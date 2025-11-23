@@ -4750,6 +4750,13 @@ def initialize_system(rtc):
 	# Summary log
 	schedule_count = len(scheduled_display.schedules) if scheduled_display.schedules_loaded else 0
 	stock_count = len(state.cached_stocks) if state.cached_stocks else 0
+
+	# Check market status for stocks display
+	if stock_count > 0:
+		_, should_display, market_reason = is_market_hours_or_cache_valid(rtc.datetime, False)
+		if not should_display:
+			stock_source_flag += f" (markets closed today)"
+
 	log_info(f"Hardware ready | {schedule_count} schedules{schedule_source_flag} | {stock_count} stocks{stock_source_flag} | {state.total_event_count} events{imported_str} | Today: {today_msg}")
 	state.memory_monitor.check_memory("initialization_complete")
 	
