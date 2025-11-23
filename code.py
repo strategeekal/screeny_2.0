@@ -2402,17 +2402,15 @@ def fetch_stocks_from_github(session, cache_buster):
 def fetch_stock_prices(symbols_to_fetch):
 	"""
 	Fetch current stock prices from Twelve Data API.
-	Supports batch fetching (up to 8 symbols per call to stay within rate limit).
+	Fetches up to 3 symbols in a single batch request.
 
 	Args:
 		symbols_to_fetch: List of stock symbol dicts [{"symbol": "AAPL", "name": "Apple"}, ...]
 
 	Returns:
-		dict: {symbol: {"price": float, "change_percent": float, "direction": str, "timestamp": int}}
+		dict: {symbol: {"price": float, "change_percent": float, "direction": str}}
 	"""
 	import time
-
-	log_verbose(f"fetch_stock_prices called with {len(symbols_to_fetch) if symbols_to_fetch else 0} symbols")
 
 	if not symbols_to_fetch:
 		log_verbose("No stock symbols to fetch")
@@ -2430,124 +2428,92 @@ def fetch_stock_prices(symbols_to_fetch):
 		return {}
 
 	stock_data = {}
+	response = None
 
 	try:
-		# Split into batches of 8 symbols (API limit)
-		# If we have 9-12 stocks, we'll need multiple requests with delays
-		BATCH_SIZE = 8
-		total_symbols = len(symbols_to_fetch)
-		batches = []
+		# Build comma-separated symbol list (typically 3 symbols)
+		symbols_list = [s["symbol"] for s in symbols_to_fetch]
+		symbols_str = ",".join(symbols_list)
 
-		for i in range(0, total_symbols, BATCH_SIZE):
-			batch = symbols_to_fetch[i:i + BATCH_SIZE]
-			batches.append(batch)
+		# Twelve Data Quote API endpoint (batch)
+		url = f"https://api.twelvedata.com/quote?symbol={symbols_str}&apikey={api_key}"
 
-		log_verbose(f"Fetching {total_symbols} stocks in {len(batches)} batch(es)")
+		log_verbose(f"Fetching: {symbols_str}")
+		response = session.get(url, timeout=10)
 
-		# Process each batch
-		for batch_num, batch in enumerate(batches):
-			response = None
+		# Check if response is valid
+		if not response:
+			log_warning("No response from server")
+			return stock_data
 
-			try:
-				# Add delay between batches to avoid rate limit (8 credits/minute)
-				if batch_num > 0:
-					delay = 65  # 65 seconds to be safe
-					log_info(f"Waiting {delay}s before batch {batch_num + 1}/{len(batches)} (rate limit)")
-					time.sleep(delay)
+		if response.status_code == 200:
+			import json
+			data = json.loads(response.text)
 
-				# Build comma-separated symbol list
-				symbols_list = [s["symbol"] for s in batch]
-				symbols_str = ",".join(symbols_list)
+			# Handle Twelve Data response formats:
+			# Single symbol: {"symbol": "AAPL", "name": ..., "close": ..., "percent_change": ...}
+			# Multiple symbols: {"AAPL": {"symbol": "AAPL", "close": ...}, "MSFT": {...}}
 
-				# Twelve Data Quote API endpoint (batch)
-				url = f"https://api.twelvedata.com/quote?symbol={symbols_str}&apikey={api_key}"
+			# Check if it's a single quote (has "symbol" key at top level)
+			if "symbol" in data:
+				quotes = [data]
+			# Otherwise it's a batch response (dict with ticker keys)
+			elif isinstance(data, dict):
+				quotes = list(data.values())
+			else:
+				log_warning(f"Unexpected API response format: {type(data)}")
+				quotes = []
 
-				log_verbose(f"Batch {batch_num + 1}/{len(batches)}: {symbols_str}")
-				response = session.get(url, timeout=10)
+			log_verbose(f"Processing {len(quotes)} quote(s)")
 
-				# Check if response is valid
-				if not response:
-					log_warning(f"Batch {batch_num + 1}: No response from server")
+			for quote in quotes:
+				# Check if quote has error
+				if "status" in quote and quote["status"] == "error":
+					log_warning(f"Error fetching {quote.get('symbol', 'unknown')}: {quote.get('message', 'unknown error')}")
 					continue
 
-				if response.status_code == 200:
-					import json
-					data = json.loads(response.text)
+				symbol = quote.get("symbol")
+				if not symbol:
+					log_warning(f"Quote missing symbol field: {str(quote)[:100]}")
+					continue
 
-					# Handle Twelve Data response formats:
-					# Single symbol: {"symbol": "AAPL", "name": ..., "close": ..., "percent_change": ...}
-					# Multiple symbols: {"AAPL": {"symbol": "AAPL", "close": ...}, "MSFT": {...}}
+				# Extract price and change data
+				try:
+					price = float(quote.get("close", 0))
+					change_percent = float(quote.get("percent_change", 0))
+					direction = "up" if change_percent >= 0 else "down"
 
-					# Check if it's a single quote (has "symbol" key at top level)
-					if "symbol" in data:
-						quotes = [data]
-					# Otherwise it's a batch response (dict with ticker keys)
-					elif isinstance(data, dict):
-						quotes = list(data.values())
-					else:
-						log_warning(f"Unexpected API response format: {type(data)}")
-						quotes = []
+					stock_data[symbol] = {
+						"price": price,
+						"change_percent": change_percent,
+						"direction": direction
+					}
 
-					log_verbose(f"Batch {batch_num + 1}: Processing {len(quotes)} quote(s)")
+					log_verbose(f"{symbol}: ${price:.2f} ({change_percent:+.2f}%)")
+				except (ValueError, TypeError) as e:
+					log_warning(f"Error parsing data for {symbol}: {e}")
+					continue
 
-					for quote in quotes:
-						# Check if quote has error
-						if "status" in quote and quote["status"] == "error":
-							log_warning(f"Error fetching {quote.get('symbol', 'unknown')}: {quote.get('message', 'unknown error')}")
-							continue
-
-						symbol = quote.get("symbol")
-						if not symbol:
-							log_warning(f"Quote missing symbol field: {str(quote)[:100]}")
-							continue
-
-						# Extract price and change data
-						try:
-							price = float(quote.get("close", 0))
-							change_percent = float(quote.get("percent_change", 0))
-							direction = "up" if change_percent >= 0 else "down"
-
-							stock_data[symbol] = {
-								"price": price,
-								"change_percent": change_percent,
-								"direction": direction,
-								"timestamp": int(time.monotonic())
-							}
-
-							log_verbose(f"{symbol}: ${price:.2f} ({change_percent:+.2f}%)")
-						except (ValueError, TypeError) as e:
-							log_warning(f"Error parsing data for {symbol}: {e}")
-							log_warning(f"Quote data: {str(quote)[:150]}")
-							continue
-
-					# Log which symbols succeeded/failed in this batch
-					batch_success = len([s for s in symbols_list if s in stock_data])
-					log_verbose(f"Batch {batch_num + 1}: {batch_success}/{len(symbols_list)} stocks")
-
-					if batch_success < len(symbols_list):
-						failed = [sym for sym in symbols_list if sym not in stock_data]
-						log_warning(f"Batch {batch_num + 1} failures: {', '.join(failed)}")
-				else:
-					log_warning(f"Batch {batch_num + 1}: HTTP {response.status_code}")
-					if response.text:
-						log_verbose(f"Response: {response.text[:200]}")
-
-			finally:
-				# CRITICAL: Close response to release socket
-				if response:
-					try:
-						response.close()
-					except:
-						pass
-
-		# Final summary across all batches
-		if len(batches) > 1:
-			log_info(f"Fetched {len(stock_data)}/{total_symbols} stocks across {len(batches)} batches")
+			# Log summary
+			if len(stock_data) < len(symbols_list):
+				failed = [sym for sym in symbols_list if sym not in stock_data]
+				log_warning(f"Failed to fetch: {', '.join(failed)}")
+		else:
+			log_warning(f"HTTP {response.status_code}")
+			if response.text:
+				log_verbose(f"Response: {response.text[:200]}")
 
 	except Exception as e:
-		import sys
 		log_warning(f"Failed to fetch stock prices: {e}")
 		log_verbose(f"Exception type: {type(e).__name__}")
+
+	finally:
+		# CRITICAL: Close response to release socket
+		if response:
+			try:
+				response.close()
+			except:
+				pass
 
 	return stock_data
 
@@ -3674,10 +3640,7 @@ def show_stocks_display(duration, offset):
 		log_verbose("No stock symbols configured")
 		return (False, offset)
 
-	# Limit to max 12 stocks (4 pages of 3 stocks each)
-	MAX_STOCKS = 12
-	stocks_list = state.cached_stocks[:MAX_STOCKS]
-
+	stocks_list = state.cached_stocks
 	if not stocks_list:
 		log_warning("No stock symbols available")
 		return (False, offset)
@@ -3692,57 +3655,36 @@ def show_stocks_display(duration, offset):
 		idx = (offset + i) % len(stocks_list)
 		stocks_to_display.append(stocks_list[idx])
 
-	# Check if we need to fetch fresh prices
+	# Fetch prices for just the 3 stocks being displayed
+	# The natural display rotation (weather, forecast, events, etc.) provides enough time
+	# between stock displays to avoid rate limits (60s between calls), so no caching needed
 	import time
-	current_time = time.monotonic()
-	time_since_fetch = current_time - state.last_stock_fetch_time
-	need_update = time_since_fetch >= Timing.STOCK_UPDATE_INTERVAL
+	log_verbose(f"Fetching prices for: {', '.join([s['symbol'] for s in stocks_to_display])}")
+	stock_prices = fetch_stock_prices(stocks_to_display)
 
-	# Fetch prices if needed
-	# IMPORTANT: Fetch ALL stocks (up to 8-symbol batch limit), not just the 3 being displayed
-	# This ensures cache has data for all stocks regardless of rotation
-	if need_update:
-		log_info(f"Fetching stock prices ({int(time_since_fetch/60)} min since last fetch)")
-		log_verbose(f"Requesting all {len(stocks_list)} stocks: {', '.join([s['symbol'] for s in stocks_list])}")
-		new_prices = fetch_stock_prices(stocks_list)  # Fetch ALL stocks, not just 3
-		if new_prices:
-			# Update cache with new data
-			state.cached_stock_prices.update(new_prices)
-			state.last_stock_fetch_time = current_time
-			log_verbose(f"Cached {len(new_prices)} stocks: {', '.join(new_prices.keys())}")
-		else:
-			log_warning("Failed to fetch stock prices, using cached data if available")
-	else:
-		log_verbose(f"Using cached prices (last fetch {int(time_since_fetch/60)} min ago)")
+	# Skip display if fetch failed
+	if not stock_prices:
+		log_info("Failed to fetch stock prices, skipping display")
+		return (False, offset)
 
-	# Build display data from cache only (no random fallback)
+	# Build display data from fetched prices
 	stocks_to_show = []
 	for stock_symbol in stocks_to_display:
 		symbol = stock_symbol["symbol"]
+		if symbol in stock_prices:
+			stocks_to_show.append({
+				"symbol": symbol,
+				"name": stock_symbol["name"],
+				"price": stock_prices[symbol]["price"],
+				"change_percent": stock_prices[symbol]["change_percent"],
+				"direction": stock_prices[symbol]["direction"]
+			})
+		else:
+			log_warning(f"No price data for {symbol}")
 
-		# Try to get cached price data
-		if symbol in state.cached_stock_prices:
-			cached = state.cached_stock_prices[symbol]
-			# Check if cached data is still valid
-			age = current_time - cached.get("timestamp", 0)
-			if age < Timing.STOCK_CACHE_MAX_AGE:
-				# Use cached data
-				stocks_to_show.append({
-					"symbol": symbol,
-					"name": stock_symbol["name"],
-					"price": cached["price"],
-					"change_percent": cached["change_percent"],
-					"direction": cached["direction"]
-				})
-				continue
-
-		# No valid cached data for this symbol - skip entire display
-		log_info(f"No valid data for {symbol}, skipping stock display")
-		return (False, offset)
-
-	# If we don't have data for all 3 stocks, skip display
-	if len(stocks_to_show) < len(stocks_to_display):
-		log_info("Incomplete stock data, skipping stock display")
+	# If we didn't get all 3 stocks, skip display
+	if len(stocks_to_show) < 3:
+		log_info(f"Incomplete stock data ({len(stocks_to_show)}/3), skipping display")
 		return (False, offset)
 
 	# Calculate next offset (advance by 3, wrap around)
