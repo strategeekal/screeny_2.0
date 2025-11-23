@@ -172,9 +172,13 @@ The device ID is automatically detected from the ESP32-S3's unique CPU UID. Chec
 **Twelve Data Budget (Free Tier):** 800 calls/day, 8 calls/minute
 
 **Twelve Data Usage Pattern:**
-- Stocks: 3 symbols per rotation = ~12 calls/hour = ~288 calls/day
+- Stocks: 3 symbols per rotation during market hours (9:30 AM - 4:00 PM ET)
+- Market hours: 6.5 hours/day, weekdays only
+- Calls: ~12 calls/hour × 6.5 hours = ~78 calls/day
+- After-hours: Uses cached data (1 hour grace period)
+- Weekends: No API calls, display skipped
 - Rate limiting: 65-second minimum between fetches
-- **Total:** ~288 calls/day (36% of budget)
+- **Total:** ~78 calls/day (10% of budget)
 
 **Call Tracking:**
 - `state.api_call_count` tracks total calls
@@ -289,10 +293,16 @@ GOOGL,Alphabet Inc
 - Displays 3 stocks at a time with automatic rotation
 - Shows: ticker symbol, price change indicator (+/-), percentage change
 - Color-coded: Green for gains, Red for losses
+- **Market Hours Aware:**
+  - Only fetches during US market hours (9:30 AM - 4:00 PM ET, weekdays)
+  - Shows cached data for 1 hour after close (until 5:00 PM ET)
+  - Skips display on weekends and outside market hours
+  - Automatically converts user's timezone to Eastern Time
+  - Falls back to clock display when stocks unavailable
 - Rate-limited to respect API limits (65s minimum between fetches)
 - Supports unlimited stocks with rotation
 - Works with both local CSV and remote GitHub configuration
-- Natural display rotation prevents API rate limit issues
+- Automatic timezone conversion (works from any US timezone)
 
 ### Events
 - Date-based display (MM-DD format)
@@ -522,13 +532,20 @@ The entire codebase currently resides in a single `code.py` file. This is a comm
 - **Stock Market Integration:** Added real-time stock price display using Twelve Data API
   - Displays 3 stocks at a time with automatic rotation
   - Color-coded price changes (green/red) with percentage indicators
+  - **Market Hours Awareness:** Only fetches during market hours (9:30 AM - 4:00 PM ET, weekdays)
+  - Shows cached data for 1 hour after close (until 5:00 PM ET)
+  - Skips display on weekends and outside market/grace hours
+  - Automatic timezone conversion from user's local time to Eastern Time
+  - Falls back to clock display when stocks unavailable
   - Rate-limited API calls (65s minimum between fetches)
   - Supports unlimited stocks via local CSV or remote GitHub configuration
-  - Smart rotation leverages natural display cycle timing to avoid rate limits
+  - Smart rotation leverages natural display cycle timing
   - Added `stocks.csv` for local stock symbols
   - Added `fetch_stock_prices()` with batch request support
-  - Added `show_stocks_display()` with 3-row vertical layout
+  - Added `show_stocks_display()` with 3-row vertical layout and caching
+  - Added `is_market_hours_or_cache_valid()` for market hours detection
   - Integration with display rotation cycle
+  - Reduced API usage from ~288 calls/day to ~78 calls/day (73% savings)
 
 ### 2.0.9
 - Added remote display control via CSV parsing, allowing users to remotely control what is shown on each display

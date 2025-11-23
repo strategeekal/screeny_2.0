@@ -144,6 +144,13 @@ class Timing:
 	STOCK_UPDATE_INTERVAL = 900  # 15 minutes between stock price updates
 	STOCK_CACHE_MAX_AGE = 1800  # 30 minutes max age for cached prices
 
+	# US Stock Market Hours (Eastern Time)
+	MARKET_OPEN_HOUR = 9
+	MARKET_OPEN_MINUTE = 30
+	MARKET_CLOSE_HOUR = 16  # 4:00 PM ET
+	MARKET_CLOSE_MINUTE = 0
+	MARKET_CACHE_GRACE_HOURS = 1  # Show cached data for 1 hour after close (until 5pm ET)
+
 	FORECAST_UPDATE_INTERVAL = 900  # - 3 cycles
 	DAILY_RESET_HOUR = 3
 	DAILY_RESET_MINUTE_DEVICE1 = 0
@@ -1352,6 +1359,78 @@ def sync_time_with_timezone(rtc):
 	except Exception as e:
 		log_error(f"NTP sync failed: {e}")
 		return None  # IMPORTANT: Return None on failure
+
+def is_market_hours_or_cache_valid(local_datetime, has_cached_data=False):
+	"""
+	Check if US stock markets are open or if cached data is still valid.
+
+	Args:
+		local_datetime: RTC datetime in user's local timezone
+		has_cached_data: Whether we have cached stock prices
+
+	Returns:
+		tuple: (should_fetch: bool, should_display: bool, reason: str)
+		- should_fetch: True if we should fetch new prices from API
+		- should_display: True if we should show stocks (fresh or cached)
+		- reason: Human-readable reason (for logging)
+	"""
+	import time
+
+	# Get user's timezone from settings
+	user_timezone = os.getenv(Strings.TIMEZONE, Strings.TIMEZONE_DEFAULT)
+
+	# Convert local time to ET
+	# First, figure out user's offset from UTC
+	user_offset = get_timezone_offset(user_timezone, local_datetime)
+
+	# Get ET offset from UTC
+	et_offset = get_timezone_offset("America/New_York", local_datetime)
+
+	# Calculate difference: how many hours to add to local time to get ET
+	offset_diff = et_offset - user_offset
+
+	# Convert local time to ET
+	et_hour = local_datetime.tm_hour + offset_diff
+	et_min = local_datetime.tm_min
+
+	# Handle day rollover
+	if et_hour < 0:
+		et_hour += 24
+	elif et_hour >= 24:
+		et_hour -= 24
+
+	# Check if it's a weekday (0=Monday, 4=Friday)
+	weekday = local_datetime.tm_wday
+	is_weekday = 0 <= weekday <= 4
+
+	if not is_weekday:
+		return (False, False, "Weekend - markets closed")
+
+	# Convert times to minutes for easier comparison
+	current_et_minutes = et_hour * 60 + et_min
+	market_open_minutes = Timing.MARKET_OPEN_HOUR * 60 + Timing.MARKET_OPEN_MINUTE  # 9:30 AM = 570
+	market_close_minutes = Timing.MARKET_CLOSE_HOUR * 60 + Timing.MARKET_CLOSE_MINUTE  # 4:00 PM = 960
+	grace_end_minutes = market_close_minutes + (Timing.MARKET_CACHE_GRACE_HOURS * 60)  # 5:00 PM = 1020
+
+	# Check time windows
+	if current_et_minutes < market_open_minutes:
+		# Before market open
+		return (False, False, f"Before market open (ET {et_hour:02d}:{et_min:02d})")
+
+	elif market_open_minutes <= current_et_minutes < market_close_minutes:
+		# During market hours - fetch and display
+		return (True, True, f"Market open (ET {et_hour:02d}:{et_min:02d})")
+
+	elif market_close_minutes <= current_et_minutes < grace_end_minutes:
+		# After close but within grace period - use cache if available
+		if has_cached_data:
+			return (False, True, f"After hours, using cache (ET {et_hour:02d}:{et_min:02d})")
+		else:
+			return (False, False, f"After hours, no cache (ET {et_hour:02d}:{et_min:02d})")
+
+	else:
+		# After grace period
+		return (False, False, f"Markets closed (ET {et_hour:02d}:{et_min:02d})")
 
 def cleanup_sockets():
 	"""Aggressive socket cleanup to prevent memory issues"""
@@ -3656,27 +3735,52 @@ def show_stocks_display(duration, offset):
 		idx = (offset + i) % len(stocks_list)
 		stocks_to_display.append(stocks_list[idx])
 
-	# Rate limit protection: Ensure 65 seconds between API calls
-	# This matters when stocks are the only display (would cycle every 30s otherwise)
+	# Check market hours FIRST before attempting to fetch or display
 	import time
-	current_time = time.monotonic()
-	time_since_last_fetch = current_time - state.last_stock_fetch_time
-	MIN_FETCH_INTERVAL = 65  # Seconds between API calls (rate limit is 8 credits/minute)
+	has_any_cached = len(state.cached_stock_prices) > 0
+	should_fetch, should_display, reason = is_market_hours_or_cache_valid(state.rtc.datetime, has_any_cached)
 
-	if time_since_last_fetch < MIN_FETCH_INTERVAL and state.last_stock_fetch_time > 0:
-		wait_time = MIN_FETCH_INTERVAL - time_since_last_fetch
-		log_info(f"Rate limit: waiting {int(wait_time)}s before next fetch")
-		time.sleep(wait_time)
-
-	# Fetch prices for just the 3 stocks being displayed
-	log_verbose(f"Fetching prices for: {', '.join([s['symbol'] for s in stocks_to_display])}")
-	stock_prices = fetch_stock_prices(stocks_to_display)
-	state.last_stock_fetch_time = time.monotonic()
-
-	# Skip display if fetch failed
-	if not stock_prices:
-		log_info("Failed to fetch stock prices, skipping display")
+	if not should_display:
+		# Markets closed and no valid cache - skip display entirely
+		log_verbose(f"Stocks skipped: {reason}")
 		return (False, offset)
+
+	# Initialize stock_prices - will be either fresh or from cache
+	stock_prices = {}
+
+	if should_fetch:
+		# Markets are open - fetch fresh prices with rate limiting
+		current_time = time.monotonic()
+		time_since_last_fetch = current_time - state.last_stock_fetch_time
+		MIN_FETCH_INTERVAL = 65  # Seconds between API calls (rate limit is 8 credits/minute)
+
+		if time_since_last_fetch < MIN_FETCH_INTERVAL and state.last_stock_fetch_time > 0:
+			wait_time = MIN_FETCH_INTERVAL - time_since_last_fetch
+			log_info(f"Rate limit: waiting {int(wait_time)}s before next fetch")
+			time.sleep(wait_time)
+
+		# Fetch prices for just the 3 stocks being displayed
+		log_verbose(f"Fetching prices for: {', '.join([s['symbol'] for s in stocks_to_display])}")
+		stock_prices = fetch_stock_prices(stocks_to_display)
+		state.last_stock_fetch_time = time.monotonic()
+
+		# Cache the fetched prices
+		if stock_prices:
+			for symbol, data in stock_prices.items():
+				state.cached_stock_prices[symbol] = {
+					"price": data["price"],
+					"change_percent": data["change_percent"],
+					"direction": data["direction"],
+					"timestamp": time.monotonic()
+				}
+			log_verbose(f"Cached {len(stock_prices)} stock prices ({reason})")
+		else:
+			log_info("Failed to fetch stock prices, skipping display")
+			return (False, offset)
+	else:
+		# After hours - use cached prices
+		log_verbose(f"Using cached stock prices ({reason})")
+		stock_prices = state.cached_stock_prices
 
 	# Build display data from fetched prices
 	stocks_to_show = []
