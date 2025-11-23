@@ -2441,7 +2441,7 @@ def fetch_stock_prices(symbols_to_fetch):
 		# Twelve Data Quote API endpoint (batch)
 		url = f"https://api.twelvedata.com/quote?symbol={symbols_str}&apikey={api_key}"
 
-		log_info(f"Fetching stock prices for: {symbols_str}")
+		log_verbose(f"Fetching stock prices for: {symbols_str}")
 		response = session.get(url, timeout=10)
 
 		# Check if response is valid
@@ -2453,9 +2453,6 @@ def fetch_stock_prices(symbols_to_fetch):
 			if response.status_code == 200:
 				import json
 				data = json.loads(response.text)
-
-				# Log raw response for debugging
-				log_info(f"API Response preview: {str(data)[:200]}")
 
 				# Handle Twelve Data response formats:
 				# Single symbol: {"symbol": "AAPL", "name": ..., "close": ..., "percent_change": ...}
@@ -2497,13 +2494,13 @@ def fetch_stock_prices(symbols_to_fetch):
 							"timestamp": int(time.monotonic())
 						}
 
-						log_info(f"{symbol}: ${price:.2f} ({change_percent:+.2f}%)")
+						log_verbose(f"{symbol}: ${price:.2f} ({change_percent:+.2f}%)")
 					except (ValueError, TypeError) as e:
 						log_warning(f"Error parsing data for {symbol}: {e}")
 						log_warning(f"Quote data: {str(quote)[:150]}")
 						continue
 
-				log_info(f"Fetched prices for {len(stock_data)}/{len(symbols_list)} stocks")
+				log_verbose(f"Fetched prices for {len(stock_data)}/{len(symbols_list)} stocks")
 			else:
 				log_warning(f"Failed to fetch stock prices: HTTP {response.status_code}")
 				if response.text:
@@ -3695,6 +3692,7 @@ def show_stocks_display(duration, offset):
 				stocks_to_show.append({
 					"symbol": symbol,
 					"name": stock_symbol["name"],
+					"price": cached["price"],
 					"change_percent": cached["change_percent"],
 					"direction": cached["direction"]
 				})
@@ -3712,7 +3710,12 @@ def show_stocks_display(duration, offset):
 	# Calculate next offset (advance by 3, wrap around)
 	next_offset = (offset + 3) % len(stocks_list)
 
-	log_info(f"Displaying Stocks: {', '.join([s['symbol'] for s in stocks_to_show])} ({duration/60:.1f} min)")
+	# Build condensed log message with all stock info
+	stock_details = ", ".join([
+		f"{s['symbol']} ${s['price']:.2f} ({s['change_percent']:+.2f}%)"
+		for s in stocks_to_show
+	])
+	log_info(f"Stocks ({len(stocks_to_show)}/{len(stocks_to_fetch)}): {stock_details} ({duration/60:.1f} min)")
 
 	clear_display()
 	gc.collect()
