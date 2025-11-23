@@ -237,6 +237,7 @@ class Memory:
 ## File Paths
 class Paths:
 	EVENTS_CSV = "events.csv"
+	STOCKS_CSV = "stocks.csv"
 	FONT_BIG = "fonts/bigbit10-16.bdf"
 	FONT_SMALL = "fonts/tinybit6-16.bdf"
 
@@ -358,7 +359,11 @@ class Strings:
 	
 	# Event sources
 	GITHUB_REPO_URL = os.getenv("GITHUB_REPO_URL")
+<<<<<<< HEAD
 	STOCKS_CSV_URL = os.getenv("STOCKS_CSV_URL")
+=======
+	GITHUB_STOCKS_FILE = "stocks.csv"  # Stocks file in GitHub repo
+>>>>>>> d6bdfdcb985e436729eecca8773a8b33ea53d0cc
 
 	# Font test characters
 	FONT_METRICS_TEST_CHARS = "Aygjpq"
@@ -925,7 +930,11 @@ class WeatherDisplayState:
 		self.cached_current_weather_time = 0
 		self.cached_forecast_data = None
 		self.cached_events = None
+<<<<<<< HEAD
 		self.cached_stocks = []
+=======
+		self.cached_stocks = None
+>>>>>>> d6bdfdcb985e436729eecca8773a8b33ea53d0cc
 
 		# Colors (set after matrix detection)
 		self.colors = {}
@@ -1998,7 +2007,7 @@ def fetch_ephemeral_events():
 		
 		# If not cached (shouldn't happen), fetch now
 		log_info("Events not cached, fetching now...")
-		events, _, _ = fetch_github_data(state.rtc_instance)  # ← Updated
+		events, _, _, _ = fetch_github_data(state.rtc_instance)  # ← Updated
 		
 		if events:
 			state.cached_events = events
@@ -2231,7 +2240,38 @@ def parse_schedule_csv_content(csv_content, rtc):
 	except Exception as e:
 		log_error(f"Error parsing schedule CSV: {e}")
 		return {}
-	
+
+def parse_stocks_csv_content(csv_content):
+	"""Parse stock CSV content directly from string. Returns list of stock symbols."""
+	stocks = []
+
+	try:
+		lines = csv_content.strip().split('\n')
+
+		if not lines:
+			return stocks
+
+		# Parse each line
+		for line in lines:
+			line = line.strip()
+			if not line or line.startswith('#'):
+				continue
+
+			parts = [p.strip() for p in line.split(',')]
+
+			if len(parts) >= 2:
+				symbol = parts[0].upper()  # Ticker symbols always uppercase
+				name = parts[1]
+				stocks.append({"symbol": symbol, "name": name})
+				log_verbose(f"Parsed stock: {symbol} ({name})")
+
+		log_debug(f"Parsed {len(stocks)} stocks from CSV")
+		return stocks
+
+	except Exception as e:
+		log_error(f"Error parsing stocks CSV: {e}")
+		return []
+
 def fetch_github_events(session, cache_buster, rtc):
 	"""Fetch events from GitHub. Returns events dict."""
 	events_url = f"{Strings.GITHUB_REPO_URL}?t={cache_buster}"
@@ -2322,6 +2362,7 @@ def fetch_github_schedules(session, github_base, cache_buster, rtc, date_str):
 
 	return schedules, schedule_source
 
+<<<<<<< HEAD
 def fetch_stocks_from_github(session, cache_buster):
 	"""Fetch stock symbols from GitHub. Returns stocks list."""
 	if not Strings.STOCKS_CSV_URL:
@@ -2329,15 +2370,26 @@ def fetch_stocks_from_github(session, cache_buster):
 		return []
 
 	stocks_url = f"{Strings.STOCKS_CSV_URL}?t={cache_buster}"
+=======
+def fetch_github_stocks(session, github_base, cache_buster):
+	"""Fetch stocks from GitHub. Returns stocks list."""
+>>>>>>> d6bdfdcb985e436729eecca8773a8b33ea53d0cc
 	stocks = []
 	response = None
 
 	try:
+<<<<<<< HEAD
 		log_verbose(f"Fetching: {stocks_url}")
+=======
+		stocks_url = f"{github_base}/{Strings.GITHUB_STOCKS_FILE}?t={cache_buster}"
+		log_verbose(f"Fetching: {stocks_url}")
+
+>>>>>>> d6bdfdcb985e436729eecca8773a8b33ea53d0cc
 		response = session.get(stocks_url, timeout=10)
 
 		try:
 			if response.status_code == 200:
+<<<<<<< HEAD
 				# Parse CSV content
 				for line in response.text.split('\n'):
 					line = line.strip()
@@ -2348,6 +2400,10 @@ def fetch_stocks_from_github(session, cache_buster):
 							name = parts[1]
 							stocks.append({"symbol": symbol, "name": name})
 				log_verbose(f"Stocks fetched: {len(stocks)} symbols")
+=======
+				stocks = parse_stocks_csv_content(response.text)
+				log_verbose(f"Stocks fetched: {len(stocks)} ticker(s)")
+>>>>>>> d6bdfdcb985e436729eecca8773a8b33ea53d0cc
 			else:
 				log_warning(f"Failed to fetch stocks: HTTP {response.status_code}")
 		finally:
@@ -2358,7 +2414,11 @@ def fetch_stocks_from_github(session, cache_buster):
 				except:
 					pass  # Ignore close errors
 	except Exception as e:
+<<<<<<< HEAD
 		log_warning(f"Failed to fetch stocks from GitHub: {e}")
+=======
+		log_warning(f"Failed to fetch stocks: {e}")
+>>>>>>> d6bdfdcb985e436729eecca8773a8b33ea53d0cc
 
 	return stocks
 
@@ -2385,7 +2445,11 @@ def fetch_github_data(rtc):
 	date_str = f"{now.tm_year:04d}-{now.tm_mon:02d}-{now.tm_mday:02d}"
 	schedules, schedule_source = fetch_github_schedules(session, github_base, cache_buster, rtc, date_str)
 
+<<<<<<< HEAD
 	stocks = fetch_stocks_from_github(session, cache_buster)
+=======
+	stocks = fetch_github_stocks(session, github_base, cache_buster)
+>>>>>>> d6bdfdcb985e436729eecca8773a8b33ea53d0cc
 
 	return events, schedules, schedule_source, stocks
 	
@@ -2611,16 +2675,20 @@ class ScheduledDisplay:
 		# Check if we need daily refresh
 		if self.last_fetch_date and self.last_fetch_date != current_date:
 			log_info("New day - refreshing GitHub data")
-			events, schedules, schedule_source = fetch_github_data(rtc)  # ← Updated
-			
+			events, schedules, schedule_source, stocks = fetch_github_data(rtc)  # ← Updated
+
 			if schedules:
 				self.schedules = schedules
 				self.schedules_loaded = True
 				self.last_fetch_date = current_date
-				
+
 				# Update cached events too
 				if events:
 					state.cached_events = events
+
+				# Update cached stocks too
+				if stocks:
+					state.cached_stocks = stocks
 				
 				# Summary with counts
 				event_count = len(events) if events else 0
@@ -3471,10 +3539,32 @@ def show_stocks_display(duration, offset):
 	"""
 	state.memory_monitor.check_memory("stocks_display_start")
 
+<<<<<<< HEAD
 	# Check if stocks are configured
 	if not state.cached_stocks:
 		log_verbose("No stock symbols configured")
 		return (False, offset)
+=======
+	# Use ticker symbols from GitHub (or local CSV), but generate random data for now
+	# TODO: Replace with real API data in future
+	import random
+
+	# Get stock symbols from cache (loaded from GitHub or local CSV)
+	if state.cached_stocks and len(state.cached_stocks) > 0:
+		# Generate dummy price data for the cached stock symbols
+		stocks_data = []
+		for stock in state.cached_stocks[:6]:  # Take first 6 stocks
+			stocks_data.append({
+				"symbol": stock["symbol"],
+				"name": stock["name"],
+				"price": random.uniform(50, 500),
+				"change_percent": random.uniform(-5, 5),
+				"direction": "up" if random.random() > 0.5 else "down"
+			})
+	else:
+		log_warning("No stock symbols loaded, using fallback dummy data")
+		stocks_data = TestData.DUMMY_STOCKS
+>>>>>>> d6bdfdcb985e436729eecca8773a8b33ea53d0cc
 
 	# Limit to max 12 stocks (4 pages of 3 stocks each)
 	MAX_STOCKS = 12
@@ -4316,7 +4406,11 @@ def initialize_system(rtc):
 	# Fetch events, schedules, and stocks from GitHub
 	log_debug("Fetching data from GitHub...")
 	github_events, github_schedules, schedule_source, github_stocks = fetch_github_data(rtc)
+<<<<<<< HEAD
 	
+=======
+
+>>>>>>> d6bdfdcb985e436729eecca8773a8b33ea53d0cc
 	# Initialize events - DON'T set state.cached_events yet, let load_all_events() handle it
 	# But store github_events temporarily so load_all_events() can access it
 	if github_events:
@@ -4326,6 +4420,14 @@ def initialize_system(rtc):
 	else:
 		log_warning("Failed to fetch events from GitHub")
 		state._github_events_temp = None
+
+	# Initialize stocks
+	if github_stocks:
+		state.cached_stocks = github_stocks
+		log_debug(f"GitHub stocks: {len(github_stocks)} ticker(s)")
+	else:
+		log_warning("Failed to fetch stocks from GitHub, loading local stocks.csv")
+		state.cached_stocks = load_stocks_from_csv()
 	
 	# Load all events (this will merge GitHub + permanent and set counters)
 	events = load_all_events()
