@@ -3659,11 +3659,11 @@ def show_stocks_display(duration, offset):
 	if offset >= len(stocks_list):
 		offset = 0
 
-	# Get 3 stocks starting from offset (wrapping around if needed)
-	stocks_to_fetch = []
+	# Get 3 stocks to display starting from offset (wrapping around if needed)
+	stocks_to_display = []
 	for i in range(3):
 		idx = (offset + i) % len(stocks_list)
-		stocks_to_fetch.append(stocks_list[idx])
+		stocks_to_display.append(stocks_list[idx])
 
 	# Check if we need to fetch fresh prices
 	import time
@@ -3672,19 +3672,25 @@ def show_stocks_display(duration, offset):
 	need_update = time_since_fetch >= Timing.STOCK_UPDATE_INTERVAL
 
 	# Fetch prices if needed
+	# IMPORTANT: Fetch ALL stocks (up to 8-symbol batch limit), not just the 3 being displayed
+	# This ensures cache has data for all stocks regardless of rotation
 	if need_update:
-		log_verbose(f"Fetching fresh stock prices ({int(time_since_fetch/60)} min since last fetch)")
-		new_prices = fetch_stock_prices(stocks_to_fetch)
+		log_info(f"Fetching stock prices ({int(time_since_fetch/60)} min since last fetch)")
+		log_verbose(f"Requesting all {len(stocks_list)} stocks: {', '.join([s['symbol'] for s in stocks_list])}")
+		new_prices = fetch_stock_prices(stocks_list)  # Fetch ALL stocks, not just 3
 		if new_prices:
 			# Update cache with new data
 			state.cached_stock_prices.update(new_prices)
 			state.last_stock_fetch_time = current_time
+			log_verbose(f"Cached {len(new_prices)} stocks: {', '.join(new_prices.keys())}")
 		else:
 			log_warning("Failed to fetch stock prices, using cached data if available")
+	else:
+		log_verbose(f"Using cached prices (last fetch {int(time_since_fetch/60)} min ago)")
 
 	# Build display data from cache only (no random fallback)
 	stocks_to_show = []
-	for stock_symbol in stocks_to_fetch:
+	for stock_symbol in stocks_to_display:
 		symbol = stock_symbol["symbol"]
 
 		# Try to get cached price data
@@ -3708,7 +3714,7 @@ def show_stocks_display(duration, offset):
 		return (False, offset)
 
 	# If we don't have data for all 3 stocks, skip display
-	if len(stocks_to_show) < len(stocks_to_fetch):
+	if len(stocks_to_show) < len(stocks_to_display):
 		log_info("Incomplete stock data, skipping stock display")
 		return (False, offset)
 
@@ -3720,7 +3726,7 @@ def show_stocks_display(duration, offset):
 		f"{s['symbol']} ${s['price']:.2f} ({s['change_percent']:+.2f}%)"
 		for s in stocks_to_show
 	])
-	log_info(f"Stocks ({len(stocks_to_show)}/{len(stocks_to_fetch)}): {stock_details} ({duration/60:.1f} min)")
+	log_info(f"Stocks ({len(stocks_to_show)}/{len(stocks_to_display)}): {stock_details} ({duration/60:.1f} min)")
 
 	clear_display()
 	gc.collect()
