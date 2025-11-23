@@ -4410,16 +4410,19 @@ def initialize_system(rtc):
 		else:
 			log_warning("No schedules available")
 
-	# Initialize stocks
+	# Initialize stocks and track source
+	stock_source_flag = ""
 	if github_stocks:
 		state.cached_stocks = github_stocks
-		log_debug(f"GitHub stocks: {len(github_stocks)} symbols")
+		stock_source_flag = " (imported)"
+		log_info(f"GitHub stocks: {len(github_stocks)} symbols")
 	else:
 		log_verbose("Failed to fetch stocks from GitHub, trying local file")
 		local_stocks = load_stocks_from_csv()
 		if local_stocks:
 			state.cached_stocks = local_stocks
-			log_debug(f"Local stocks: {len(local_stocks)} symbols")
+			stock_source_flag = " (local)"
+			log_info(f"Local stocks: {len(local_stocks)} symbols")
 		else:
 			log_verbose("No stocks available")
 			state.cached_stocks = []
@@ -4455,10 +4458,11 @@ def initialize_system(rtc):
 	
 	# Format imported events count
 	imported_str = f" ({state.ephemeral_event_count} imported)" if state.ephemeral_event_count > 0 else ""
-	
+
 	# Summary log
 	schedule_count = len(scheduled_display.schedules) if scheduled_display.schedules_loaded else 0
-	log_info(f"Hardware ready | {schedule_count} schedules{schedule_source_flag} | {state.total_event_count} events{imported_str} | Today: {today_msg}")
+	stock_count = len(state.cached_stocks) if state.cached_stocks else 0
+	log_info(f"Hardware ready | {schedule_count} schedules{schedule_source_flag} | {stock_count} stocks{stock_source_flag} | {state.total_event_count} events{imported_str} | Today: {today_msg}")
 	state.memory_monitor.check_memory("initialization_complete")
 	
 	return events
