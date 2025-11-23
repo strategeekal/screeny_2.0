@@ -3657,9 +3657,9 @@ def show_stocks_display(duration, offset):
 			state.cached_stock_prices.update(new_prices)
 			state.last_stock_fetch_time = current_time
 		else:
-			log_warning("Failed to fetch stock prices, using cached/fallback data")
+			log_warning("Failed to fetch stock prices, using cached data if available")
 
-	# Build display data from cache or fallback
+	# Build display data from cache only (no random fallback)
 	stocks_to_show = []
 	for stock_symbol in stocks_to_fetch:
 		symbol = stock_symbol["symbol"]
@@ -3679,17 +3679,14 @@ def show_stocks_display(duration, offset):
 				})
 				continue
 
-		# Fallback: generate random data if no valid cache
-		log_verbose(f"No valid cached data for {symbol}, using random fallback")
-		change_percent = random.uniform(-10.0, 15.0)
-		direction = "up" if change_percent >= 0 else "down"
+		# No valid cached data for this symbol - skip entire display
+		log_info(f"No valid data for {symbol}, skipping stock display")
+		return (False, offset)
 
-		stocks_to_show.append({
-			"symbol": symbol,
-			"name": stock_symbol["name"],
-			"change_percent": change_percent,
-			"direction": direction
-		})
+	# If we don't have data for all 3 stocks, skip display
+	if len(stocks_to_show) < len(stocks_to_fetch):
+		log_info("Incomplete stock data, skipping stock display")
+		return (False, offset)
 
 	# Calculate next offset (advance by 3, wrap around)
 	next_offset = (offset + 3) % len(stocks_list)
