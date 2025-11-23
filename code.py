@@ -2412,6 +2412,8 @@ def fetch_stock_prices(symbols_to_fetch):
 	"""
 	import time
 
+	log_verbose(f"fetch_stock_prices called with {len(symbols_to_fetch) if symbols_to_fetch else 0} symbols")
+
 	if not symbols_to_fetch:
 		log_verbose("No stock symbols to fetch")
 		return {}
@@ -2419,7 +2421,7 @@ def fetch_stock_prices(symbols_to_fetch):
 	# Get API key
 	api_key = os.getenv(Strings.TWELVE_DATA_API_KEY)
 	if not api_key:
-		log_warning("TWELVE_DATA_API_KEY not configured")
+		log_warning("TWELVE_DATA_API_KEY not configured in settings.toml")
 		return {}
 
 	session = get_requests_session()
@@ -2439,7 +2441,7 @@ def fetch_stock_prices(symbols_to_fetch):
 		# Twelve Data Quote API endpoint (batch)
 		url = f"https://api.twelvedata.com/quote?symbol={symbols_str}&apikey={api_key}"
 
-		log_verbose(f"Fetching stock prices for: {symbols_str}")
+		log_info(f"Fetching stock prices for: {symbols_str}")
 		response = session.get(url, timeout=10)
 
 		# Check if response is valid
@@ -2489,6 +2491,8 @@ def fetch_stock_prices(symbols_to_fetch):
 				log_info(f"Fetched prices for {len(stock_data)}/{len(symbols_list)} stocks")
 			else:
 				log_warning(f"Failed to fetch stock prices: HTTP {response.status_code}")
+				if response.text:
+					log_verbose(f"Response: {response.text[:200]}")  # First 200 chars
 		finally:
 			# CRITICAL: Close response to release socket
 			if response:
@@ -2497,7 +2501,9 @@ def fetch_stock_prices(symbols_to_fetch):
 				except:
 					pass
 	except Exception as e:
+		import sys
 		log_warning(f"Failed to fetch stock prices: {e}")
+		log_verbose(f"Exception type: {type(e).__name__}")
 
 	return stock_data
 
