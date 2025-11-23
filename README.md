@@ -298,7 +298,7 @@ GOOGL,Alphabet Inc
   - Only fetches during US market hours (9:30 AM - 4:00 PM ET, weekdays)
   - Shows cached data for 1.5 hours after close (until 5:30 PM ET)
   - **Automatic holiday detection** via API (Thanksgiving, Christmas, MLK Day, etc.)
-  - Displays "CLOSED" indicator during grace period
+  - Logs market status (e.g., "markets closed, displaying cached data")
   - Skips display on weekends, holidays, and outside market hours
   - Automatically converts user's timezone to Eastern Time
   - Falls back to clock display when stocks unavailable
@@ -541,7 +541,7 @@ The entire codebase currently resides in a single `code.py` file. This is a comm
     - Caches holiday status for entire day after first detection
     - Saves ~770 API calls/year on 10 market holidays
     - Skips display on Thanksgiving, Christmas, MLK Day, etc.
-  - Visual "CLOSED" indicator during grace period
+  - Logs market status (e.g., "markets closed, displaying cached data")
   - Skips display on weekends and outside market/grace hours
   - Automatic timezone conversion from user's local time to Eastern Time
   - Falls back to clock display when stocks unavailable

@@ -3826,12 +3826,17 @@ def show_stocks_display(duration, offset, rtc):
 	# Calculate next offset (advance by 3, wrap around)
 	next_offset = (offset + 3) % len(stocks_list)
 
-	# Build condensed log message with all stock info
+	# Build condensed log message with market status and stock details
 	stock_details = ", ".join([
 		f"{s['symbol']} ${s['price']:.2f} ({s['change_percent']:+.2f}%)"
 		for s in stocks_to_show
 	])
-	log_info(f"Stocks ({len(stocks_to_show)}/{len(stocks_to_display)}): {stock_details} ({duration/60:.1f} min)")
+
+	# Add market status to log if displaying cached data
+	if "CLOSED" in reason:
+		log_info(f"Stocks ({len(stocks_to_show)}/{len(stocks_to_display)}), markets closed, displaying cached data: {stock_details}")
+	else:
+		log_info(f"Stocks ({len(stocks_to_show)}/{len(stocks_to_display)}): {stock_details}")
 
 	clear_display()
 	gc.collect()
@@ -3893,17 +3898,6 @@ def show_stocks_display(duration, offset, rtc):
 				y=y_pos
 			)
 			state.main_group.append(pct_label)
-
-		# Show "CLOSED" indicator if displaying cached data during grace period
-		if "CLOSED" in reason:
-			closed_label = bitmap_label.Label(
-				font,
-				color=state.colors["LILAC"],  # Dimmed color to indicate stale data
-				text="CLOSED",
-				x=1,
-				y=30  # Bottom of display
-			)
-			state.main_group.append(closed_label)
 
 		# Display for specified duration
 		start_time = time.monotonic()
