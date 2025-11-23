@@ -4755,7 +4755,15 @@ def initialize_system(rtc):
 	if stock_count > 0:
 		_, should_display, market_reason = is_market_hours_or_cache_valid(rtc.datetime, False)
 		if not should_display:
-			stock_source_flag += f" (markets closed today)"
+			# Provide specific message based on why markets are closed
+			if "Weekend" in market_reason:
+				stock_source_flag += f" (markets closed - weekend)"
+			elif "holiday" in market_reason:
+				stock_source_flag += f" (markets closed - holiday)"
+			elif "Before market open" in market_reason:
+				stock_source_flag += f" (markets open 9:30 AM ET)"
+			else:
+				stock_source_flag += f" (markets closed today)"
 
 	log_info(f"Hardware ready | {schedule_count} schedules{schedule_source_flag} | {stock_count} stocks{stock_source_flag} | {state.total_event_count} events{imported_str} | Today: {today_msg}")
 	state.memory_monitor.check_memory("initialization_complete")
