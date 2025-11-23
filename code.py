@@ -1374,7 +1374,7 @@ def is_market_hours_or_cache_valid(local_datetime, has_cached_data=False):
 		return (False, False, "Market holiday (cached)")
 
 	# Get user's timezone from settings
-	user_timezone = os.getenv(Strings.TIMEZONE, Strings.TIMEZONE_DEFAULT)
+	user_timezone = os.getenv("TIMEZONE", Strings.TIMEZONE_DEFAULT)
 
 	# Convert local time to ET
 	# First, figure out user's offset from UTC
