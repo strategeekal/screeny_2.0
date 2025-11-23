@@ -3742,11 +3742,11 @@ def show_stocks_display(duration, offset, rtc):
 	if offset >= len(stocks_list):
 		offset = 0
 
-	# Get 3 stocks to display starting from offset (wrapping around if needed)
-	stocks_to_display = []
-	for i in range(3):
+	# Get 4 stocks to fetch (3 to display + 1 buffer for failures)
+	stocks_to_fetch = []
+	for i in range(4):
 		idx = (offset + i) % len(stocks_list)
-		stocks_to_display.append(stocks_list[idx])
+		stocks_to_fetch.append(stocks_list[idx])
 
 	# Check market hours FIRST before attempting to fetch or display
 	import time
@@ -3781,9 +3781,9 @@ def show_stocks_display(duration, offset, rtc):
 			log_info(f"Rate limit: waiting {int(wait_time)}s before next fetch")
 			time.sleep(wait_time)
 
-		# Fetch prices for just the 3 stocks being displayed
-		log_verbose(f"Fetching prices for: {', '.join([s['symbol'] for s in stocks_to_display])}")
-		stock_prices = fetch_stock_prices(stocks_to_display)
+		# Fetch prices for 4 stocks (3 to display + 1 buffer)
+		log_verbose(f"Fetching prices for: {', '.join([s['symbol'] for s in stocks_to_fetch])}")
+		stock_prices = fetch_stock_prices(stocks_to_fetch)
 		state.last_stock_fetch_time = time.monotonic()
 
 		# Cache the fetched prices and check for holiday
@@ -3820,9 +3820,10 @@ def show_stocks_display(duration, offset, rtc):
 		log_verbose(f"Using cached stock prices ({reason})")
 		stock_prices = state.cached_stock_prices
 
-	# Build display data from fetched prices
+	# Build display data from fetched prices (with buffer tolerance)
 	stocks_to_show = []
-	for stock_symbol in stocks_to_display:
+	failed_tickers = []
+	for stock_symbol in stocks_to_fetch:
 		symbol = stock_symbol["symbol"]
 		if symbol in stock_prices:
 			stocks_to_show.append({
@@ -3833,15 +3834,22 @@ def show_stocks_display(duration, offset, rtc):
 				"direction": stock_prices[symbol]["direction"]
 			})
 		else:
-			log_warning(f"No price data for {symbol}")
+			failed_tickers.append(symbol)
+			log_warning(f"Failed to fetch ticker '{symbol}' - check symbol is valid")
 
-	# If we didn't get all 3 stocks, skip display
-	if len(stocks_to_show) < 3:
-		log_info(f"Incomplete stock data ({len(stocks_to_show)}/3), skipping display")
+	# Progressive degradation: show 3 if available, 2 if only 2, skip if <2
+	if len(stocks_to_show) < 2:
+		if failed_tickers:
+			log_info(f"Too many failed tickers ({len(failed_tickers)}/{len(stocks_to_fetch)}): {', '.join(failed_tickers)} - skipping display")
+		else:
+			log_info(f"Insufficient stock data ({len(stocks_to_show)}/{len(stocks_to_fetch)}), skipping display")
 		return (False, offset)
 
-	# Calculate next offset (advance by 3, wrap around)
-	next_offset = (offset + 3) % len(stocks_list)
+	# Take only first 3 stocks (in case we got all 4)
+	stocks_to_show = stocks_to_show[:3]
+
+	# Calculate next offset (advance by 4 to include buffer, wrap around)
+	next_offset = (offset + 4) % len(stocks_list)
 
 	# Build condensed log message with market status and stock details
 	stock_details = ", ".join([
@@ -3850,21 +3858,22 @@ def show_stocks_display(duration, offset, rtc):
 	])
 
 	# Add market status to log if displaying cached data
+	# Note: Show count out of fetched (4) to indicate buffer usage
 	if "CLOSED" in reason:
-		log_info(f"Stocks ({len(stocks_to_show)}/{len(stocks_to_display)}), markets closed, displaying cached data: {stock_details}")
+		log_info(f"Stocks ({len(stocks_to_show)}/{len(stocks_to_fetch)}), markets closed, displaying cached data: {stock_details}")
 	else:
-		log_info(f"Stocks ({len(stocks_to_show)}/{len(stocks_to_display)}): {stock_details}")
+		log_info(f"Stocks ({len(stocks_to_show)}/{len(stocks_to_fetch)}): {stock_details}")
 
 	clear_display()
 	gc.collect()
 
 	try:
-		# Display 3 stocks in vertical rows
+		# Display stocks in vertical rows (2-3 stocks depending on buffer success)
 		# Row positions (dividing 32px height into 3 sections)
 		row_positions = [2, 13, 24]  # Y positions for each row
 
 		for i, stock in enumerate(stocks_to_show):
-			if i >= 3:  # Only show 3 stocks
+			if i >= 3:  # Max 3 stocks per display
 				break
 
 			y_pos = row_positions[i]
@@ -3883,21 +3892,21 @@ def show_stocks_display(duration, offset, rtc):
 			pct_width = get_text_width(pct_text, font)
 			pct_x = Display.WIDTH - pct_width - 1  # Right-align with 1px margin
 
-			# Create triangle arrow indicator (left side)
+			# Create triangle arrow indicator (left side, centered with text)
 			if stock["direction"] == "up":
 				# Up triangle: ▲ pointing upward
 				arrow_triangle = Triangle(
-					1, y_pos + 2,   # Bottom left
-					3, y_pos - 1,   # Top peak
-					5, y_pos + 2,   # Bottom right
+					1, y_pos + 4,   # Bottom left
+					3, y_pos + 1,   # Top peak
+					5, y_pos + 4,   # Bottom right
 					fill=color
 				)
 			else:
 				# Down triangle: ▼ pointing downward
 				arrow_triangle = Triangle(
-					1, y_pos - 1,   # Top left
-					3, y_pos + 2,   # Bottom peak
-					5, y_pos - 1,   # Top right
+					1, y_pos + 1,   # Top left
+					3, y_pos + 4,   # Bottom peak
+					5, y_pos + 1,   # Top right
 					fill=color
 				)
 			state.main_group.append(arrow_triangle)
