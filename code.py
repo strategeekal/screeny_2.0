@@ -2457,11 +2457,20 @@ def fetch_stock_prices(symbols_to_fetch):
 				# Log raw response for debugging
 				log_info(f"API Response preview: {str(data)[:200]}")
 
-				# Handle both single and batch responses
-				# Single symbol: {"symbol": "AAPL", "name": ..., "price": ..., "percent_change": ...}
-				# Multiple symbols: [{"symbol": "AAPL", ...}, {"symbol": "MSFT", ...}]
+				# Handle Twelve Data response formats:
+				# Single symbol: {"symbol": "AAPL", "name": ..., "close": ..., "percent_change": ...}
+				# Multiple symbols: {"AAPL": {"symbol": "AAPL", "close": ...}, "MSFT": {...}}
 
-				quotes = data if isinstance(data, list) else [data]
+				# Check if it's a single quote (has "symbol" key at top level)
+				if "symbol" in data:
+					quotes = [data]
+				# Otherwise it's a batch response (dict with ticker keys)
+				elif isinstance(data, dict):
+					quotes = list(data.values())
+				else:
+					log_warning(f"Unexpected API response format: {type(data)}")
+					quotes = []
+
 				log_verbose(f"Processing {len(quotes)} quote(s) from API")
 
 				for quote in quotes:
