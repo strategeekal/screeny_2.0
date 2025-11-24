@@ -1,19 +1,21 @@
-# Stock, Forex & Crypto Ticker Configuration
+# Stock, Forex, Crypto & Commodity Ticker Configuration
 # Format: symbol,name,type,display_name
-# - symbol: Ticker, forex pair, or crypto symbol for API (required)
+# - symbol: Ticker, forex pair, crypto, or commodity symbol for API (required)
 # - name: Full name for reference/web app (required)
-# - type: "stock", "forex", or "crypto" (optional, default: stock)
+# - type: "stock", "forex", "crypto", or "commodity" (optional, default: stock)
 # - display_name: Short name for 64x32 display (optional, default: symbol)
 #
 # Display Behavior:
-#   stock:  ▲ CRM  +2.3%     <- triangle arrow, percentage change
-#   forex:  $ MXN  $20.15    <- $ indicator (colored), exchange rate
-#   crypto: $ BTC  $86.9K    <- $ indicator (colored), price with K/M suffix
+#   stock:     ▲ CRM  +2.3%   <- triangle arrow, percentage change
+#   forex:     $ MXN  18.49    <- $ indicator (colored), price
+#   crypto:    $ BTC  86.9K    <- $ indicator (colored), price with K/M suffix
+#   commodity: $ GLD  233.15   <- $ indicator (colored), price
 #
 # Examples:
-#   CRM,Salesforce,stock,           <- stock with default display
-#   USDMXN,USD to MXN,forex,MXN     <- forex with custom display name
-#   BTC/USD,Bitcoin,crypto,BTC      <- crypto with K/M formatting
+#   CRM,Salesforce,stock,              <- stock with default display
+#   USDMXN,USD to MXN,forex,MXN        <- forex with custom display name
+#   BTC/USD,Bitcoin,crypto,BTC         <- crypto with K/M formatting
+#   GC=F,Gold Futures,commodity,GLD    <- commodity (gold)
 #
 # Can be overridden by GitHub remote config
 

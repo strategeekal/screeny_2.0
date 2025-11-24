@@ -2320,18 +2320,19 @@ def parse_schedule_csv_content(csv_content, rtc):
 		return {}
 
 def parse_stocks_csv_content(csv_content):
-	"""Parse stock/forex/crypto CSV content directly from string.
+	"""Parse stock/forex/crypto/commodity CSV content directly from string.
 
 	Format: symbol,name,type,display_name
-	- symbol: Ticker, forex pair, or crypto symbol (required)
+	- symbol: Ticker, forex pair, crypto, or commodity symbol (required)
 	- name: Full name for reference (required)
-	- type: "stock", "forex", or "crypto" (optional, default: "stock")
+	- type: "stock", "forex", "crypto", or "commodity" (optional, default: "stock")
 	- display_name: Short name for display (optional, default: symbol)
 
 	Display behavior:
 	- stock: Triangle arrow + ticker + percentage change
-	- forex: $ indicator + ticker + exchange rate (colored)
-	- crypto: $ indicator + ticker + exchange rate with K/M suffix (colored)
+	- forex: $ indicator + ticker + price (colored, with K/M suffix)
+	- crypto: $ indicator + ticker + price (colored, with K/M suffix)
+	- commodity: $ indicator + ticker + price (colored, with K/M suffix)
 	"""
 	stocks = []
 
@@ -3740,29 +3741,32 @@ def _display_icon_batch(icon_numbers, batch_num=None, total_batches=None, manual
 		log_error(f"Icon display error: {e}")
 
 def format_price_with_suffix(price):
-	"""Format large prices with K/M suffix for crypto display
+	"""Format large prices with K/M suffix for crypto/forex display
 
 	Examples:
 		86932.49 → "86.9K"
-		1234.56 → "1234.56"
+		1234.56 → "1234" (no cents for >= 1000)
 		1500000 → "1.5M"
+		18.49 → "18.49" (cents for < 1000)
 	"""
 	if price >= 1000000:
-		# Millions
+		# Millions (no cents)
 		return f"{price / 1000000:.1f}M"
 	elif price >= 1000:
-		# Thousands
+		# Thousands (no cents)
 		return f"{price / 1000:.1f}K"
 	else:
 		# Under 1000, show with 2 decimals
 		return f"{price:.2f}"
 
 def show_stocks_display(duration, offset, rtc):
-	"""Display stock/forex/crypto market data - 3 items at a time with indicators and values
+	"""Display stock/forex/crypto/commodity market data - 3 items at a time
 
-	Stocks: Shows triangle arrows (▲▼) + ticker + percentage change
-	Forex: Shows $ + ticker + exchange rate
-	Crypto: Shows $ + ticker + exchange rate (with K/M suffix for large values)
+	Display format by type:
+	- Stock: Triangle arrows (▲▼) + ticker + percentage change (colored)
+	- Forex: $ indicator + ticker + price (colored, with K/M suffix)
+	- Crypto: $ indicator + ticker + price (colored, with K/M suffix)
+	- Commodity: $ indicator + ticker + price (colored, with K/M suffix)
 
 	Args:
 		duration: How long to display in seconds
@@ -3897,10 +3901,11 @@ def show_stocks_display(duration, offset, rtc):
 	# Take only first 3 stocks (in case we got all 4)
 	stocks_to_show = stocks_to_show[:3]
 
-	# Calculate next offset (advance by 4 to include buffer, wrap around)
-	next_offset = (offset + 4) % len(stocks_list)
+	# Calculate next offset (advance by 3, not 4, to avoid skipping tickers)
+	# The 4th fetched ticker becomes the 1st of next cycle (buffer overlap)
+	next_offset = (offset + 3) % len(stocks_list)
 
-	# Build condensed log message with market status and stock/forex/crypto details
+	# Build condensed log message with market status and stock/forex/crypto/commodity details
 	detail_parts = []
 	for s in stocks_to_show:
 		display_name = s.get('display_name', s['symbol'])
@@ -3908,13 +3913,10 @@ def show_stocks_display(duration, offset, rtc):
 		if item_type == 'stock':
 			# Stock: Show percentage change
 			detail_parts.append(f"{display_name} {s['change_percent']:+.2f}%")
-		elif item_type == 'crypto':
-			# Crypto: Show price with K/M suffix
-			formatted_price = format_price_with_suffix(s['price'])
-			detail_parts.append(f"{display_name} ${formatted_price}")
 		else:
-			# Forex: Show exchange rate
-			detail_parts.append(f"{display_name} ${s['price']:.2f}")
+			# Forex/Crypto/Commodity: Show price with K/M suffix formatting
+			formatted_price = format_price_with_suffix(s['price'])
+			detail_parts.append(f"{display_name} {formatted_price}")
 	stock_details = ", ".join(detail_parts)
 
 	# Add market status to log if displaying cached data
@@ -3950,21 +3952,18 @@ def show_stocks_display(duration, offset, rtc):
 				# Stock: Show percentage change (e.g., "+2.3%")
 				pct = stock["change_percent"]
 				value_text = f"{pct:+.1f}%"
-			elif item_type == "crypto":
-				# Crypto: Show price with $ and K/M suffix (e.g., "$86.9K")
-				formatted_price = format_price_with_suffix(stock['price'])
-				value_text = f"${formatted_price}"
 			else:
-				# Forex: Show exchange rate with $ (e.g., "$20.15")
-				value_text = f"${stock['price']:.2f}"
+				# Forex/Crypto/Commodity: Show price with K/M suffix, no $ prefix
+				# Examples: "86.9K", "18.49", "1234"
+				value_text = format_price_with_suffix(stock['price'])
 
 			# Calculate right-aligned position for value (1px margin from right edge)
 			value_width = get_text_width(value_text, font)
 			value_x = Display.WIDTH - value_width - 1  # Right-align with 1px margin
 
 			# Create indicator (left side, centered with text)
-			if item_type in ["forex", "crypto"]:
-				# Forex/Crypto: Dollar sign indicator
+			if item_type in ["forex", "crypto", "commodity"]:
+				# Forex/Crypto/Commodity: Dollar sign indicator
 				indicator_label = bitmap_label.Label(
 					font,
 					color=color,  # Use direction color
