@@ -256,18 +256,26 @@ Sleep,1,0123456,20,45,21,30,bed.bmp,0
 
 ### stocks.csv
 ```csv
-# Format: symbol,name
-CRM,Salesforce
-AAPL,Apple Inc
-MSFT,Microsoft
-GOOGL,Alphabet Inc
+# Format: symbol,name,type,display_name
+CRM,Salesforce,stock,
+USDMXN,USD to Mexican Peso,forex,MXN
+BTC/USD,Bitcoin,crypto,BTC
+GC=F,Gold Futures,commodity,GLD
 ```
 
 **Fields:**
-- `symbol`: Stock ticker symbol (e.g., AAPL, MSFT, TSLA)
-- `name`: Company name (for reference, not displayed)
-- Displays 3 stocks at a time with rotation
-- Supports unlimited stocks (no hard limit)
+- `symbol`: Ticker, forex pair, crypto, or commodity symbol (required)
+- `name`: Full name for reference/web app (required)
+- `type`: "stock", "forex", "crypto", or "commodity" (optional, default: stock)
+- `display_name`: Short name for 64×32 display (optional, default: symbol)
+
+**Display Behavior:**
+- **Stocks:** Show percentage change with colored triangle arrows
+- **Forex/Crypto/Commodities:** Show price with colored $ indicator
+- Prices >= $1000: Comma separators, no cents (e.g., 86,932)
+- Prices < $1000: Show 2 decimals (e.g., 18.49)
+- Displays 3 items at a time with rotation
+- Supports unlimited tickers (no hard limit)
 - Can be overridden by remote GitHub CSV via `STOCKS_CSV_URL`
 
 ## Features
@@ -289,16 +297,24 @@ GOOGL,Alphabet Inc
 - Each column: Time, icon, temperature
 - "NOW" indicator for current hour
 
-### Stock Market Display
-- Real-time stock prices from Twelve Data API
-- Displays 3 stocks at a time with automatic rotation
-- Shows: ticker symbol, **triangle arrows** (▲▼), percentage change
-- Color-coded: Green for gains, Red for losses
+### Stock, Forex, Crypto & Commodity Display
+- Real-time prices from Twelve Data API
+- Displays 3 items at a time with automatic rotation
+- **Multiple Asset Types:**
+  - **Stocks:** Triangle arrows (▲▼) + ticker + percentage change
+  - **Forex:** $ indicator + ticker + exchange rate (e.g., "$ MXN 18.49")
+  - **Crypto:** $ indicator + ticker + price with comma separator (e.g., "$ BTC 86,932")
+  - **Commodities:** $ indicator + ticker + price with comma separator (e.g., "$ GLD 2,341")
+- **Smart Price Formatting:**
+  - Prices >= $1000: No cents, comma separators (86,932)
+  - Prices < $1000: Show cents (18.49)
+- **Color-coded:** Green for gains, Red for losses (all types)
 - **Resilient 4-Ticker Buffer:**
-  - Fetches 4 stocks but displays 3 (protects against invalid tickers)
+  - Fetches 4 items but displays 3 (protects against invalid tickers)
   - Progressive degradation: Shows 3→2→skip based on API successes
   - Logs warnings for failed tickers (e.g., typos like "IBT" instead of "IBIT")
   - Never crashes from bad ticker symbols
+  - Proper rotation with buffer overlap (no skipped tickers)
 - **Market Hours Aware:**
   - Only fetches during US market hours (9:30 AM - 4:00 PM ET, weekdays)
   - Shows cached data for 1.5 hours after close (until 5:30 PM ET)
@@ -308,10 +324,13 @@ GOOGL,Alphabet Inc
   - Skips display on weekends/holidays (default) or always-on for testing
   - Automatically converts user's timezone to Eastern Time
   - Falls back to clock display when stocks unavailable
-- Rate-limited to respect API limits (65s minimum between fetches)
-- Supports unlimited stocks with rotation
-- Works with both local CSV and remote GitHub configuration
-- Automatic timezone conversion (works from any US timezone)
+- **Flexible Configuration:**
+  - Unlimited tickers supported (no hard limit)
+  - Custom display names for long tickers (USDMXN → MXN)
+  - Type-specific display behavior (stock/forex/crypto/commodity)
+  - Rate-limited to respect API limits (65s minimum between fetches)
+  - Works with both local CSV and remote GitHub configuration
+  - Automatic timezone conversion (works from any US timezone)
 
 ### Events
 - Date-based display (MM-DD format)
@@ -538,21 +557,35 @@ The entire codebase currently resides in a single `code.py` file. This is a comm
 ## Version History
 
 ### 2.1.0 (Current)
-- **Stock Market Integration:** Added real-time stock price display using Twelve Data API
-  - Displays 3 stocks at a time with automatic rotation
-  - **Triangle Arrow Indicators:** Visual up ▲ / down ▼ arrows (5×4px) instead of text +/-
-  - Color-coded price changes (green/red) with percentage indicators
-  - **4-Ticker Buffer System:** Fetches 4 stocks but displays 3 for resilience
+- **Multi-Asset Market Data Integration:** Real-time prices for stocks, forex, crypto, and commodities
+  - **Supports 4 Asset Types:**
+    - **Stocks:** Triangle arrows (▲▼) + percentage change
+    - **Forex:** $ indicator + exchange rate (e.g., USDMXN → MXN)
+    - **Crypto:** $ indicator + price with comma formatting (e.g., BTC → 86,932)
+    - **Commodities:** $ indicator + price (e.g., Gold, Oil, Silver)
+  - **Smart Price Formatting:**
+    - Prices >= $1000: Comma separators, no cents (86,932)
+    - Prices < $1000: Show 2 decimals (18.49)
+    - Optimized for 64×32 pixel display constraints
+  - **Flexible CSV Format:** `symbol,name,type,display_name`
+    - Custom display names for long tickers
+    - Type-specific rendering (stock/forex/crypto/commodity)
+    - Backward compatible with old format
+  - Displays 3 items at a time with automatic rotation
+  - **Triangle Arrow Indicators:** Visual up ▲ / down ▼ arrows (5×4px) for stocks
+  - Color-coded: Green for gains, Red for losses (all asset types)
+  - **4-Ticker Buffer System:** Fetches 4 items but displays 3 for resilience
     - Progressive degradation: 3/4 or 4/4 → show 3, 2/4 → show 2, <2 → skip
     - Handles invalid tickers gracefully (no crashes)
     - Clear warning logs for failed symbols (e.g., "IBT" typo)
+    - Proper rotation with buffer overlap (no skipped tickers)
     - API cost: ~112 calls/day (14% of 800/day limit)
-  - **Market Hours Awareness:** Only fetches during market hours (9:30 AM - 4:00 PM ET, weekdays)
+  - **Market Hours Awareness:** Only fetches during US market hours (9:30 AM - 4:00 PM ET, weekdays)
   - Shows cached data for 1.5 hours after close (until 5:30 PM ET)
   - **Configurable Market Hours Toggle:** `stocks_respect_market_hours` in display_config.csv
     - Set to 1 (default): Respects market hours, skips weekends/holidays
-    - Set to 0 (testing): Always displays stocks regardless of time/day
-    - Allows weekend testing of stock display and visual elements
+    - Set to 0 (testing): Always displays regardless of time/day
+    - Allows weekend testing of display and visual elements
   - **Automatic Holiday Detection:** Detects market holidays via API (no extra cost)
     - Caches holiday status for entire day after first detection
     - Saves ~770 API calls/year on 10 market holidays
@@ -565,14 +598,15 @@ The entire codebase currently resides in a single `code.py` file. This is a comm
     - "markets closed today" (after grace period)
   - Logs market status (e.g., "markets closed, displaying cached data")
   - Automatic timezone conversion from user's local time to Eastern Time
-  - Falls back to clock display when stocks unavailable
+  - Falls back to clock display when data unavailable
   - Rate-limited API calls (65s minimum between fetches)
-  - Supports unlimited stocks via local CSV or remote GitHub configuration
+  - **Supports unlimited tickers** via local CSV or remote GitHub configuration
   - Smart rotation leverages natural display cycle timing
-  - Added `stocks.csv` for local stock symbols
+  - Added `stocks.csv` for local ticker symbols
   - Added `fetch_stock_prices()` with batch request support
   - Added `show_stocks_display()` with 3-row vertical layout and caching
   - Added `is_market_hours_or_cache_valid()` for market hours detection
+  - Added `format_price_with_suffix()` for smart price formatting
   - Integration with display rotation cycle
 
 ### 2.0.9

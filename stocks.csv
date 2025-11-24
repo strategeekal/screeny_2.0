@@ -6,15 +6,15 @@
 # - display_name: Short name for 64x32 display (optional, default: symbol)
 #
 # Display Behavior:
-#   stock:     ▲ CRM  +2.3%   <- triangle arrow, percentage change
-#   forex:     $ MXN  18.49    <- $ indicator (colored), price
-#   crypto:    $ BTC  86.9K    <- $ indicator (colored), price with K/M suffix
-#   commodity: $ GLD  233.15   <- $ indicator (colored), price
+#   stock:     ▲ CRM  +2.3%     <- triangle arrow, percentage change
+#   forex:     $ MXN  18.49      <- $ indicator (colored), price (cents for <1000)
+#   crypto:    $ BTC  86,932     <- $ indicator (colored), price (comma separator, no cents for >=1000)
+#   commodity: $ GLD  2,341      <- $ indicator (colored), price (comma separator, no cents for >=1000)
 #
 # Examples:
 #   CRM,Salesforce,stock,              <- stock with default display
 #   USDMXN,USD to MXN,forex,MXN        <- forex with custom display name
-#   BTC/USD,Bitcoin,crypto,BTC         <- crypto with K/M formatting
+#   BTC/USD,Bitcoin,crypto,BTC         <- crypto with comma formatting
 #   GC=F,Gold Futures,commodity,GLD    <- commodity (gold)
 #
 # Can be overridden by GitHub remote config

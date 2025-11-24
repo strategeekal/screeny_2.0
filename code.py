@@ -3741,20 +3741,21 @@ def _display_icon_batch(icon_numbers, batch_num=None, total_batches=None, manual
 		log_error(f"Icon display error: {e}")
 
 def format_price_with_suffix(price):
-	"""Format large prices with K/M suffix for crypto/forex display
+	"""Format prices for forex/crypto/commodity display
+
+	Rules:
+	- >= 1000: Remove cents and add comma separator (e.g., "86,932")
+	- < 1000: Keep 2 decimals (e.g., "18.49")
 
 	Examples:
-		86932.49 → "86.9K"
-		1234.56 → "1234" (no cents for >= 1000)
-		1500000 → "1.5M"
-		18.49 → "18.49" (cents for < 1000)
+		86932.49 → "86,932"
+		1234.56 → "1,234"
+		18.49 → "18.49"
+		1500000 → "1,500,000"
 	"""
-	if price >= 1000000:
-		# Millions (no cents)
-		return f"{price / 1000000:.1f}M"
-	elif price >= 1000:
-		# Thousands (no cents)
-		return f"{price / 1000:.1f}K"
+	if price >= 1000:
+		# Remove cents and add comma separators for thousands
+		return f"{int(price):,}"
 	else:
 		# Under 1000, show with 2 decimals
 		return f"{price:.2f}"
