@@ -3873,11 +3873,16 @@ def show_stocks_display(duration, offset, rtc):
 	next_offset = (offset + 4) % len(stocks_list)
 
 	# Build condensed log message with market status and stock/forex details
-	stock_details = ", ".join([
-		f"{s.get('display_name', s['symbol'])} {s['change_percent']:+.2f}%" if s.get('type', 'stock') == 'stock'
-		else f"{s.get('display_name', s['symbol'])} ${s['price']:.2f}"
-		for s in stocks_to_show
-	])
+	detail_parts = []
+	for s in stocks_to_show:
+		display_name = s.get('display_name', s['symbol'])
+		if s.get('type', 'stock') == 'stock':
+			# Stock: Show percentage change
+			detail_parts.append(f"{display_name} {s['change_percent']:+.2f}%")
+		else:
+			# Forex: Show exchange rate
+			detail_parts.append(f"{display_name} ${s['price']:.2f}")
+	stock_details = ", ".join(detail_parts)
 
 	# Add market status to log if displaying cached data
 	# Note: Show count out of fetched (4) to indicate buffer usage
