@@ -2595,11 +2595,13 @@ def fetch_stock_prices(symbols_to_fetch):
 				# Extract price and change data
 				try:
 					price = float(quote.get("close", 0))
+					open_price = float(quote.get("open", 0))
 					change_percent = float(quote.get("percent_change", 0))
 					direction = "up" if change_percent >= 0 else "down"
 
 					stock_data[symbol] = {
 						"price": price,
+						"open_price": open_price,
 						"change_percent": change_percent,
 						"direction": direction,
 						"is_market_open": is_market_open  # Include market status
@@ -4172,11 +4174,11 @@ def show_single_stock_chart(ticker, duration, rtc):
 			log_warning("No intraday data available for " + ticker)
 			return False
 
-		# Cache the data
+		# Note: We'll get the actual opening price from the quote API later
+		# For now, just cache the time series data
 		state.cached_intraday_data[ticker] = {
 			"data": time_series,
-			"timestamp": current_time,
-			"open_price": time_series[0]["close_price"] if len(time_series) > 0 else 0
+			"timestamp": current_time
 		}
 		state.last_intraday_fetch_time[ticker] = current_time
 
@@ -4187,7 +4189,6 @@ def show_single_stock_chart(ticker, duration, rtc):
 
 	cached = state.cached_intraday_data[ticker]
 	time_series = cached["data"]
-	open_price = cached["open_price"]
 
 	# Fetch current quote for latest price and percentage
 	quote_data = fetch_stock_prices([{"symbol": ticker, "name": ticker}])
@@ -4199,12 +4200,11 @@ def show_single_stock_chart(ticker, duration, rtc):
 	current_price = quote_data[ticker]["price"]
 	change_percent = quote_data[ticker]["change_percent"]
 	direction = quote_data[ticker]["direction"]
+	actual_open_price = quote_data[ticker]["open_price"]
 
-	# Calculate price change from open
-	if open_price > 0:
-		day_change_percent = ((current_price - open_price) / open_price) * 100
-	else:
-		day_change_percent = change_percent
+	# Use the actual day's percentage change from the quote API
+	# This represents the change from market open (9:30 AM) to current price
+	day_change_percent = change_percent
 
 	# Determine color based on direction
 	if day_change_percent >= 0:
