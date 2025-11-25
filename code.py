@@ -3811,7 +3811,7 @@ def show_stocks_display(duration, offset, rtc):
 
 		if not should_display:
 			# Markets closed and no valid cache - skip display entirely
-			log_verbose("Stocks skipped: " + reason)
+			log_verbose(f"Stocks skipped: {reason}")
 			return (False, offset)
 	else:
 		# Market hours check disabled - always fetch and display (testing mode)
@@ -3831,13 +3831,11 @@ def show_stocks_display(duration, offset, rtc):
 
 		if time_since_last_fetch < MIN_FETCH_INTERVAL and state.last_stock_fetch_time > 0:
 			wait_time = MIN_FETCH_INTERVAL - time_since_last_fetch
-			log_info("Rate limit: waiting " + str(int(wait_time)) + "s before next fetch")
+			log_info(f"Rate limit: waiting {int(wait_time)}s before next fetch")
 			time.sleep(wait_time)
 
 		# Fetch prices for 4 stocks (3 to display + 1 buffer)
-		symbols_list = [s['symbol'] for s in stocks_to_fetch]
-		symbols_str = ', '.join(symbols_list)
-		log_verbose("Fetching prices for: " + symbols_str)
+		log_verbose(f"Fetching prices for: {', '.join([s['symbol'] for s in stocks_to_fetch])}")
 		stock_prices = fetch_stock_prices(stocks_to_fetch)
 		state.last_stock_fetch_time = time.monotonic()
 
@@ -3891,23 +3889,20 @@ def show_stocks_display(duration, offset, rtc):
 				"direction": stock_prices[symbol]["direction"]
 			})
 		else:
-			display_name_fail = stock_symbol.get("display_name", symbol)
-			failed_tickers.append(display_name_fail)
-			log_warning("Failed to fetch ticker '" + display_name_fail + "' (" + symbol + ") - check symbol is valid")
+			failed_tickers.append(stock_symbol.get("display_name", symbol))
+			log_warning(f"Failed to fetch ticker '{stock_symbol.get('display_name', symbol)}' ({symbol}) - check symbol is valid")
 
 	# Progressive degradation: show 3 if available, 2 if only 2, skip if <2
 	if len(stocks_to_show) < 2:
 		if failed_tickers:
-			failed_str = ', '.join(failed_tickers)
-			log_info("Too many failed tickers (" + str(len(failed_tickers)) + "/" + str(len(stocks_to_fetch)) + "): " + failed_str + " - skipping display")
+			log_info(f"Too many failed tickers ({len(failed_tickers)}/{len(stocks_to_fetch)}): {', '.join(failed_tickers)} - skipping display")
 		else:
-			log_info("Insufficient stock data (" + str(len(stocks_to_show)) + "/" + str(len(stocks_to_fetch)) + "), skipping display")
+			log_info(f"Insufficient stock data ({len(stocks_to_show)}/{len(stocks_to_fetch)}), skipping display")
 		return (False, offset)
 
 	# Log if we had partial failures but are still displaying
 	if failed_tickers:
-		failed_str = ', '.join(failed_tickers)
-		log_info("Buffer absorbed failures: " + failed_str + " not displayed this cycle")
+		log_info(f"Buffer absorbed failures: {', '.join(failed_tickers)} not displayed this cycle")
 
 	# Take only first 3 stocks (in case we got all 4)
 	stocks_to_show = stocks_to_show[:3]
@@ -3923,24 +3918,19 @@ def show_stocks_display(duration, offset, rtc):
 		item_type = s.get('type', 'stock')
 		if item_type == 'stock':
 			# Stock: Show percentage change
-			change_pct = s['change_percent']
-			if change_pct >= 0:
-				pct_str = "+" + "{:.2f}".format(change_pct) + "%"
-			else:
-				pct_str = "{:.2f}".format(change_pct) + "%"
-			detail_parts.append(display_name + " " + pct_str)
+			detail_parts.append(f"{display_name} {s['change_percent']:+.2f}%")
 		else:
 			# Forex/Crypto/Commodity: Show price with K/M suffix formatting
 			formatted_price = format_price_with_suffix(s['price'])
-			detail_parts.append(display_name + " " + formatted_price)
+			detail_parts.append(f"{display_name} {formatted_price}")
 	stock_details = ", ".join(detail_parts)
 
 	# Add market status to log if displaying cached data
 	# Note: Show count out of fetched (4) to indicate buffer usage
 	if "CLOSED" in reason:
-		log_info("Stocks (" + str(len(stocks_to_show)) + "/" + str(len(stocks_to_fetch)) + "), markets closed, displaying cached data: " + stock_details)
+		log_info(f"Stocks ({len(stocks_to_show)}/{len(stocks_to_fetch)}), markets closed, displaying cached data: {stock_details}")
 	else:
-		log_info("Stocks (" + str(len(stocks_to_show)) + "/" + str(len(stocks_to_fetch)) + "): " + stock_details)
+		log_info(f"Stocks ({len(stocks_to_show)}/{len(stocks_to_fetch)}): {stock_details}")
 
 	clear_display()
 	gc.collect()
