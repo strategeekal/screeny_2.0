@@ -1,6 +1,6 @@
-# Pantallita 2.1.0
+# Pantallita 2.2.0
 
-A dual RGB matrix weather display system running on MatrixPortal S3, showing real-time weather, forecasts, stock prices, events, and scheduled activities for family use.
+A dual RGB matrix weather display system running on MatrixPortal S3, showing real-time weather, forecasts, stock prices with intraday charts, events, and scheduled activities for family use.
 
 ## Overview
 
@@ -27,13 +27,14 @@ Pantallita displays weather information, 12-hour forecasts, stock market data, f
   - `adafruit_ds3231` - RTC module
   - `adafruit_imageload` - BMP image loading
   - `adafruit_bitmap_font` - Text rendering
+  - `adafruit_display_shapes` - Line shapes for chart rendering
   - `displayio` / `rgbmatrix` - Display control
 
 ## Project Structure
 
 ```
 screeny_2.0/
-├── code.py                    # Main program (~4500 lines)
+├── code.py                    # Main program (~5500 lines)
 ├── settings.toml              # Environment variables (not in repo)
 ├── events.csv                 # Local events database
 ├── schedules.csv              # Local schedules database
@@ -171,7 +172,7 @@ The device ID is automatically detected from the ESP32-S3's unique CPU UID. Chec
 
 **Twelve Data Budget (Free Tier):** 800 calls/day, 8 calls/minute
 
-**Twelve Data Usage Pattern:**
+**Twelve Data Usage Pattern (Multi-Stock Rotation Mode):**
 - Stocks: 4 symbols per rotation (3 displayed + 1 buffer) during market hours (9:30 AM - 4:00 PM ET)
 - Market hours: 6.5 hours/day, weekdays only
 - Calls: ~16 calls/hour × 6.5 hours = ~104 calls/day
@@ -180,6 +181,16 @@ The device ID is automatically detected from the ESP32-S3's unique CPU UID. Chec
 - Weekends: No API calls (default), or always-on for testing
 - Rate limiting: 65-second minimum between fetches
 - **Total:** ~112 calls/day (14% of budget, includes grace period + buffer)
+
+**Twelve Data Usage Pattern (Single Stock Chart Mode - NEW in 2.2.0):**
+- Intraday chart: 1 time_series call every 15 minutes during market hours
+- Market hours: 6.5 hours/day = 390 minutes
+- Time series calls: 390 ÷ 15 = ~26 calls/day
+- Quote calls: 1 per chart display (every 5 min) = ~78 calls/day
+- 15-minute cache prevents redundant time_series fetches
+- **Total:** ~52 calls/day (6.5% of budget) with caching
+- **Without cache:** ~104 calls/day (13% of budget)
+- More efficient than multi-stock rotation for single ticker monitoring
 
 **Call Tracking:**
 - `state.api_call_count` tracks total calls
@@ -299,7 +310,9 @@ GC=F,Gold Futures,commodity,GLD
 
 ### Stock, Forex, Crypto & Commodity Display
 - Real-time prices from Twelve Data API
-- Displays 3 items at a time with automatic rotation
+- **Two Display Modes:**
+  - **Multi-Stock Rotation:** Displays 3 items at a time with automatic rotation
+  - **Single Stock Chart:** Full-screen view with intraday price chart
 - **Multiple Asset Types:**
   - **Stocks:** Triangle arrows (▲▼) + ticker + percentage change
   - **Forex:** $ indicator + ticker + exchange rate (e.g., "$ MXN 18.49")
@@ -309,7 +322,20 @@ GC=F,Gold Futures,commodity,GLD
   - Prices >= $1000: No cents, comma separators (86,932)
   - Prices < $1000: Show cents (18.49)
 - **Color-coded:** Green for gains, Red for losses (all types)
-- **Resilient 4-Ticker Buffer:**
+- **Single Stock Chart Display (NEW in 2.2.0):**
+  - **Full-screen intraday chart** showing price movement throughout trading day
+  - **Layout:**
+    - Row 1: Ticker symbol + daily percentage change (color-coded)
+    - Row 2: Current price
+    - Chart area: 16-pixel tall line graph (64 pixels wide)
+  - **Data:** 26 data points at 15-minute intervals (covers full 6.5-hour trading day)
+  - **Accurate percentage:** Uses actual market open price (9:30 AM) from quote API
+  - **Smart caching:** 15-minute cache reduces API usage (~26 calls/day vs 780)
+  - **Efficient API usage:** Single time_series call per 15 minutes
+  - **Visual feedback:** Line graph scales automatically to price range
+  - **Configurable ticker:** Easy to switch between stocks
+  - Toggle between chart mode and multi-stock rotation via code
+- **Resilient 4-Ticker Buffer (Multi-Stock Mode):**
   - Fetches 4 items but displays 3 (protects against invalid tickers)
   - Progressive degradation: Shows 3→2→skip based on API successes
   - Logs warnings for failed tickers (e.g., typos like "IBT" instead of "IBIT")
@@ -496,7 +522,7 @@ display_config.use_live_forecast = False
 
 ## Code Modularization
 
-### Current Structure: Monolithic (4117 lines)
+### Current Structure: Monolithic (5538 lines)
 
 The entire codebase currently resides in a single `code.py` file. This is a common pattern for CircuitPython projects due to memory constraints.
 
@@ -556,7 +582,41 @@ The entire codebase currently resides in a single `code.py` file. This is a comm
 
 ## Version History
 
-### 2.1.0 (Current)
+### 2.2.0 (Current - November 2025)
+- **Single Stock Chart Display:** Full-screen intraday price chart view
+  - **Visual Chart Display:**
+    - Row 1: Ticker symbol + daily percentage change (color-coded green/red)
+    - Row 2: Current price in dollars
+    - Chart area: 16-pixel tall line graph showing price movement
+    - 64-pixel wide display utilizes full screen width
+  - **Technical Implementation:**
+    - `fetch_intraday_time_series()`: Fetches time series data from Twelve Data API
+    - `show_single_stock_chart()`: Renders chart with bitmap labels and line shapes
+    - Uses `adafruit_display_shapes.line.Line` for chart rendering
+    - State caching: `cached_intraday_data` and `last_intraday_fetch_time`
+  - **Data & Accuracy:**
+    - 26 data points at 15-minute intervals (covers 6.5-hour trading day)
+    - Uses actual market open price (9:30 AM) for percentage calculation
+    - Prevents incorrect color/percentage when recent trend differs from daily trend
+    - Example: Stock down 2% for day but up in last 2 hours correctly shows red/-2%
+  - **Caching & Efficiency:**
+    - 15-minute cache for time series data
+    - Reduces API usage: ~26 calls/day (chart mode) vs ~104 calls/day (multi-stock rotation)
+    - Combined with quote API: ~52 calls/day total in chart mode
+    - Still well within 800/day free tier limit (6.5% usage)
+  - **Integration:**
+    - Easy toggle between chart mode (option=1) and multi-stock rotation (option=2)
+    - Configurable ticker symbol (currently hardcoded to "CRM")
+    - Works with existing market hours detection and caching
+    - Uses same color scheme and display infrastructure
+  - **Bug Fixes During Development:**
+    - Fixed CSV config parser to auto-convert numeric values to integers
+    - Fixed `stocks_display_frequency` type error (string vs int in modulo operation)
+    - Fixed color key names (uppercase: GREEN, RED, WHITE)
+    - Fixed label rendering (bitmap_label with font, state.main_group)
+    - Fixed percentage calculation to use actual day open price from quote API
+
+### 2.1.0
 - **Multi-Asset Market Data Integration:** Real-time prices for stocks, forex, crypto, and commodities
   - **Supports 4 Asset Types:**
     - **Stocks:** Triangle arrows (▲▼) + percentage change
