@@ -935,6 +935,8 @@ class WeatherDisplayState:
 		self.cached_stock_prices = {}  # {symbol: {price, change_percent, direction, timestamp}}
 		self.last_stock_fetch_time = 0
 		self.market_holiday_date = None  # Cache holiday status (YYYY-MM-DD format)
+		self.cached_intraday_data = {}  # {symbol: {data: [...], timestamp: monotonic, open_price: float}}
+		self.last_intraday_fetch_time = {}  # {symbol: monotonic_timestamp}
 
 		# Colors (set after matrix detection)
 		self.colors = {}
@@ -2631,6 +2633,101 @@ def fetch_stock_prices(symbols_to_fetch):
 
 	return stock_data
 
+def fetch_intraday_time_series(symbol, interval="15min", outputsize=26):
+	"""
+	Fetch intraday time series data from Twelve Data API.
+
+	Args:
+		symbol: Stock ticker symbol (e.g., "CRM")
+		interval: Data interval ("5min", "15min", "30min", "1h")
+		outputsize: Number of data points to fetch (default 26 for ~6.5 hours with 15min interval)
+
+	Returns:
+		List of dicts: [{datetime, open_price, close_price}, ...] ordered chronologically (oldest first)
+		Returns empty list on error
+	"""
+	import time
+
+	# Get API key
+	api_key = os.getenv(Strings.TWELVE_DATA_API_KEY)
+	if not api_key:
+		log_warning("TWELVE_DATA_API_KEY not configured in settings.toml")
+		return []
+
+	session = get_requests_session()
+	if not session:
+		log_warning("No session available for intraday fetch")
+		return []
+
+	response = None
+
+	try:
+		# Build URL with string concatenation (CircuitPython f-string limitation)
+		url = "https://api.twelvedata.com/time_series?symbol=" + symbol
+		url += "&interval=" + interval
+		url += "&outputsize=" + str(outputsize)
+		url += "&timezone=America/New_York&apikey=" + api_key
+
+		log_verbose("Fetching intraday data for " + symbol)
+		response = session.get(url, timeout=10)
+
+		if not response:
+			log_warning("No response from server")
+			return []
+
+		if response.status_code == 200:
+			import json
+			data = json.loads(response.text)
+
+			# Check for errors
+			if "status" in data and data["status"] == "error":
+				log_warning("API error for " + symbol + ": " + data.get("message", "unknown"))
+				return []
+
+			# Extract values array
+			if "values" not in data:
+				log_warning("No values in time series response")
+				return []
+
+			values = data["values"]
+			if not values or len(values) == 0:
+				log_warning("Empty values array in time series")
+				return []
+
+			# Parse data points (API returns newest first, we want oldest first)
+			time_series = []
+			for point in reversed(values):
+				try:
+					time_series.append({
+						"datetime": point.get("datetime", ""),
+						"open_price": float(point.get("open", 0)),
+						"close_price": float(point.get("close", 0))
+					})
+				except (ValueError, TypeError) as e:
+					log_verbose("Skipping invalid data point: " + str(e))
+					continue
+
+			num_points = len(time_series)
+			log_verbose("Received " + str(num_points) + " data points for " + symbol)
+			return time_series
+		else:
+			log_warning("HTTP " + str(response.status_code) + " for intraday fetch")
+			return []
+
+	except Exception as e:
+		log_warning("Failed to fetch intraday data: " + str(e))
+		return []
+
+	finally:
+		# CRITICAL: Close response to release socket
+		if response:
+			try:
+				response.close()
+			except:
+				pass
+
+	return []
+
 def fetch_github_data(rtc):
 	"""
 	Fetch events, schedules, and stocks from GitHub in one operation
@@ -4034,6 +4131,180 @@ def show_stocks_display(duration, offset, rtc):
 	state.memory_monitor.check_memory("stocks_display_complete")
 	return (True, next_offset)
 
+def show_single_stock_chart(ticker, duration, rtc):
+	"""
+	Display single stock with intraday price chart using time series data.
+
+	Layout:
+	- Row 1 (y=1): Ticker symbol + percentage change
+	- Row 2 (y=9): Current price
+	- Chart area (y=16-31): Intraday price movement (16 pixels tall, 64 pixels wide)
+
+	Args:
+		ticker: Stock symbol to display (e.g., "CRM")
+		duration: Display duration in seconds
+		rtc: RTC object for timing
+
+	Returns:
+		bool: True if displayed, False if skipped
+	"""
+	import time
+	from adafruit_display_shapes.line import Line
+
+	INTRADAY_CACHE_MAX_AGE = 900  # 15 minutes (900 seconds)
+
+	# Check if we need to fetch new data
+	current_time = time.monotonic()
+	should_fetch = True
+
+	if ticker in state.last_intraday_fetch_time:
+		time_since_fetch = current_time - state.last_intraday_fetch_time[ticker]
+		if time_since_fetch < INTRADAY_CACHE_MAX_AGE:
+			should_fetch = False
+			log_verbose("Using cached intraday data for " + ticker)
+
+	# Fetch time series if needed
+	if should_fetch:
+		log_info("Fetching intraday data for " + ticker)
+		time_series = fetch_intraday_time_series(ticker, interval="15min", outputsize=26)
+
+		if not time_series or len(time_series) == 0:
+			log_warning("No intraday data available for " + ticker)
+			return False
+
+		# Cache the data
+		state.cached_intraday_data[ticker] = {
+			"data": time_series,
+			"timestamp": current_time,
+			"open_price": time_series[0]["close_price"] if len(time_series) > 0 else 0
+		}
+		state.last_intraday_fetch_time[ticker] = current_time
+
+	# Get cached data
+	if ticker not in state.cached_intraday_data:
+		log_warning("No cached data for " + ticker)
+		return False
+
+	cached = state.cached_intraday_data[ticker]
+	time_series = cached["data"]
+	open_price = cached["open_price"]
+
+	# Fetch current quote for latest price and percentage
+	quote_data = fetch_stock_prices([{"symbol": ticker, "name": ticker}])
+
+	if ticker not in quote_data:
+		log_warning("Could not fetch current quote for " + ticker)
+		return False
+
+	current_price = quote_data[ticker]["price"]
+	change_percent = quote_data[ticker]["change_percent"]
+	direction = quote_data[ticker]["direction"]
+
+	# Calculate price change from open
+	if open_price > 0:
+		day_change_percent = ((current_price - open_price) / open_price) * 100
+	else:
+		day_change_percent = change_percent
+
+	# Determine color based on direction
+	if day_change_percent >= 0:
+		chart_color = state.colors["green"]
+		pct_color = state.colors["green"]
+	else:
+		chart_color = state.colors["red"]
+		pct_color = state.colors["red"]
+
+	# Clear display
+	clear_display()
+	gc.collect()
+
+	try:
+		# Row 1 (y=1): Ticker + percentage
+		ticker_label = label.Label(
+			terminalio.FONT,
+			text=ticker,
+			color=state.colors["white"],
+			x=1,
+			y=1
+		)
+		display.root_group.append(ticker_label)
+
+		# Format percentage with + sign for positive values
+		if day_change_percent >= 0:
+			pct_text = "+" + "{:.2f}".format(day_change_percent) + "%"
+		else:
+			pct_text = "{:.2f}".format(day_change_percent) + "%"
+
+		pct_label = label.Label(
+			terminalio.FONT,
+			text=pct_text,
+			color=pct_color,
+			x=64 - (len(pct_text) * 6),  # Right-aligned
+			y=1
+		)
+		display.root_group.append(pct_label)
+
+		# Row 2 (y=9): Current price
+		price_text = "${:.2f}".format(current_price)
+		price_label = label.Label(
+			terminalio.FONT,
+			text=price_text,
+			color=state.colors["white"],
+			x=1,
+			y=9
+		)
+		display.root_group.append(price_label)
+
+		# Chart area: y=16 to y=31 (16 pixels tall)
+		CHART_HEIGHT = 16
+		CHART_Y_START = 16
+		CHART_WIDTH = 64
+
+		# Find min and max prices for scaling
+		prices = [point["close_price"] for point in time_series]
+		min_price = min(prices)
+		max_price = max(prices)
+		price_range = max_price - min_price
+
+		# Handle flat line (all prices the same)
+		if price_range == 0:
+			price_range = 1
+
+		# Scale prices to chart height and spread across chart width
+		data_points = []
+		num_points = len(time_series)
+
+		for i, point in enumerate(time_series):
+			# X position: spread evenly across 64 pixels
+			x = int((i / (num_points - 1)) * (CHART_WIDTH - 1)) if num_points > 1 else 0
+
+			# Y position: scale price to chart height (inverted because y increases downward)
+			price_scaled = (point["close_price"] - min_price) / price_range
+			y = CHART_Y_START + CHART_HEIGHT - 1 - int(price_scaled * (CHART_HEIGHT - 1))
+
+			data_points.append((x, y))
+
+		# Draw lines connecting data points
+		for i in range(len(data_points) - 1):
+			x1, y1 = data_points[i]
+			x2, y2 = data_points[i + 1]
+			line = Line(x1, y1, x2, y2, color=chart_color)
+			display.root_group.append(line)
+
+		log_info("Chart: " + ticker + " " + pct_text + " ($" + "{:.2f}".format(current_price) + ") with " + str(num_points) + " data points")
+
+		# Hold display for duration
+		time.sleep(duration)
+
+		return True
+
+	except Exception as e:
+		log_error("Chart display error: " + str(e))
+		return False
+
+	finally:
+		gc.collect()
+
 def show_forecast_display(current_data, forecast_data, display_duration, is_fresh=False):
 	"""Optimized forecast display with smart precipitation detection"""
 	
@@ -5096,6 +5367,13 @@ def _run_normal_cycle(rtc, cycle_count, cycle_start_time):
 			should_show_stocks = True
 
 		if should_show_stocks:
+			# Option 1: Show single stock chart (uncomment to enable)
+			# stocks_shown = show_single_stock_chart("CRM", Timing.DEFAULT_EVENT, rtc)
+			# something_displayed = something_displayed or stocks_shown
+			# if stocks_shown:
+			#     state.tracker.record_display_success()
+
+			# Option 2: Show multi-stock rotation (default)
 			stocks_shown, next_offset = show_stocks_display(Timing.DEFAULT_EVENT, state.tracker.current_stock_offset, rtc)
 			something_displayed = something_displayed or stocks_shown
 			if stocks_shown:
