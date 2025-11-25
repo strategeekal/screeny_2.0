@@ -2844,7 +2844,7 @@ def apply_display_config(config_dict):
 		display_config.show_stocks = config_dict["show_stocks"]
 		applied += 1
 	if "stocks_display_frequency" in config_dict:
-		display_config.stocks_display_frequency = config_dict["stocks_display_frequency"]
+		display_config.stocks_display_frequency = int(config_dict["stocks_display_frequency"])
 		applied += 1
 	if "stocks_respect_market_hours" in config_dict:
 		display_config.stocks_respect_market_hours = config_dict["stocks_respect_market_hours"]
