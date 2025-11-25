@@ -2742,10 +2742,15 @@ def parse_display_config_csv(csv_content):
 				key = parts[0]
 				value = parts[1]
 
-				# Convert to boolean
+				# Convert to appropriate type
 				if value in ('0', '1'):
+					# Boolean values
 					config[key] = (value == '1')
+				elif value.isdigit():
+					# Numeric values (e.g., stocks_display_frequency=3)
+					config[key] = int(value)
 				else:
+					# String values
 					config[key] = value
 
 				log_verbose(f"Config: {key} = {config[key]}")
@@ -2844,7 +2849,7 @@ def apply_display_config(config_dict):
 		display_config.show_stocks = config_dict["show_stocks"]
 		applied += 1
 	if "stocks_display_frequency" in config_dict:
-		display_config.stocks_display_frequency = int(config_dict["stocks_display_frequency"])
+		display_config.stocks_display_frequency = config_dict["stocks_display_frequency"]
 		applied += 1
 	if "stocks_respect_market_hours" in config_dict:
 		display_config.stocks_respect_market_hours = config_dict["stocks_respect_market_hours"]
