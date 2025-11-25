@@ -814,6 +814,7 @@ class StateTracker:
 		self.api_call_count = 0
 		self.current_api_calls = 0
 		self.forecast_api_calls = 0
+		self.stock_api_calls = 0
 		self.consecutive_failures = 0
 		self.last_successful_display = 0  # Last time ANY display was successful
 		self.last_successful_weather = 0  # Last time weather API was successful (for hard reset)
@@ -833,17 +834,21 @@ class StateTracker:
 		self.current_stock_offset = 0  # Current page offset (increments by 3 each display)
 
 	# API Tracking Methods
-	def record_api_success(self, call_type):
-		"""Track successful API call (call_type: 'current' or 'forecast')"""
+	def record_api_success(self, call_type, count=1):
+		"""Track successful API call (call_type: 'current', 'forecast', or 'stock')
+		count: Number of API credits used (e.g., 4 for batch stock request)"""
 		if call_type == "current":
-			self.current_api_calls += 1
+			self.current_api_calls += count
 		elif call_type == "forecast":
-			self.forecast_api_calls += 1
-		self.api_call_count += 1
+			self.forecast_api_calls += count
+		elif call_type == "stock":
+			self.stock_api_calls += count
+		self.api_call_count += count
 
 	def get_api_stats(self):
 		"""Get formatted API stats string for logging"""
-		return f"Total={self.api_call_count}/{API.MAX_CALLS_BEFORE_RESTART}, Current={self.current_api_calls}, Forecast={self.forecast_api_calls}"
+		weather_total = self.current_api_calls + self.forecast_api_calls
+		return f"Weather {weather_total}/15000, Stocks {self.stock_api_calls}/800"
 
 	def reset_api_counters(self):
 		"""Reset API call tracking - returns old total for logging"""
@@ -851,6 +856,7 @@ class StateTracker:
 		self.api_call_count = 0
 		self.current_api_calls = 0
 		self.forecast_api_calls = 0
+		self.stock_api_calls = 0
 		return old_total
 
 	# Display Success/Failure Tracking
@@ -2325,13 +2331,16 @@ def parse_schedule_csv_content(csv_content, rtc):
 def parse_stocks_csv_content(csv_content):
 	"""Parse stock/forex/crypto/commodity CSV content directly from string.
 
-	Format: symbol,name,type,display_name
+	Format: symbol,name,type,display_name,highlight
 	- symbol: Ticker, forex pair, crypto, or commodity symbol (required)
 	- name: Full name for reference (required)
 	- type: "stock", "forex", "crypto", or "commodity" (optional, default: "stock")
 	- display_name: Short name for display (optional, default: symbol)
+	- highlight: 0 or 1 to show in chart mode (optional, default: 0)
 
 	Display behavior:
+	- highlight=1: Show as single stock chart with intraday price graph
+	- highlight=0: Show in multi-stock rotation (3 stocks at a time)
 	- stock: Triangle arrow + ticker + percentage change
 	- forex: $ indicator + ticker + price (colored, with K/M suffix)
 	- crypto: $ indicator + ticker + price (colored, with K/M suffix)
@@ -2363,13 +2372,20 @@ def parse_stocks_csv_content(csv_content):
 				# Parse optional display_name field (default: symbol)
 				display_name = parts[3].upper() if len(parts) >= 4 and parts[3] else symbol
 
+				# Parse optional highlight field (default: False/0)
+				highlight = False
+				if len(parts) >= 5 and parts[4]:
+					highlight = (parts[4] == '1' or parts[4].lower() == 'true')
+
 				stocks.append({
 					"symbol": symbol,
 					"name": name,
 					"type": item_type,
-					"display_name": display_name
+					"display_name": display_name,
+					"highlight": highlight
 				})
-				log_verbose(f"Parsed {item_type}: {symbol} ({name}) -> display as '{display_name}'")
+				highlight_str = " [CHART]" if highlight else ""
+				log_verbose(f"Parsed {item_type}: {symbol} ({name}) -> display as '{display_name}'{highlight_str}")
 
 		log_debug(f"Parsed {len(stocks)} stocks/forex from CSV")
 		return stocks
@@ -2613,6 +2629,11 @@ def fetch_stock_prices(symbols_to_fetch):
 					log_warning(f"Error parsing data for {symbol}: {e}")
 					continue
 
+			# Track API usage: Each symbol counts as 1 API credit
+			if len(stock_data) > 0:
+				state.tracker.record_api_success("stock", len(stock_data))
+				log_verbose(f"Stock API: +{len(stock_data)} credits (Total: {state.tracker.stock_api_calls}/800)")
+
 			# Log summary
 			if len(stock_data) < len(symbols_list):
 				failed = [sym for sym in symbols_list if sym not in stock_data]
@@ -2711,7 +2732,9 @@ def fetch_intraday_time_series(symbol, interval="15min", outputsize=26):
 					continue
 
 			num_points = len(time_series)
-			log_verbose("Received " + str(num_points) + " data points for " + symbol)
+			# Track API usage: 1 credit for time_series call
+			state.tracker.record_api_success("stock", 1)
+			log_verbose("Received " + str(num_points) + " data points for " + symbol + " (Stock API: +" + str(1) + ", Total: " + str(state.tracker.stock_api_calls) + "/800)")
 			return time_series
 		else:
 			log_warning("HTTP " + str(response.status_code) + " for intraday fetch")
@@ -4027,10 +4050,11 @@ def show_stocks_display(duration, offset, rtc):
 
 	# Add market status to log if displaying cached data
 	# Note: Show count out of fetched (4) to indicate buffer usage
+	cache_status = "(fresh)" if should_fetch else "(cached)"
 	if "CLOSED" in reason:
-		log_info(f"Stocks ({len(stocks_to_show)}/{len(stocks_to_fetch)}), markets closed, displaying cached data: {stock_details}")
+		log_info(f"Stocks ({len(stocks_to_show)}/{len(stocks_to_fetch)}), markets closed, displaying cached data: {stock_details} {cache_status}")
 	else:
-		log_info(f"Stocks ({len(stocks_to_show)}/{len(stocks_to_fetch)}): {stock_details}")
+		log_info(f"Stocks ({len(stocks_to_show)}/{len(stocks_to_fetch)}): {stock_details} {cache_status}")
 
 	clear_display()
 	gc.collect()
@@ -4134,6 +4158,47 @@ def show_stocks_display(duration, offset, rtc):
 	state.memory_monitor.check_memory("stocks_display_complete")
 	return (True, next_offset)
 
+def get_stock_display_mode(stocks_list, offset):
+	"""Determine if we should show chart or multi-stock based on highlight flags.
+
+	Args:
+		stocks_list: List of stock dicts with 'highlight' field
+		offset: Current rotation offset
+
+	Returns:
+		tuple: (mode, ticker_or_stocks)
+			mode: "chart" or "multi"
+			ticker_or_stocks: symbol string (for chart) or None (for multi)
+	"""
+	if not stocks_list or len(stocks_list) == 0:
+		return ("multi", None)
+
+	# Wrap offset
+	offset = offset % len(stocks_list)
+	current_stock = stocks_list[offset]
+
+	# Check if current stock is highlighted
+	if current_stock.get("highlight", False):
+		# Show chart for this highlighted stock
+		return ("chart", current_stock["symbol"])
+
+	# Current stock is NOT highlighted - show multi-stock mode
+	# We need to find next 2 non-highlighted stocks
+
+	# First, count how many non-highlighted stocks exist
+	non_highlighted = [s for s in stocks_list if not s.get("highlight", False)]
+
+	if len(non_highlighted) == 0:
+		# Edge case: All highlighted - show first one as chart
+		return ("chart", stocks_list[0]["symbol"])
+	elif len(non_highlighted) >= 3:
+		# Enough non-highlighted stocks - show multi-stock mode normally
+		return ("multi", None)
+	else:
+		# Less than 3 non-highlighted stocks - still show multi-stock mode
+		# The show_stocks_display function will handle filling in with highlighted stocks
+		return ("multi", None)
+
 def show_single_stock_chart(ticker, duration, rtc):
 	"""
 	Display single stock with intraday price chart using time series data.
@@ -4159,6 +4224,7 @@ def show_single_stock_chart(ticker, duration, rtc):
 	# Check if we need to fetch new data
 	current_time = time.monotonic()
 	should_fetch = True
+	data_is_fresh = False
 
 	if ticker in state.last_intraday_fetch_time:
 		time_since_fetch = current_time - state.last_intraday_fetch_time[ticker]
@@ -4168,6 +4234,7 @@ def show_single_stock_chart(ticker, duration, rtc):
 
 	# Fetch time series if needed
 	if should_fetch:
+		data_is_fresh = True
 		log_info("Fetching intraday data for " + ticker)
 		time_series = fetch_intraday_time_series(ticker, interval="15min", outputsize=26)
 
@@ -4292,7 +4359,8 @@ def show_single_stock_chart(ticker, duration, rtc):
 			line = Line(x1, y1, x2, y2, color=chart_color)
 			state.main_group.append(line)
 
-		log_info("Chart: " + ticker + " " + pct_text + " ($" + "{:.2f}".format(current_price) + ") with " + str(num_points) + " data points")
+		cache_status = "(fresh)" if data_is_fresh else "(cached)"
+		log_info("Chart: " + ticker + " " + pct_text + " ($" + "{:.2f}".format(current_price) + ") with " + str(num_points) + " data points " + cache_status)
 
 		# Hold display for duration
 		time.sleep(duration)
@@ -5369,18 +5437,19 @@ def _run_normal_cycle(rtc, cycle_count, cycle_start_time):
 			should_show_stocks = True
 
 		if should_show_stocks:
-			# Option 1: Show single stock chart
-			# Option 2: Show multi-stock rotation (default)
-			option = 1
-			if option == 1:
+			# Smart rotation: Check if current stock is highlighted
+			display_mode, ticker = get_stock_display_mode(state.cached_stocks, state.tracker.current_stock_offset)
 
-				stocks_shown = show_single_stock_chart("CRM", Timing.DEFAULT_EVENT, rtc)
+			if display_mode == "chart":
+				# Show single stock chart for highlighted stock
+				stocks_shown = show_single_stock_chart(ticker, Timing.DEFAULT_EVENT, rtc)
 				something_displayed = something_displayed or stocks_shown
 				if stocks_shown:
-				    state.tracker.record_display_success()
-					
+					# Advance offset by 1 (move to next stock)
+					state.tracker.current_stock_offset = (state.tracker.current_stock_offset + 1) % len(state.cached_stocks)
+					state.tracker.record_display_success()
 			else:
-
+				# Show multi-stock rotation (3 stocks at a time)
 				stocks_shown, next_offset = show_stocks_display(Timing.DEFAULT_EVENT, state.tracker.current_stock_offset, rtc)
 				something_displayed = something_displayed or stocks_shown
 				if stocks_shown:
