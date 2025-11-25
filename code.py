@@ -847,8 +847,7 @@ class StateTracker:
 
 	def get_api_stats(self):
 		"""Get formatted API stats string for logging"""
-		weather_total = self.current_api_calls + self.forecast_api_calls
-		return f"Weather {weather_total}/15000, Stocks {self.stock_api_calls}/800"
+		return f"Total={self.api_call_count}/{API.MAX_CALLS_BEFORE_RESTART}, Current={self.current_api_calls}, Forecast={self.forecast_api_calls}, Stocks={self.stock_api_calls}/800"
 
 	def reset_api_counters(self):
 		"""Reset API call tracking - returns old total for logging"""
