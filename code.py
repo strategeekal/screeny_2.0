@@ -19,7 +19,7 @@ import time
 import ssl
 import microcontroller
 import random
-#import traceback Run --> traceback.print_exception(e)
+import traceback
 
 # Display
 import displayio
@@ -4239,25 +4239,26 @@ def show_single_stock_chart(ticker, duration, rtc):
 			font,
 			text=pct_text,
 			color=pct_color,
-			x=64 - (len(pct_text) * 6),  # Right-aligned
+			x=64 - get_text_width(pct_text, font),  # Right-aligned
 			y=1
 		)
 		state.main_group.append(pct_label)
 
 		# Row 2 (y=9): Current price
-		price_text = "${:.2f}".format(current_price)
+		price_text = "{:.2f}".format(current_price)
 		price_label = bitmap_label.Label(
 			font,
 			text=price_text,
 			color=state.colors["WHITE"],
-			x=1,
+			# x=1,
+			x=64 - get_text_width(price_text, font),  # Right-aligned
 			y=9
 		)
 		state.main_group.append(price_label)
 
 		# Chart area: y=16 to y=31 (16 pixels tall)
-		CHART_HEIGHT = 16
-		CHART_Y_START = 16
+		CHART_HEIGHT = 15
+		CHART_Y_START = 17
 		CHART_WIDTH = 64
 
 		# Find min and max prices for scaling
@@ -4300,6 +4301,7 @@ def show_single_stock_chart(ticker, duration, rtc):
 
 	except Exception as e:
 		log_error("Chart display error: " + str(e))
+		traceback.print_exception(e)
 		return False
 
 	finally:
