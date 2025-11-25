@@ -4208,11 +4208,11 @@ def show_single_stock_chart(ticker, duration, rtc):
 
 	# Determine color based on direction
 	if day_change_percent >= 0:
-		chart_color = state.colors["green"]
-		pct_color = state.colors["green"]
+		chart_color = state.colors["GREEN"]
+		pct_color = state.colors["GREEN"]
 	else:
-		chart_color = state.colors["red"]
-		pct_color = state.colors["red"]
+		chart_color = state.colors["RED"]
+		pct_color = state.colors["RED"]
 
 	# Clear display
 	clear_display()
@@ -4223,7 +4223,7 @@ def show_single_stock_chart(ticker, duration, rtc):
 		ticker_label = label.Label(
 			terminalio.FONT,
 			text=ticker,
-			color=state.colors["white"],
+			color=state.colors["WHITE"],
 			x=1,
 			y=1
 		)
@@ -4249,7 +4249,7 @@ def show_single_stock_chart(ticker, duration, rtc):
 		price_label = label.Label(
 			terminalio.FONT,
 			text=price_text,
-			color=state.colors["white"],
+			color=state.colors["WHITE"],
 			x=1,
 			y=9
 		)
