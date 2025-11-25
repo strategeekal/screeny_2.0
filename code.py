@@ -19,6 +19,7 @@ import time
 import ssl
 import microcontroller
 import random
+#import traceback Run --> traceback.print_exception(e)
 
 # Display
 import displayio
@@ -4220,14 +4221,13 @@ def show_single_stock_chart(ticker, duration, rtc):
 
 	try:
 		# Row 1 (y=1): Ticker + percentage
-		ticker_label = label.Label(
-			terminalio.FONT,
+		ticker_label = bitmap_label.Label(
+			font,
 			text=ticker,
 			color=state.colors["WHITE"],
-			x=1,
 			y=1
 		)
-		display.root_group.append(ticker_label)
+		state.main_group.append(ticker_label)
 
 		# Format percentage with + sign for positive values
 		if day_change_percent >= 0:
@@ -4235,25 +4235,25 @@ def show_single_stock_chart(ticker, duration, rtc):
 		else:
 			pct_text = "{:.2f}".format(day_change_percent) + "%"
 
-		pct_label = label.Label(
-			terminalio.FONT,
+		pct_label = bitmap_label.Label(
+			font,
 			text=pct_text,
 			color=pct_color,
 			x=64 - (len(pct_text) * 6),  # Right-aligned
 			y=1
 		)
-		display.root_group.append(pct_label)
+		state.main_group.append(pct_label)
 
 		# Row 2 (y=9): Current price
 		price_text = "${:.2f}".format(current_price)
-		price_label = label.Label(
-			terminalio.FONT,
+		price_label = bitmap_label.Label(
+			font,
 			text=price_text,
 			color=state.colors["WHITE"],
 			x=1,
 			y=9
 		)
-		display.root_group.append(price_label)
+		state.main_group.append(price_label)
 
 		# Chart area: y=16 to y=31 (16 pixels tall)
 		CHART_HEIGHT = 16
@@ -4289,7 +4289,7 @@ def show_single_stock_chart(ticker, duration, rtc):
 			x1, y1 = data_points[i]
 			x2, y2 = data_points[i + 1]
 			line = Line(x1, y1, x2, y2, color=chart_color)
-			display.root_group.append(line)
+			state.main_group.append(line)
 
 		log_info("Chart: " + ticker + " " + pct_text + " ($" + "{:.2f}".format(current_price) + ") with " + str(num_points) + " data points")
 
@@ -5367,18 +5367,23 @@ def _run_normal_cycle(rtc, cycle_count, cycle_start_time):
 			should_show_stocks = True
 
 		if should_show_stocks:
-			# Option 1: Show single stock chart (uncomment to enable)
-			# stocks_shown = show_single_stock_chart("CRM", Timing.DEFAULT_EVENT, rtc)
-			# something_displayed = something_displayed or stocks_shown
-			# if stocks_shown:
-			#     state.tracker.record_display_success()
-
+			# Option 1: Show single stock chart
 			# Option 2: Show multi-stock rotation (default)
-			stocks_shown, next_offset = show_stocks_display(Timing.DEFAULT_EVENT, state.tracker.current_stock_offset, rtc)
-			something_displayed = something_displayed or stocks_shown
-			if stocks_shown:
-				state.tracker.current_stock_offset = next_offset  # Update for next display
-				state.tracker.record_display_success()
+			option = 1
+			if option == 1:
+
+				stocks_shown = show_single_stock_chart("CRM", Timing.DEFAULT_EVENT, rtc)
+				something_displayed = something_displayed or stocks_shown
+				if stocks_shown:
+				    state.tracker.record_display_success()
+					
+			else:
+
+				stocks_shown, next_offset = show_stocks_display(Timing.DEFAULT_EVENT, state.tracker.current_stock_offset, rtc)
+				something_displayed = something_displayed or stocks_shown
+				if stocks_shown:
+					state.tracker.current_stock_offset = next_offset  # Update for next display
+					state.tracker.record_display_success()
 
 	# Test modes
 	if display_config.show_color_test:
