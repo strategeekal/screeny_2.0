@@ -41,8 +41,15 @@ import adafruit_requests as requests
 # Hardware
 import adafruit_ds3231
 import adafruit_ntp
-from adafruit_seesaw import seesaw, neokey1x4
-from adafruit_seesaw import keypad
+
+# Optional: NeoKey 1x4 support (graceful degradation if library not installed)
+try:
+	from adafruit_seesaw import seesaw, neokey1x4
+	from adafruit_seesaw import keypad
+	NEOKEY_AVAILABLE = True
+except ImportError:
+	NEOKEY_AVAILABLE = False
+	neokey1x4 = None  # Prevent NameError in setup_neokey()
 
 gc.collect()
 
@@ -1207,6 +1214,12 @@ def setup_rtc():
 
 def setup_neokey():
 	"""Initialize NeoKey 1x4 for button control (optional - graceful degradation if not connected)"""
+	# Check if library is installed
+	if not NEOKEY_AVAILABLE:
+		log_debug("NeoKey library not installed (optional) - buttons disabled")
+		state.neokey = None
+		return None
+
 	try:
 		i2c = board.I2C()
 		neokey = neokey1x4.NeoKey1x4(i2c, addr=NeoKey.I2C_ADDRESS)
