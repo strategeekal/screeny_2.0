@@ -1960,30 +1960,38 @@ def should_fetch_forecast():
 	return (current_time - state.last_forecast_fetch) >= Timing.FORECAST_UPDATE_INTERVAL
 	
 def get_today_events_info(rtc):
-	"""Get information about today's ACTIVE events (filtered by time)"""
+	"""Get information about today's ACTIVE events (filtered by time and year)"""
 	month_day = f"{rtc.datetime.tm_mon:02d}{rtc.datetime.tm_mday:02d}"
 	events = get_events()
-	
+
 	if month_day not in events:
 		return 0, []
-	
+
 	current_hour = rtc.datetime.tm_hour
-	
-	# Filter events by current time
-	active_events = [event for event in events[month_day] if is_event_active(event, current_hour)]
-	
+	current_year = rtc.datetime.tm_year
+
+	# Filter events by current time AND year (0 = any year, otherwise must match current year)
+	active_events = [event for event in events[month_day]
+	                 if is_event_active(event, current_hour)
+	                 and (len(event) < 7 or event[6] == 0 or event[6] == current_year)]
+
 	return len(active_events), active_events
 	
 def get_today_all_events_info(rtc):
-	"""Get ALL events for today (not filtered by time)"""
+	"""Get ALL events for today (not filtered by time, but filtered by year)"""
 	month_day = f"{rtc.datetime.tm_mon:02d}{rtc.datetime.tm_mday:02d}"
 	events = get_events()
-	
+
 	if month_day not in events:
 		return 0, []
-	
-	# Return all events without time filtering
-	return len(events[month_day]), events[month_day]
+
+	current_year = rtc.datetime.tm_year
+
+	# Filter by year (0 = any year, otherwise must match current year)
+	today_events = [event for event in events[month_day]
+	                if (len(event) < 7 or event[6] == 0 or event[6] == current_year)]
+
+	return len(today_events), today_events
 
 ### DISPLAY UTILITIES ###
 
@@ -2114,14 +2122,15 @@ def normalize_date_key(date_str):
 	return date_key
 
 def parse_event_data(parts):
-	"""Extract event data fields from CSV parts. Returns [top_line, bottom_line, image, color, start_hour, end_hour]"""
+	"""Extract event data fields from CSV parts. Returns [top_line, bottom_line, image, color, start_hour, end_hour, year]"""
 	return [
 		parts[1],  # top_line
 		parts[2],  # bottom_line
 		parts[3],  # image
 		parts[4] if len(parts) > 4 and parts[4].strip() else Strings.DEFAULT_EVENT_COLOR,
 		int(parts[5]) if len(parts) > 5 and parts[5].strip() else Timing.EVENT_ALL_DAY_START,
-		int(parts[6]) if len(parts) > 6 and parts[6].strip() else Timing.EVENT_ALL_DAY_END
+		int(parts[6]) if len(parts) > 6 and parts[6].strip() else Timing.EVENT_ALL_DAY_END,
+		0  # year - will be set when parsing (0 = any year for permanent events)
 	]
 
 def load_events_from_file(filepath):
@@ -2266,6 +2275,7 @@ def parse_events_csv_content(csv_content, rtc):
 							# Convert YYYY-MM-DD to MMDD and extract event data
 							date_key = normalize_date_key(f"{date_parts[1]}-{date_parts[2]}")
 							event_data = parse_event_data(parts)
+							event_data[6] = event_year  # Store the year for ephemeral events
 							events.setdefault(date_key, []).append(event_data)
 
 					except (ValueError, IndexError):
