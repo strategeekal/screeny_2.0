@@ -1132,10 +1132,14 @@ def initialize_display():
 
 
 def interruptible_sleep(duration):
-	"""Sleep that can be interrupted more easily"""
+	"""Sleep that can be interrupted more easily (checks stop button)"""
 	end_time = time.monotonic() + duration
 	while time.monotonic() < end_time:
-		time.sleep(Timing.INTERRUPTIBLE_SLEEP_INTERVAL)  # Short sleep allows more interrupt opportunities
+		# Check stop button - direct GPIO read, no function calls to avoid stack depth
+		if state.button_up and not state.button_up.value:
+			raise KeyboardInterrupt("Stop button pressed")
+
+		time.sleep(Timing.INTERRUPTIBLE_SLEEP_INTERVAL)
 
 def setup_rtc():
 	"""Initialize RTC with retry logic"""
