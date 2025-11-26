@@ -1,6 +1,6 @@
 # Pantallita 2.3.0
 
-A dual RGB matrix weather display system running on MatrixPortal S3, showing real-time weather, forecasts, stock prices with intraday charts, events, and scheduled activities for family use. Now with interactive button control via Adafruit NeoKey 1x4.
+A dual RGB matrix weather display system running on MatrixPortal S3, showing real-time weather, forecasts, stock prices with intraday charts, events, and scheduled activities for family use. Features built-in button control for easy stop/exit.
 
 ## Overview
 
@@ -11,7 +11,7 @@ Pantallita displays weather information, 12-hour forecasts, stock market data, f
 - **Controller:** Adafruit MatrixPortal S3 (ESP32-S3, 8MB flash, 2MB SRAM)
 - **Displays:** 2× RGB LED matrices (64×32 pixels, 4-bit color depth)
 - **RTC:** DS3231 real-time clock module
-- **Buttons (Optional):** Adafruit NeoKey 1x4 (I2C, STEMMA QT)
+- **Buttons:** 2× built-in buttons on MatrixPortal S3 (UP/DOWN)
 - **Power:** 5V power supply
 - **Firmware:** Adafruit CircuitPython 9.2.8
 
@@ -26,7 +26,7 @@ Pantallita displays weather information, 12-hour forecasts, stock market data, f
   - `adafruit_requests` - HTTP client
   - `adafruit_ntp` - Time synchronization
   - `adafruit_ds3231` - RTC module
-  - `adafruit_seesaw` - NeoKey 1x4 button control
+  - `digitalio` - Built-in button control (GPIO)
   - `adafruit_imageload` - BMP image loading
   - `adafruit_bitmap_font` - Text rendering
   - `adafruit_display_shapes` - Line shapes for chart rendering
@@ -369,59 +369,44 @@ GC=F,Gold Futures,commodity,GLD,0
   - Works with both local CSV and remote GitHub configuration
   - Automatic timezone conversion (works from any US timezone)
 
-### Interactive Button Control (NEW in 2.3.0)
+### Built-in Button Control (NEW in 2.3.0)
 
-The optional **Adafruit NeoKey 1x4** adds physical button control to Pantallita, transforming it from a passive display to an interactive system.
+The **MatrixPortal S3's built-in buttons** provide simple, hardware-integrated control for stopping the program.
 
-**Hardware Setup:**
-- **Connection:** I2C via STEMMA QT connector (plug and play)
-- **I2C Address:** 0x30 (default)
-- **Power:** Powered through STEMMA QT connection
-- **Graceful Degradation:** If not connected, all features work normally without buttons
+**Hardware:**
+- **UP Button:** Physical button on the side of MatrixPortal S3
+- **DOWN Button:** Physical button on the side of MatrixPortal S3 (reserved for future use)
+- **No additional hardware required** - buttons are built into the controller
+- **Direct GPIO access** - simple, lightweight implementation
 
 **Button Functions:**
-- **Button 0 (Stop):** Immediately stops the program and exits (equivalent to ctrl+c)
-  - LED turns red when pressed
-  - Clean shutdown with memory report
-- **Button 1 (Next Display):** Manually advance to next display in rotation
-  - LED flashes bright green when pressed
-  - **API Safeguards:**
-    - 5-second minimum cooldown between advances (prevents button spam)
-    - Uses cached data only (no additional API calls triggered)
-    - Respects normal rotation order
-  - **Cooldown Protection:** If pressed too soon, LED shows orange and returns to ready state
-  - Cuts current display short using `interruptible_sleep()` interrupt mechanism
-- **Button 2 (Status):** Reserved for data freshness indicator
-  - Shows green when fresh API data is displayed
-  - Shows yellow when using cached data
-- **Button 3:** Reserved for future features
+- **UP Button (Stop):** Press to immediately stop the program
+  - Raises `KeyboardInterrupt` for clean shutdown
+  - Exits gracefully with memory report
+  - Equivalent to ctrl+c
+  - Checked once per display cycle (minimal overhead)
 
-**LED Color Indicators:**
-- **Green (Ready):** Button ready to use
-- **Bright Green (Fresh):** Fresh API data displayed
-- **Yellow (Cached):** Using cached data
-- **Blue (Active):** Button press detected
-- **Orange (Cooldown):** Too soon to use button, please wait
-- **Red (Error/Stop):** System stopping or error state
+- **DOWN Button:** Reserved for future manual display advance feature
 
-**Integration Details:**
-- Button polling runs every 50ms during all sleep intervals
-- 200ms debounce prevents accidental double-presses
-- Non-blocking implementation (doesn't interfere with displays)
-- All button handling includes error recovery
-- Works seamlessly with existing display rotation logic
+**Implementation:**
+- Uses built-in `digitalio` library (no external dependencies)
+- Simple GPIO reading with pull-up resistors
+- Button check in main loop only (not in hot path)
+- Graceful degradation if buttons unavailable
+- Zero pystack impact - no nested functions or complex logic
 
-**Library Requirements:**
-```python
-from adafruit_seesaw import seesaw, neokey1x4
-from adafruit_seesaw import keypad
-```
+**Setup:**
+- Auto-initialized during system startup
+- Logs "MatrixPortal buttons initialized - UP=stop, DOWN=advance" if successful
+- No configuration required
+- Works immediately after deployment
 
-**No Configuration Needed:**
-- Auto-detects NeoKey presence at startup
-- Logs "NeoKey 1x4 initialized - buttons enabled" if found
-- Silently continues without buttons if not detected
-- No code changes required to use or remove NeoKey
+**Advantages:**
+- ✅ No extra hardware needed
+- ✅ No library dependencies beyond built-in
+- ✅ Simple implementation (~40 lines of code)
+- ✅ Zero stack depth issues
+- ✅ Fast response time
 
 ### Events
 - Date-based display (MM-DD format)
@@ -648,44 +633,32 @@ The entire codebase currently resides in a single `code.py` file. This is a comm
 ## Version History
 
 ### 2.3.0 (Current - November 2025)
-- **Interactive Button Control with NeoKey 1x4:**
+- **Built-in Button Control:**
   - **Hardware Integration:**
-    - Optional Adafruit NeoKey 1x4 support via I2C (STEMMA QT)
-    - Auto-detection at startup with graceful degradation if not connected
-    - I2C address 0x30 (default)
+    - Uses MatrixPortal S3's built-in UP and DOWN buttons
+    - No additional hardware required
+    - Direct GPIO access via `digitalio` library
+    - Auto-detection at startup with graceful degradation
   - **Button Functions:**
-    - **Button 0 (Stop):** Immediately stops program execution (ctrl+c equivalent)
-    - **Button 1 (Next):** Manually advance to next display in rotation
-    - **Button 2 (Status):** Reserved for data freshness indicator
-    - **Button 3:** Reserved for future features
-  - **LED Visual Feedback:**
-    - Green (Ready): Button ready to use
-    - Bright Green (Fresh): Fresh API data displayed
-    - Yellow (Cached): Using cached data
-    - Blue (Active): Button press detected
-    - Orange (Cooldown): Too soon to press, please wait
-    - Red (Error/Stop): System stopping or error
-  - **API Safeguards:**
-    - 5-second minimum cooldown between manual advances
-    - Button press uses cached data only (no additional API calls)
-    - Prevents button spam and socket exhaustion
-    - Respects normal display rotation order
+    - **UP Button (Stop):** Press to immediately stop program (ctrl+c equivalent)
+    - **DOWN Button:** Reserved for future manual display advance feature
   - **Technical Implementation:**
-    - `setup_neokey()`: Initialize NeoKey with error handling
-    - `poll_neokey_buttons()`: 50ms polling interval with 200ms debounce
-    - `handle_button_press()`: Button action dispatcher with safeguards
-    - `update_status_led()`: Visual feedback for data freshness
-    - `interruptible_sleep()`: Modified to check buttons and manual advance flag
+    - `setup_buttons()`: Initialize GPIO pins with pull-up resistors
+    - `check_button_stop()`: Simple GPIO read in main loop
+    - Button check once per cycle (not in hot path)
+    - Raises `KeyboardInterrupt` for clean shutdown
+    - ~40 lines of code total
   - **Integration Details:**
-    - Non-blocking button polling during all sleep intervals
-    - Button presses interrupt current display and advance rotation
-    - Works seamlessly with existing display cycle logic
-    - All button handling includes error recovery
-    - Libraries: `adafruit_seesaw` (NeoKey driver), `keypad` module
-  - **No Configuration Required:**
-    - Zero code changes to enable/disable NeoKey
-    - System works identically with or without NeoKey connected
-    - Startup log shows "NeoKey 1x4 initialized - buttons enabled" if detected
+    - Checked at start of each display cycle
+    - No nested function calls or try/except in hot path
+    - Zero pystack impact
+    - Graceful degradation if buttons unavailable
+    - No library dependencies (digitalio is built-in)
+  - **Advantages:**
+    - Simple, lightweight implementation
+    - Fast response time
+    - No I2C communication overhead
+    - Works immediately after deployment
 
 ### 2.2.0 (November 2025)
 - **Single Stock Chart Display:** Full-screen intraday price chart view
