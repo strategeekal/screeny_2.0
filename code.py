@@ -3887,6 +3887,47 @@ def format_price_with_suffix(price):
 		# Under 1000, show with 2 decimals
 		return f"{price:.2f}"
 
+def format_price_with_dollar(price):
+	"""Format price with dollar sign, using comma separators for large values.
+
+	Rules:
+	- >= $1000: No cents, comma separators (e.g., "$86,932")
+	- < $1000: Show 2 decimals (e.g., "$226.82")
+
+	Args:
+		price: Price value as float
+
+	Returns:
+		str: Formatted price string with $ prefix
+
+	Examples:
+		86932.49 → "$86,932"
+		1234.56 → "$1,234"
+		226.82 → "$226.82"
+	"""
+	if price >= 1000:
+		return "${:,}".format(int(price))
+	else:
+		return "${:.2f}".format(price)
+
+def get_stock_display_name(symbol):
+	"""Get display name for a stock symbol from cached stocks list.
+
+	Args:
+		symbol: Stock ticker symbol (e.g., "USDMXN")
+
+	Returns:
+		str: Display name if found, otherwise symbol
+
+	Examples:
+		"USDMXN" → "MXN" (if display_name is set)
+		"CRM" → "CRM" (if no display_name)
+	"""
+	for stock in state.cached_stocks:
+		if stock["symbol"] == symbol:
+			return stock.get("display_name", symbol)
+	return symbol
+
 def show_stocks_display(duration, offset, rtc):
 	"""Display stock/forex/crypto/commodity market data - 3 items at a time
 
@@ -4169,7 +4210,7 @@ def get_stock_display_mode(stocks_list, offset):
 			mode: "chart" or "multi"
 			ticker_or_stocks: symbol string (for chart) or None (for multi)
 	"""
-	if not stocks_list or len(stocks_list) == 0:
+	if not stocks_list:
 		return ("multi", None)
 
 	# Wrap offset
@@ -4181,22 +4222,15 @@ def get_stock_display_mode(stocks_list, offset):
 		# Show chart for this highlighted stock
 		return ("chart", current_stock["symbol"])
 
-	# Current stock is NOT highlighted - show multi-stock mode
-	# We need to find next 2 non-highlighted stocks
-
-	# First, count how many non-highlighted stocks exist
-	non_highlighted = [s for s in stocks_list if not s.get("highlight", False)]
-
-	if len(non_highlighted) == 0:
-		# Edge case: All highlighted - show first one as chart
+	# Current stock is NOT highlighted - check edge case
+	# Edge case: All stocks are highlighted (shouldn't happen in normal rotation)
+	# In this case, just show first stock as chart
+	if all(s.get("highlight", False) for s in stocks_list):
 		return ("chart", stocks_list[0]["symbol"])
-	elif len(non_highlighted) >= 3:
-		# Enough non-highlighted stocks - show multi-stock mode normally
-		return ("multi", None)
-	else:
-		# Less than 3 non-highlighted stocks - still show multi-stock mode
-		# The show_stocks_display function will handle filling in with highlighted stocks
-		return ("multi", None)
+
+	# Normal case: show multi-stock mode
+	# The show_stocks_display function will handle fetching and display
+	return ("multi", None)
 
 def show_single_stock_chart(ticker, duration, rtc):
 	"""
@@ -4269,12 +4303,8 @@ def show_single_stock_chart(ticker, duration, rtc):
 	direction = quote_data[ticker]["direction"]
 	actual_open_price = quote_data[ticker]["open_price"]
 
-	# Get display name from cached stocks (use display_name if exists, otherwise symbol)
-	display_name = ticker  # Default to symbol
-	for stock in state.cached_stocks:
-		if stock["symbol"] == ticker:
-			display_name = stock.get("display_name", ticker)
-			break
+	# Get display name (uses display_name from stocks.csv if available)
+	display_name = get_stock_display_name(ticker)
 
 	# Use the actual day's percentage change from the quote API
 	# This represents the change from market open (9:30 AM) to current price
@@ -4318,10 +4348,7 @@ def show_single_stock_chart(ticker, duration, rtc):
 		state.main_group.append(pct_label)
 
 		# Row 2 (y=9): Current price (format with commas if >= $1000, no cents)
-		if current_price >= 1000:
-			price_text = "${:,}".format(int(current_price))
-		else:
-			price_text = "${:.2f}".format(current_price)
+		price_text = format_price_with_dollar(current_price)
 		price_label = bitmap_label.Label(
 			font,
 			text=price_text,
