@@ -4269,6 +4269,13 @@ def show_single_stock_chart(ticker, duration, rtc):
 	direction = quote_data[ticker]["direction"]
 	actual_open_price = quote_data[ticker]["open_price"]
 
+	# Get display name from cached stocks (use display_name if exists, otherwise symbol)
+	display_name = ticker  # Default to symbol
+	for stock in state.cached_stocks:
+		if stock["symbol"] == ticker:
+			display_name = stock.get("display_name", ticker)
+			break
+
 	# Use the actual day's percentage change from the quote API
 	# This represents the change from market open (9:30 AM) to current price
 	day_change_percent = change_percent
@@ -4289,7 +4296,7 @@ def show_single_stock_chart(ticker, duration, rtc):
 		# Row 1 (y=1): Ticker + percentage
 		ticker_label = bitmap_label.Label(
 			font,
-			text=ticker,
+			text=display_name,
 			color=state.colors["WHITE"],
 			y=1
 		)
@@ -4310,8 +4317,11 @@ def show_single_stock_chart(ticker, duration, rtc):
 		)
 		state.main_group.append(pct_label)
 
-		# Row 2 (y=9): Current price
-		price_text = "{:.2f}".format(current_price)
+		# Row 2 (y=9): Current price (format with commas if >= $1000, no cents)
+		if current_price >= 1000:
+			price_text = "${:,}".format(int(current_price))
+		else:
+			price_text = "${:.2f}".format(current_price)
 		price_label = bitmap_label.Label(
 			font,
 			text=price_text,
@@ -4359,7 +4369,7 @@ def show_single_stock_chart(ticker, duration, rtc):
 			state.main_group.append(line)
 
 		cache_status = "(fresh)" if data_is_fresh else "(cached)"
-		log_info("Chart: " + ticker + " " + pct_text + " ($" + "{:.2f}".format(current_price) + ") with " + str(num_points) + " data points " + cache_status)
+		log_info("Chart: " + display_name + " " + pct_text + " (" + price_text + ") with " + str(num_points) + " data points " + cache_status)
 
 		# Hold display for duration
 		time.sleep(duration)
