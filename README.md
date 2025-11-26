@@ -1,6 +1,6 @@
-# Pantallita 2.2.0
+# Pantallita 2.3.0
 
-A dual RGB matrix weather display system running on MatrixPortal S3, showing real-time weather, forecasts, stock prices with intraday charts, events, and scheduled activities for family use.
+A dual RGB matrix weather display system running on MatrixPortal S3, showing real-time weather, forecasts, stock prices with intraday charts, events, and scheduled activities for family use. Now with interactive button control via Adafruit NeoKey 1x4.
 
 ## Overview
 
@@ -11,6 +11,7 @@ Pantallita displays weather information, 12-hour forecasts, stock market data, f
 - **Controller:** Adafruit MatrixPortal S3 (ESP32-S3, 8MB flash, 2MB SRAM)
 - **Displays:** 2× RGB LED matrices (64×32 pixels, 4-bit color depth)
 - **RTC:** DS3231 real-time clock module
+- **Buttons (Optional):** Adafruit NeoKey 1x4 (I2C, STEMMA QT)
 - **Power:** 5V power supply
 - **Firmware:** Adafruit CircuitPython 9.2.8
 
@@ -25,6 +26,7 @@ Pantallita displays weather information, 12-hour forecasts, stock market data, f
   - `adafruit_requests` - HTTP client
   - `adafruit_ntp` - Time synchronization
   - `adafruit_ds3231` - RTC module
+  - `adafruit_seesaw` - NeoKey 1x4 button control
   - `adafruit_imageload` - BMP image loading
   - `adafruit_bitmap_font` - Text rendering
   - `adafruit_display_shapes` - Line shapes for chart rendering
@@ -367,6 +369,60 @@ GC=F,Gold Futures,commodity,GLD,0
   - Works with both local CSV and remote GitHub configuration
   - Automatic timezone conversion (works from any US timezone)
 
+### Interactive Button Control (NEW in 2.3.0)
+
+The optional **Adafruit NeoKey 1x4** adds physical button control to Pantallita, transforming it from a passive display to an interactive system.
+
+**Hardware Setup:**
+- **Connection:** I2C via STEMMA QT connector (plug and play)
+- **I2C Address:** 0x30 (default)
+- **Power:** Powered through STEMMA QT connection
+- **Graceful Degradation:** If not connected, all features work normally without buttons
+
+**Button Functions:**
+- **Button 0 (Stop):** Immediately stops the program and exits (equivalent to ctrl+c)
+  - LED turns red when pressed
+  - Clean shutdown with memory report
+- **Button 1 (Next Display):** Manually advance to next display in rotation
+  - LED flashes bright green when pressed
+  - **API Safeguards:**
+    - 5-second minimum cooldown between advances (prevents button spam)
+    - Uses cached data only (no additional API calls triggered)
+    - Respects normal rotation order
+  - **Cooldown Protection:** If pressed too soon, LED shows orange and returns to ready state
+  - Cuts current display short using `interruptible_sleep()` interrupt mechanism
+- **Button 2 (Status):** Reserved for data freshness indicator
+  - Shows green when fresh API data is displayed
+  - Shows yellow when using cached data
+- **Button 3:** Reserved for future features
+
+**LED Color Indicators:**
+- **Green (Ready):** Button ready to use
+- **Bright Green (Fresh):** Fresh API data displayed
+- **Yellow (Cached):** Using cached data
+- **Blue (Active):** Button press detected
+- **Orange (Cooldown):** Too soon to use button, please wait
+- **Red (Error/Stop):** System stopping or error state
+
+**Integration Details:**
+- Button polling runs every 50ms during all sleep intervals
+- 200ms debounce prevents accidental double-presses
+- Non-blocking implementation (doesn't interfere with displays)
+- All button handling includes error recovery
+- Works seamlessly with existing display rotation logic
+
+**Library Requirements:**
+```python
+from adafruit_seesaw import seesaw, neokey1x4
+from adafruit_seesaw import keypad
+```
+
+**No Configuration Needed:**
+- Auto-detects NeoKey presence at startup
+- Logs "NeoKey 1x4 initialized - buttons enabled" if found
+- Silently continues without buttons if not detected
+- No code changes required to use or remove NeoKey
+
 ### Events
 - Date-based display (MM-DD format)
 - Two-line text with customizable colors
@@ -591,7 +647,47 @@ The entire codebase currently resides in a single `code.py` file. This is a comm
 
 ## Version History
 
-### 2.2.0 (Current - November 2025)
+### 2.3.0 (Current - November 2025)
+- **Interactive Button Control with NeoKey 1x4:**
+  - **Hardware Integration:**
+    - Optional Adafruit NeoKey 1x4 support via I2C (STEMMA QT)
+    - Auto-detection at startup with graceful degradation if not connected
+    - I2C address 0x30 (default)
+  - **Button Functions:**
+    - **Button 0 (Stop):** Immediately stops program execution (ctrl+c equivalent)
+    - **Button 1 (Next):** Manually advance to next display in rotation
+    - **Button 2 (Status):** Reserved for data freshness indicator
+    - **Button 3:** Reserved for future features
+  - **LED Visual Feedback:**
+    - Green (Ready): Button ready to use
+    - Bright Green (Fresh): Fresh API data displayed
+    - Yellow (Cached): Using cached data
+    - Blue (Active): Button press detected
+    - Orange (Cooldown): Too soon to press, please wait
+    - Red (Error/Stop): System stopping or error
+  - **API Safeguards:**
+    - 5-second minimum cooldown between manual advances
+    - Button press uses cached data only (no additional API calls)
+    - Prevents button spam and socket exhaustion
+    - Respects normal display rotation order
+  - **Technical Implementation:**
+    - `setup_neokey()`: Initialize NeoKey with error handling
+    - `poll_neokey_buttons()`: 50ms polling interval with 200ms debounce
+    - `handle_button_press()`: Button action dispatcher with safeguards
+    - `update_status_led()`: Visual feedback for data freshness
+    - `interruptible_sleep()`: Modified to check buttons and manual advance flag
+  - **Integration Details:**
+    - Non-blocking button polling during all sleep intervals
+    - Button presses interrupt current display and advance rotation
+    - Works seamlessly with existing display cycle logic
+    - All button handling includes error recovery
+    - Libraries: `adafruit_seesaw` (NeoKey driver), `keypad` module
+  - **No Configuration Required:**
+    - Zero code changes to enable/disable NeoKey
+    - System works identically with or without NeoKey connected
+    - Startup log shows "NeoKey 1x4 initialized - buttons enabled" if detected
+
+### 2.2.0 (November 2025)
 - **Single Stock Chart Display:** Full-screen intraday price chart view
   - **Visual Chart Display:**
     - Row 1: Display name + daily percentage change (color-coded green/red)

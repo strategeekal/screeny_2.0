@@ -1,4 +1,4 @@
-##### PANTALLITA 2.1.0 #####
+##### PANTALLITA 2.3.0 #####
 # Stack exhaustion fix: Flattened nested try/except blocks to prevent crashes (v2.0.1)
 # Socket exhaustion fix: response.close() + smart caching (v2.0.2)
 # Comprehensive socket fix: Added response.close() to ALL HTTP requests - startup & runtime (v2.0.3)
@@ -8,6 +8,8 @@
 # Split forecast and current weather functions into fully independent functions and helpers (v2.0.8)
 # Added remote display control via .csv like events and schedules (v2.0.9)
 # Stock market integration: Real-time stock prices with Twelve Data API, 3-stock rotation display (v2.1.0)
+# Single stock chart display with intraday data, smart rotation, API tracking (v2.2.0)
+# NeoKey 1x4 button control: Stop code, manual display advance with safeguards, LED feedback (v2.3.0)
 
 # === LIBRARIES ===
 # Standard library
@@ -39,6 +41,8 @@ import adafruit_requests as requests
 # Hardware
 import adafruit_ds3231
 import adafruit_ntp
+from adafruit_seesaw import seesaw, neokey1x4
+from adafruit_seesaw import keypad
 
 gc.collect()
 
@@ -186,7 +190,32 @@ class Timing:
 	EVENT_ALL_DAY_END = 24    # All-day events end at midnight next day
 	
 	API_RECOVERY_RETRY_INTERVAL = 1800
-	
+
+## NeoKey Button Control
+class NeoKey:
+	# Button assignments
+	BUTTON_STOP = 0        # Button 0: Stop code (ctrl+c)
+	BUTTON_NEXT = 1        # Button 1: Next display
+	BUTTON_UNUSED_2 = 2    # Reserved for future use
+	BUTTON_UNUSED_3 = 3    # Reserved for future use
+
+	# LED colors (RGB tuples)
+	LED_OFF = (0, 0, 0)
+	LED_READY = (0, 10, 0)      # Green: Ready/idle
+	LED_ACTIVE = (0, 0, 20)     # Blue: Button pressed/active
+	LED_CACHED = (10, 10, 0)    # Yellow: Using cached data
+	LED_FRESH = (0, 20, 0)      # Bright green: Fresh API data
+	LED_ERROR = (20, 0, 0)      # Red: Error
+	LED_COOLDOWN = (10, 5, 0)   # Orange: API cooldown active
+
+	# Timing
+	DEBOUNCE_TIME = 0.2         # 200ms debounce
+	MIN_DISPLAY_ADVANCE = 5     # Minimum 5 seconds between manual advances
+	POLL_INTERVAL = 0.05        # Check buttons every 50ms
+
+	# I2C Address
+	I2C_ADDRESS = 0x30          # Default NeoKey 1x4 address
+
 # Timezone offset table
 TIMEZONE_OFFSETS = {
 		"America/New_York": {"std": -5, "dst": -4, "dst_start": (3, 8), "dst_end": (11, 7)},
@@ -926,9 +955,15 @@ class WeatherDisplayState:
 		self.display = None
 		self.main_group = None
 		self.matrix_type_cache = None
+		self.neokey = None  # NeoKey 1x4 instance
 
 		# Centralized success/failure tracking
 		self.tracker = StateTracker()
+
+		# NeoKey button state
+		self.last_button_press_time = {}  # {button_num: monotonic_time}
+		self.last_display_advance_time = 0  # Track manual display advances
+		self.manual_advance_requested = False  # Flag for manual display advance
 
 		# Timing and cache
 		self.startup_time = 0
@@ -1127,10 +1162,28 @@ def initialize_display():
 
 
 def interruptible_sleep(duration):
-	"""Sleep that can be interrupted more easily"""
+	"""Sleep that can be interrupted more easily (also polls NeoKey buttons)"""
 	end_time = time.monotonic() + duration
+	last_button_poll = time.monotonic()
+
 	while time.monotonic() < end_time:
+		# Check if manual display advance was requested
+		if state.manual_advance_requested:
+			log_debug("Sleep interrupted by manual display advance")
+			state.manual_advance_requested = False  # Clear the flag
+			# Reset LED to ready state
+			if state.neokey:
+				set_neokey_led(NeoKey.BUTTON_NEXT, NeoKey.LED_READY)
+			return  # Exit sleep early
+
 		time.sleep(Timing.INTERRUPTIBLE_SLEEP_INTERVAL)  # Short sleep allows more interrupt opportunities
+
+		# Poll NeoKey buttons periodically (if available)
+		if state.neokey and (time.monotonic() - last_button_poll >= NeoKey.POLL_INTERVAL):
+			button_pressed = poll_neokey_buttons()
+			if button_pressed is not None:
+				handle_button_press(button_pressed)
+			last_button_poll = time.monotonic()
 
 def setup_rtc():
 	"""Initialize RTC with retry logic"""
@@ -1149,6 +1202,119 @@ def setup_rtc():
 	
 	log_error("RTC initialization failed, restarting...")
 	supervisor.reload()
+
+### NEOKEY BUTTON FUNCTIONS ###
+
+def setup_neokey():
+	"""Initialize NeoKey 1x4 for button control (optional - graceful degradation if not connected)"""
+	try:
+		i2c = board.I2C()
+		neokey = neokey1x4.NeoKey1x4(i2c, addr=NeoKey.I2C_ADDRESS)
+		state.neokey = neokey
+
+		# Initialize all LEDs to ready state (green)
+		for button_num in range(4):
+			neokey.pixels[button_num] = NeoKey.LED_READY
+
+		log_info("NeoKey 1x4 initialized - buttons enabled")
+		return neokey
+
+	except Exception as e:
+		log_debug(f"NeoKey not detected (optional): {e}")
+		state.neokey = None
+		return None
+
+def set_neokey_led(button_num, color):
+	"""Set LED color for a specific button (graceful if NeoKey not available)"""
+	if state.neokey is None:
+		return
+	try:
+		state.neokey.pixels[button_num] = color
+	except Exception as e:
+		log_debug(f"NeoKey LED update failed: {e}")
+
+def poll_neokey_buttons():
+	"""
+	Poll NeoKey buttons and handle presses with debouncing.
+	Returns: button_num if pressed, None otherwise
+	"""
+	if state.neokey is None:
+		return None
+
+	try:
+		current_time = time.monotonic()
+
+		# Read key events from NeoKey
+		event = state.neokey.events.get()
+
+		if event and event.pressed:
+			button_num = event.number
+
+			# Debouncing: check if enough time has passed since last press
+			last_press = state.last_button_press_time.get(button_num, 0)
+			if current_time - last_press < NeoKey.DEBOUNCE_TIME:
+				return None  # Ignore bounce
+
+			# Record this press
+			state.last_button_press_time[button_num] = current_time
+
+			# Flash LED to show button was registered
+			set_neokey_led(button_num, NeoKey.LED_ACTIVE)
+
+			log_debug(f"NeoKey button {button_num} pressed")
+			return button_num
+
+		return None
+
+	except Exception as e:
+		log_debug(f"NeoKey polling error: {e}")
+		return None
+
+def handle_button_press(button_num):
+	"""
+	Handle NeoKey button press actions.
+	Button 0: Stop code (raise KeyboardInterrupt)
+	Button 1: Advance to next display (with safeguards)
+	"""
+	if button_num == NeoKey.BUTTON_STOP:
+		log_info("Stop button pressed - exiting program")
+		set_neokey_led(NeoKey.BUTTON_STOP, NeoKey.LED_ERROR)
+		time.sleep(0.3)  # Brief delay to show LED feedback
+		raise KeyboardInterrupt("User pressed stop button")
+
+	elif button_num == NeoKey.BUTTON_NEXT:
+		current_time = time.monotonic()
+
+		# Check if enough time has passed since last manual advance
+		time_since_last = current_time - state.last_display_advance_time
+
+		if time_since_last < NeoKey.MIN_DISPLAY_ADVANCE:
+			# Too soon - show cooldown LED
+			log_debug(f"Next button pressed too soon ({time_since_last:.1f}s < {NeoKey.MIN_DISPLAY_ADVANCE}s)")
+			set_neokey_led(NeoKey.BUTTON_NEXT, NeoKey.LED_COOLDOWN)
+			time.sleep(0.5)
+			set_neokey_led(NeoKey.BUTTON_NEXT, NeoKey.LED_READY)
+			return
+
+		# Set flag for manual advance
+		state.manual_advance_requested = True
+		state.last_display_advance_time = current_time
+
+		log_info("Next display button pressed - advancing display")
+		set_neokey_led(NeoKey.BUTTON_NEXT, NeoKey.LED_FRESH)
+
+def update_status_led(is_fresh_data=True):
+	"""
+	Update status LED (button 2) to indicate data freshness.
+	Call this after API calls or when using cached data.
+	"""
+	if state.neokey is None:
+		return
+
+	if is_fresh_data:
+		set_neokey_led(2, NeoKey.LED_FRESH)  # Green for fresh API data
+	else:
+		set_neokey_led(2, NeoKey.LED_CACHED)  # Yellow for cached data
 
 ### NETWORK FUNCTIONS ###
 
@@ -5129,7 +5295,10 @@ def initialize_system(rtc):
 	
 	# Initialize hardware
 	initialize_display()
-	
+
+	# Initialize NeoKey buttons (optional - graceful if not connected)
+	setup_neokey()
+
 	# Detect matrix type and initialize colors
 	matrix_type = detect_matrix_type()
 	state.colors = get_matrix_colors()
