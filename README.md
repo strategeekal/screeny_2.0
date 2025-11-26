@@ -267,11 +267,12 @@ Sleep,1,0123456,20,45,21,30,bed.bmp,0
 
 ### stocks.csv
 ```csv
-# Format: symbol,name,type,display_name
-CRM,Salesforce,stock,
-USDMXN,USD to Mexican Peso,forex,MXN
-BTC/USD,Bitcoin,crypto,BTC
-GC=F,Gold Futures,commodity,GLD
+# Format: symbol,name,type,display_name,highlight
+CRM,Salesforce,stock,,1
+AAPL,Apple,stock,,0
+USDMXN,USD to Mexican Peso,forex,MXN,0
+BTC/USD,Bitcoin,crypto,BTC,0
+GC=F,Gold Futures,commodity,GLD,0
 ```
 
 **Fields:**
@@ -279,13 +280,16 @@ GC=F,Gold Futures,commodity,GLD
 - `name`: Full name for reference/web app (required)
 - `type`: "stock", "forex", "crypto", or "commodity" (optional, default: stock)
 - `display_name`: Short name for 64×32 display (optional, default: symbol)
+- `highlight`: 0 or 1 to show as chart (optional, default: 0)
 
 **Display Behavior:**
+- **highlight=1:** Shows as full-screen intraday chart
+- **highlight=0:** Shows in multi-stock rotation (3 at a time)
 - **Stocks:** Show percentage change with colored triangle arrows
 - **Forex/Crypto/Commodities:** Show price with colored $ indicator
 - Prices >= $1000: Comma separators, no cents (e.g., 86,932)
 - Prices < $1000: Show 2 decimals (e.g., 18.49)
-- Displays 3 items at a time with rotation
+- Smart rotation: Charts when offset lands on highlighted stock, multi-stock otherwise
 - Supports unlimited tickers (no hard limit)
 - Can be overridden by remote GitHub CSV via `STOCKS_CSV_URL`
 
@@ -325,16 +329,21 @@ GC=F,Gold Futures,commodity,GLD
 - **Single Stock Chart Display (NEW in 2.2.0):**
   - **Full-screen intraday chart** showing price movement throughout trading day
   - **Layout:**
-    - Row 1: Ticker symbol + daily percentage change (color-coded)
-    - Row 2: Current price
+    - Row 1: Display name + daily percentage change (color-coded)
+    - Row 2: Current price with smart formatting ($1,234 or $226.82)
     - Chart area: 16-pixel tall line graph (64 pixels wide)
   - **Data:** 26 data points at 15-minute intervals (covers full 6.5-hour trading day)
   - **Accurate percentage:** Uses actual market open price (9:30 AM) from quote API
   - **Smart caching:** 15-minute cache reduces API usage (~26 calls/day vs 780)
   - **Efficient API usage:** Single time_series call per 15 minutes
   - **Visual feedback:** Line graph scales automatically to price range
-  - **Configurable ticker:** Easy to switch between stocks
-  - Toggle between chart mode and multi-stock rotation via code
+  - **Smart Rotation (NEW):** Control via `highlight` column in stocks.csv
+    - `highlight=1`: Shows as full-screen chart
+    - `highlight=0`: Shows in multi-stock rotation
+    - Rotation automatically switches between chart and multi-stock modes
+    - Chart advances by 1, multi-stock advances by 3
+  - **API Tracking (NEW):** Stock API calls tracked separately (Total X/800)
+  - **Cache Indicators (NEW):** Logs show "(cached)" or "(fresh)" status
 - **Resilient 4-Ticker Buffer (Multi-Stock Mode):**
   - Fetches 4 items but displays 3 (protects against invalid tickers)
   - Progressive degradation: Shows 3→2→skip based on API successes
@@ -565,10 +574,10 @@ The entire codebase currently resides in a single `code.py` file. This is a comm
 
 ### Planned Features
 
-2. **Stock display variations**
-   - **Single stock view:** Full-screen display with detailed stock info (price, change, volume, high/low)
+2. **Enhanced stock displays**
    - **Command center:** Hybrid view showing time, compact weather, and horizontally scrolling stock ticker
-   - **Stock charts:** Mini price trend visualization using line graphs or sparklines
+   - **Volume indicators:** Show trading volume alongside price
+   - **High/Low indicators:** Show daily high/low on chart view
 
 3. **Sports scores** (World Cup 2026!)
    - Game schedule tracking
@@ -585,8 +594,8 @@ The entire codebase currently resides in a single `code.py` file. This is a comm
 ### 2.2.0 (Current - November 2025)
 - **Single Stock Chart Display:** Full-screen intraday price chart view
   - **Visual Chart Display:**
-    - Row 1: Ticker symbol + daily percentage change (color-coded green/red)
-    - Row 2: Current price in dollars
+    - Row 1: Display name + daily percentage change (color-coded green/red)
+    - Row 2: Current price with smart formatting ($1,234 or $226.82)
     - Chart area: 16-pixel tall line graph showing price movement
     - 64-pixel wide display utilizes full screen width
   - **Technical Implementation:**
@@ -594,6 +603,7 @@ The entire codebase currently resides in a single `code.py` file. This is a comm
     - `show_single_stock_chart()`: Renders chart with bitmap labels and line shapes
     - Uses `adafruit_display_shapes.line.Line` for chart rendering
     - State caching: `cached_intraday_data` and `last_intraday_fetch_time`
+    - Helper functions: `format_price_with_dollar()`, `get_stock_display_name()`
   - **Data & Accuracy:**
     - 26 data points at 15-minute intervals (covers 6.5-hour trading day)
     - Uses actual market open price (9:30 AM) for percentage calculation
@@ -604,17 +614,43 @@ The entire codebase currently resides in a single `code.py` file. This is a comm
     - Reduces API usage: ~26 calls/day (chart mode) vs ~104 calls/day (multi-stock rotation)
     - Combined with quote API: ~52 calls/day total in chart mode
     - Still well within 800/day free tier limit (6.5% usage)
-  - **Integration:**
-    - Easy toggle between chart mode (option=1) and multi-stock rotation (option=2)
-    - Configurable ticker symbol (currently hardcoded to "CRM")
-    - Works with existing market hours detection and caching
-    - Uses same color scheme and display infrastructure
-  - **Bug Fixes During Development:**
-    - Fixed CSV config parser to auto-convert numeric values to integers
-    - Fixed `stocks_display_frequency` type error (string vs int in modulo operation)
-    - Fixed color key names (uppercase: GREEN, RED, WHITE)
-    - Fixed label rendering (bitmap_label with font, state.main_group)
-    - Fixed percentage calculation to use actual day open price from quote API
+- **Smart Stock Rotation with Highlight Flag:**
+  - **New CSV Format:** Added 5th column `highlight` (0 or 1) to stocks.csv
+  - **Intelligent Display Selection:**
+    - `get_stock_display_mode()`: Determines chart vs multi-stock based on highlight flag
+    - When offset lands on highlighted stock (highlight=1): Show full-screen chart
+    - When offset lands on non-highlighted (highlight=0): Show multi-stock rotation
+    - Chart mode advances offset by 1, multi-stock advances by 3
+  - **Edge Cases Handled:**
+    - All highlighted: Shows all as charts
+    - None highlighted: Shows all in multi-stock rotation
+    - Mixed: Seamlessly switches between modes during rotation
+  - **Backward Compatible:** Defaults to 0 if highlight column missing
+- **Stock API Call Tracking:**
+  - **Separate Counter:** `stock_api_calls` tracked independently from weather
+  - **Accurate Counting:** Batch requests count each symbol (4 symbols = 4 credits)
+  - **End-of-Cycle Logging:** Shows "Total=X/350, Current=Y, Forecast=Z, Stocks=W/800"
+  - **Verbose Logging:** Individual API calls show running total
+  - **Budget Monitoring:** Helps stay within 800 calls/day free tier limit
+- **Cache Status Indicators:**
+  - **Chart Logs:** "Chart: CRM -0.13% ($226.82) with 26 data points (cached)"
+  - **Multi-Stock Logs:** "Stocks (3/4): AAPL +2.3%, MSFT +1.5% (fresh)"
+  - **Transparency:** Users can see when data is from cache vs fresh API call
+- **Code Optimization & Refactoring:**
+  - **Extracted Helper Functions:**
+    - `format_price_with_dollar()`: Price formatting with $ prefix and commas
+    - `get_stock_display_name()`: Display name lookup from stocks.csv
+  - **Simplified Logic:** Reduced `get_stock_display_mode()` from 39 to 32 lines
+  - **Improved Maintainability:** DRY principle, better separation of concerns
+  - **No Functional Changes:** Pure refactoring for code quality
+- **Bug Fixes & Improvements:**
+  - Fixed CSV config parser to auto-convert numeric values to integers
+  - Fixed `stocks_display_frequency` type error (string vs int in modulo operation)
+  - Fixed color key names (uppercase: GREEN, RED, WHITE)
+  - Fixed label rendering (bitmap_label with font, state.main_group)
+  - Fixed percentage calculation to use actual day open price from quote API
+  - Uses display_name from stocks.csv in chart view
+  - Smart price formatting (commas for >= $1000)
 
 ### 2.1.0
 - **Multi-Asset Market Data Integration:** Real-time prices for stocks, forex, crypto, and commodities
