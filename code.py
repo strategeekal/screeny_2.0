@@ -2606,7 +2606,7 @@ def fetch_stock_prices(symbols_to_fetch):
 					# Cache this for the rest of the day to avoid repeated API calls
 					import time
 					# Get current date from RTC (we don't have direct access here, will handle in caller)
-					log_info(f"Market closed detected via API (holiday or early close)")
+					log_verbose(f"Market closed detected via API (holiday or early close)")
 
 				# Extract price and change data
 				try:
