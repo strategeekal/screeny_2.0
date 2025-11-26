@@ -1178,18 +1178,45 @@ def interruptible_sleep(duration):
 		if state.manual_advance_requested:
 			log_debug("Sleep interrupted by manual display advance")
 			state.manual_advance_requested = False  # Clear the flag
-			# Reset LED to ready state
+			# Reset LED to ready state (simple check, no try/except to avoid stack depth)
 			if state.neokey:
-				set_neokey_led(NeoKey.BUTTON_NEXT, NeoKey.LED_READY)
+				state.neokey.pixels[NeoKey.BUTTON_NEXT] = NeoKey.LED_READY
 			return  # Exit sleep early
 
 		time.sleep(Timing.INTERRUPTIBLE_SLEEP_INTERVAL)  # Short sleep allows more interrupt opportunities
 
-		# Poll NeoKey buttons periodically (if available)
+		# Poll NeoKey buttons periodically (if available) - FLATTENED to avoid stack exhaustion
 		if state.neokey and (time.monotonic() - last_button_poll >= NeoKey.POLL_INTERVAL):
-			button_pressed = poll_neokey_buttons()
-			if button_pressed is not None:
-				handle_button_press(button_pressed)
+			# Inline simplified polling to avoid function call depth
+			event = state.neokey.events.get()
+			if event and event.pressed:
+				button_num = event.number
+				current_time = time.monotonic()
+
+				# Debouncing
+				last_press = state.last_button_press_time.get(button_num, 0)
+				if current_time - last_press >= NeoKey.DEBOUNCE_TIME:
+					state.last_button_press_time[button_num] = current_time
+
+					# Handle button press inline (flattened)
+					if button_num == NeoKey.BUTTON_STOP:
+						log_info("Stop button pressed - exiting program")
+						state.neokey.pixels[NeoKey.BUTTON_STOP] = NeoKey.LED_ERROR
+						raise KeyboardInterrupt("User pressed stop button")
+
+					elif button_num == NeoKey.BUTTON_NEXT:
+						time_since_last = current_time - state.last_display_advance_time
+						if time_since_last >= NeoKey.MIN_DISPLAY_ADVANCE:
+							# Advance display
+							state.manual_advance_requested = True
+							state.last_display_advance_time = current_time
+							state.neokey.pixels[NeoKey.BUTTON_NEXT] = NeoKey.LED_FRESH
+							log_info("Next display button pressed - advancing display")
+						else:
+							# Cooldown - too soon
+							log_debug(f"Next button pressed too soon ({time_since_last:.1f}s)")
+							state.neokey.pixels[NeoKey.BUTTON_NEXT] = NeoKey.LED_COOLDOWN
+
 			last_button_poll = time.monotonic()
 
 def setup_rtc():
