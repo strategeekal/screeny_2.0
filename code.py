@@ -1,4 +1,4 @@
-##### PANTALLITA 2.1.0 #####
+##### PANTALLITA 2.3.0 #####
 # Stack exhaustion fix: Flattened nested try/except blocks to prevent crashes (v2.0.1)
 # Socket exhaustion fix: response.close() + smart caching (v2.0.2)
 # Comprehensive socket fix: Added response.close() to ALL HTTP requests - startup & runtime (v2.0.3)
@@ -8,10 +8,13 @@
 # Split forecast and current weather functions into fully independent functions and helpers (v2.0.8)
 # Added remote display control via .csv like events and schedules (v2.0.9)
 # Stock market integration: Real-time stock prices with Twelve Data API, 3-stock rotation display (v2.1.0)
+# Single stock chart display with intraday data, smart rotation, API tracking (v2.2.0)
+# Built-in button control: MatrixPortal UP button for stop/exit (v2.3.0)
 
 # === LIBRARIES ===
 # Standard library
 import board
+import digitalio
 import os
 import supervisor
 import gc
@@ -926,6 +929,8 @@ class WeatherDisplayState:
 		self.display = None
 		self.main_group = None
 		self.matrix_type_cache = None
+		self.button_up = None  # MatrixPortal UP button
+		self.button_down = None  # MatrixPortal DOWN button
 
 		# Centralized success/failure tracking
 		self.tracker = StateTracker()
@@ -1149,6 +1154,44 @@ def setup_rtc():
 	
 	log_error("RTC initialization failed, restarting...")
 	supervisor.reload()
+
+### BUTTON FUNCTIONS ###
+
+def setup_buttons():
+	"""Initialize built-in MatrixPortal S3 buttons (optional - graceful if not available)"""
+	try:
+		# Set up UP button (typically used for stop/exit)
+		button_up = digitalio.DigitalInOut(board.BUTTON_UP)
+		button_up.direction = digitalio.Direction.INPUT
+		button_up.pull = digitalio.Pull.UP
+		state.button_up = button_up
+
+		# Set up DOWN button (typically used for manual advance)
+		button_down = digitalio.DigitalInOut(board.BUTTON_DOWN)
+		button_down.direction = digitalio.Direction.INPUT
+		button_down.pull = digitalio.Pull.UP
+		state.button_down = button_down
+
+		log_info("MatrixPortal buttons initialized - UP=stop, DOWN=advance")
+		return True
+
+	except Exception as e:
+		log_debug(f"Buttons not available (optional): {e}")
+		state.button_up = None
+		state.button_down = None
+		return False
+
+def check_button_stop():
+	"""Check if stop button (UP) is pressed. Returns True if should exit."""
+	if state.button_up is None:
+		return False
+
+	# Button is pressed when value is False (pulled low)
+	if not state.button_up.value:
+		log_info("Stop button (UP) pressed - exiting program")
+		return True
+
+	return False
 
 ### NETWORK FUNCTIONS ###
 
@@ -5139,7 +5182,10 @@ def initialize_system(rtc):
 	
 	# Initialize hardware
 	initialize_display()
-	
+
+	# Initialize built-in buttons (optional)
+	setup_buttons()
+
 	# Detect matrix type and initialize colors
 	matrix_type = detect_matrix_type()
 	state.colors = get_matrix_colors()
@@ -5617,6 +5663,10 @@ def main():
 		cycle_count = 0
 		while True:
 			try:
+				# Check stop button (UP button on MatrixPortal)
+				if check_button_stop():
+					raise KeyboardInterrupt("Stop button pressed")
+
 				cycle_count += 1
 				log_info(f"## CYCLE {cycle_count} ##")
 				run_display_cycle(rtc, cycle_count)
