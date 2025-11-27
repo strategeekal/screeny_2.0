@@ -3090,7 +3090,7 @@ def show_transit_display(rtc, duration):
 		minute = now.tm_min
 
 		# Format time as 12-hour with am/pm
-		am_pm = "a" if hour < 12 else "p"
+		am_pm = "a" if hour < 12 else "pm"
 		display_hour = hour if hour <= 12 else hour - 12
 		if display_hour == 0:
 			display_hour = 12
@@ -3152,8 +3152,8 @@ def show_transit_display(rtc, duration):
 			# Create 5x6 bitmap for brown/purple split
 			bp_rect = displayio.Bitmap(5, 6, 2)  # 2 colors
 			bp_palette = displayio.Palette(2)
-			bp_palette[0] = 0x964B00  # Brown color
-			bp_palette[1] = 0x800080  # Purple color
+			bp_palette[0] = state.colors["BROWN"]  # Brown color
+			bp_palette[1] = state.colors["PURPLE"]  # Purple color
 
 			# Fill diagonally: upper-left brown, lower-right purple
 			for y in range(6):
