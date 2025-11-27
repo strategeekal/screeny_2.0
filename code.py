@@ -225,9 +225,9 @@ class API:
 
 
 class CTAAPI:
-	"""CTA Transit API Constants"""
-	BASE_URL = "http://www.ctabustracker.com/bustime/api/v2"
-	ARRIVALS_ENDPOINT = "getpredictions"
+	"""CTA Train Tracker API Constants"""
+	BASE_URL = "https://lapi.transitchicago.com/api/1.0"
+	ARRIVALS_ENDPOINT = "ttarrivals.aspx"
 	TIMEOUT = 10
 	MAX_PREDICTIONS = 3  # Show up to 3 upcoming arrivals
 	CACHE_DURATION = 60  # Cache for 60 seconds
@@ -367,7 +367,7 @@ class Strings:
 	API_LOCATION_KEY = "ACCUWEATHER_LOCATION_KEY"
 	TWELVE_DATA_API_KEY = "TWELVE_DATA_API_KEY"
 	CTA_API_KEY = "CTA_API_KEY"
-	CTA_STOP_ID = "CTA_STOP_ID"
+	CTA_MAP_ID = "CTA_MAP_ID"
 
 	# Environment variables
 	WIFI_SSID_VAR = "CIRCUITPY_WIFI_SSID"
@@ -2820,14 +2820,14 @@ def fetch_transit_arrivals():
 
 	# Get API credentials
 	api_key = os.getenv(Strings.CTA_API_KEY)
-	stop_id = os.getenv(Strings.CTA_STOP_ID)
+	map_id = os.getenv(Strings.CTA_MAP_ID)
 
 	if not api_key:
 		log_warning("CTA_API_KEY not configured in settings.toml")
 		return []
 
-	if not stop_id:
-		log_warning("CTA_STOP_ID not configured in settings.toml")
+	if not map_id:
+		log_warning("CTA_MAP_ID not configured in settings.toml")
 		return []
 
 	session = get_requests_session()
@@ -2839,10 +2839,10 @@ def fetch_transit_arrivals():
 	response = None
 
 	try:
-		# Build CTA API URL
-		url = f"{CTAAPI.BASE_URL}/{CTAAPI.ARRIVALS_ENDPOINT}?key={api_key}&stpid={stop_id}&format=json"
+		# Build CTA Train Tracker API URL
+		url = f"{CTAAPI.BASE_URL}/{CTAAPI.ARRIVALS_ENDPOINT}?key={api_key}&mapid={map_id}&outputType=JSON"
 
-		log_verbose(f"Fetching transit arrivals for stop {stop_id}")
+		log_verbose(f"Fetching transit arrivals for station {map_id}")
 		response = session.get(url, timeout=CTAAPI.TIMEOUT)
 
 		if not response:
@@ -2853,39 +2853,65 @@ def fetch_transit_arrivals():
 			import json
 			data = json.loads(response.text)
 
-			# CTA API response structure:
+			# CTA Train Tracker API response structure:
 			# {
-			#   "bustime-response": {
-			#     "prd": [
+			#   "ctatt": {
+			#     "tmst": "20231127 13:45:00",
+			#     "errCd": "0",
+			#     "errNm": null,
+			#     "eta": [
 			#       {
-			#         "rt": "22",
-			#         "des": "Howard",
-			#         "prdctdn": "5",
-			#         "prdtm": "20231127 10:35"
+			#         "staId": "40380",
+			#         "stpId": "30051",
+			#         "staNm": "Clark/Lake",
+			#         "rt": "Red",
+			#         "destNm": "Howard",
+			#         "arrT": "20231127 13:50:00",
+			#         "isApp": "0",
+			#         "isSch": "0",
+			#         "isDly": "0"
 			#       }
 			#     ]
 			#   }
 			# }
 
-			if "bustime-response" in data:
-				bustime = data["bustime-response"]
+			if "ctatt" in data:
+				ctatt = data["ctatt"]
 
 				# Check for errors
-				if "error" in bustime:
-					error_msg = bustime["error"][0].get("msg", "Unknown error")
+				if ctatt.get("errCd") != "0":
+					error_msg = ctatt.get("errNm", "Unknown error")
 					log_warning(f"CTA API error: {error_msg}")
 					return arrivals
 
-				# Get predictions
-				predictions = bustime.get("prd", [])
+				# Get arrival predictions
+				predictions = ctatt.get("eta", [])
 
 				log_info(f"Fetched {len(predictions)} total transit arrivals")
 
 				# Process predictions (limit to MAX_PREDICTIONS)
+				import time as time_module
 				for pred in predictions[:CTAAPI.MAX_PREDICTIONS]:
 					route = pred.get("rt", "??")
-					destination = pred.get("des", "Unknown")
-					minutes = pred.get("prdctdn", "?")
+					destination = pred.get("destNm", "Unknown")
+
+					# Calculate minutes until arrival
+					arr_time_str = pred.get("arrT", "")
+					try:
+						# Parse arrival time: "20231127 13:50:00"
+						arr_time = time_module.strptime(arr_time_str, "%Y%m%d %H:%M:%S")
+						# Get current time from response timestamp
+						tmst = ctatt.get("tmst", "")
+						cur_time = time_module.strptime(tmst, "%Y%m%d %H:%M:%S")
+						# Calculate difference in minutes
+						time_diff = time_module.mktime(arr_time) - time_module.mktime(cur_time)
+						minutes = str(int(time_diff / 60))
+					except:
+						# If parsing fails, check if approaching
+						if pred.get("isApp") == "1":
+							minutes = "DUE"
+						else:
+							minutes = "?"
 
 					arrivals.append({
 						"route": route,
@@ -2903,7 +2929,7 @@ def fetch_transit_arrivals():
 				log_warning("Unexpected CTA API response format")
 
 		elif response.status_code == 400:
-			log_warning("CTA API: Invalid request (check stop ID)")
+			log_warning("CTA API: Invalid request (check map ID)")
 		elif response.status_code == 401:
 			log_warning("CTA API: Invalid API key")
 		else:
