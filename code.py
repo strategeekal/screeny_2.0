@@ -223,6 +223,16 @@ class API:
 	HTTP_TOO_MANY_REQUESTS = 429
 	HTTP_INTERNAL_SERVER_ERROR = 500
 
+
+class CTAAPI:
+	"""CTA Transit API Constants"""
+	BASE_URL = "http://www.ctabustracker.com/bustime/api/v2"
+	ARRIVALS_ENDPOINT = "getpredictions"
+	TIMEOUT = 10
+	MAX_PREDICTIONS = 3  # Show up to 3 upcoming arrivals
+	CACHE_DURATION = 60  # Cache for 60 seconds
+
+
 ## Error Handling & Recovery
 class Recovery:
 	# Retry strategies
@@ -356,11 +366,13 @@ class Strings:
 	API_KEY_FALLBACK = "ACCUWEATHER_API_KEY"
 	API_LOCATION_KEY = "ACCUWEATHER_LOCATION_KEY"
 	TWELVE_DATA_API_KEY = "TWELVE_DATA_API_KEY"
-	
+	CTA_API_KEY = "CTA_API_KEY"
+	CTA_STOP_ID = "CTA_STOP_ID"
+
 	# Environment variables
 	WIFI_SSID_VAR = "CIRCUITPY_WIFI_SSID"
 	WIFI_PASSWORD_VAR = "CIRCUITPY_WIFI_PASSWORD"
-	
+
 	# Event sources
 	GITHUB_REPO_URL = os.getenv("GITHUB_REPO_URL")
 	STOCKS_CSV_URL = os.getenv("STOCKS_CSV_URL")
@@ -411,6 +423,8 @@ class DisplayConfig:
 		self.show_stocks = False  # Stock market display (disabled by default)
 		self.stocks_display_frequency = 3  # Show stocks every N cycles (e.g., 3 = every 15 min)
 		self.stocks_respect_market_hours = True  # True = only show during market hours + grace period, False = always show (for testing)
+		self.show_transit = False  # CTA transit arrival display (disabled by default)
+		self.transit_display_frequency = 2  # Show transit every N cycles (e.g., 2 = every 10 min)
 
 		# Display Elements
 		self.show_weekday_indicator = True
@@ -471,6 +485,7 @@ class DisplayConfig:
 		if self.show_forecast: features.append("forecast")
 		if self.show_events: features.append("events")
 		if self.show_stocks: features.append("stocks")
+		if self.show_transit: features.append("transit")
 		if self.show_weekday_indicator: features.append("weekday_indicator")
 
 		# Add data source info
@@ -943,6 +958,8 @@ class WeatherDisplayState:
 		self.market_holiday_date = None  # Cache holiday status (YYYY-MM-DD format)
 		self.cached_intraday_data = {}  # {symbol: {data: [...], timestamp: monotonic, open_price: float}}
 		self.last_intraday_fetch_time = {}  # {symbol: monotonic_timestamp}
+		self.cached_transit_arrivals = []  # Cache for transit arrival predictions
+		self.last_transit_fetch_time = 0  # Timestamp of last transit fetch
 
 		# Colors (set after matrix detection)
 		self.colors = {}
@@ -2784,7 +2801,210 @@ def fetch_github_data(rtc):
 	stocks = fetch_stocks_from_github(session, cache_buster)
 
 	return events, schedules, schedule_source, stocks
-	
+
+
+### ====================================== TRANSIT FUNCTIONS ====================================== ###
+
+def fetch_transit_arrivals():
+	"""
+	Fetch transit arrival predictions from CTA API.
+	Returns list of arrival predictions with route, destination, and arrival time.
+	"""
+	import time
+
+	# Check cache first
+	cache_age = time.monotonic() - state.last_transit_fetch_time
+	if cache_age < CTAAPI.CACHE_DURATION and state.cached_transit_arrivals:
+		log_verbose(f"Using cached transit data (age: {int(cache_age)}s)")
+		return state.cached_transit_arrivals
+
+	# Get API credentials
+	api_key = os.getenv(Strings.CTA_API_KEY)
+	stop_id = os.getenv(Strings.CTA_STOP_ID)
+
+	if not api_key:
+		log_warning("CTA_API_KEY not configured in settings.toml")
+		return []
+
+	if not stop_id:
+		log_warning("CTA_STOP_ID not configured in settings.toml")
+		return []
+
+	session = get_requests_session()
+	if not session:
+		log_warning("No session available for transit fetch")
+		return []
+
+	arrivals = []
+	response = None
+
+	try:
+		# Build CTA API URL
+		url = f"{CTAAPI.BASE_URL}/{CTAAPI.ARRIVALS_ENDPOINT}?key={api_key}&stpid={stop_id}&format=json"
+
+		log_verbose(f"Fetching transit arrivals for stop {stop_id}")
+		response = session.get(url, timeout=CTAAPI.TIMEOUT)
+
+		if not response:
+			log_warning("No response from CTA API")
+			return arrivals
+
+		if response.status_code == 200:
+			import json
+			data = json.loads(response.text)
+
+			# CTA API response structure:
+			# {
+			#   "bustime-response": {
+			#     "prd": [
+			#       {
+			#         "rt": "22",
+			#         "des": "Howard",
+			#         "prdctdn": "5",
+			#         "prdtm": "20231127 10:35"
+			#       }
+			#     ]
+			#   }
+			# }
+
+			if "bustime-response" in data:
+				bustime = data["bustime-response"]
+
+				# Check for errors
+				if "error" in bustime:
+					error_msg = bustime["error"][0].get("msg", "Unknown error")
+					log_warning(f"CTA API error: {error_msg}")
+					return arrivals
+
+				# Get predictions
+				predictions = bustime.get("prd", [])
+
+				log_info(f"Fetched {len(predictions)} total transit arrivals")
+
+				# Process predictions (limit to MAX_PREDICTIONS)
+				for pred in predictions[:CTAAPI.MAX_PREDICTIONS]:
+					route = pred.get("rt", "??")
+					destination = pred.get("des", "Unknown")
+					minutes = pred.get("prdctdn", "?")
+
+					arrivals.append({
+						"route": route,
+						"destination": destination,
+						"minutes": minutes
+					})
+
+				# Cache the results
+				state.cached_transit_arrivals = arrivals
+				state.last_transit_fetch_time = time.monotonic()
+
+				log_verbose(f"Cached {len(arrivals)} transit arrivals")
+
+			else:
+				log_warning("Unexpected CTA API response format")
+
+		elif response.status_code == 400:
+			log_warning("CTA API: Invalid request (check stop ID)")
+		elif response.status_code == 401:
+			log_warning("CTA API: Invalid API key")
+		else:
+			log_warning(f"CTA API returned status {response.status_code}")
+
+	except Exception as e:
+		log_error(f"Error fetching transit arrivals: {e}")
+
+	finally:
+		if response:
+			try:
+				response.close()
+			except:
+				pass
+
+	# If we got no arrivals, return empty list but log it
+	if not arrivals:
+		log_info("No transit arrivals available")
+
+	return arrivals
+
+
+def show_transit_display(duration):
+	"""Display CTA transit arrival predictions"""
+	import time
+
+	log_verbose("Starting transit display")
+	clear_display()
+
+	# Fetch transit arrivals
+	arrivals = fetch_transit_arrivals()
+
+	if not arrivals:
+		log_warning("No transit arrivals to display")
+		return False
+
+	try:
+		# Display title
+		title_label = bitmap_label.Label(
+			font,
+			color=state.colors["WHITE"],
+			text="CTA ARRIVALS",
+			x=2,
+			y=4
+		)
+		state.main_group.append(title_label)
+
+		# Display arrivals (up to 3)
+		y_positions = [12, 20, 28]  # Vertical positions for each arrival
+
+		for i, arrival in enumerate(arrivals):
+			if i >= len(y_positions):
+				break
+
+			route = arrival["route"]
+			destination = arrival["destination"]
+			minutes = arrival["minutes"]
+
+			# Format destination (truncate if too long)
+			if len(destination) > 12:
+				destination = destination[:12]
+
+			# Create arrival text: "22 Howard 5min"
+			arrival_text = f"{route} {destination} {minutes}m"
+
+			# Choose color based on arrival time
+			try:
+				min_val = int(minutes)
+				if min_val <= 2:
+					color = state.colors["RED"]  # Urgent - leaving soon
+				elif min_val <= 5:
+					color = state.colors["ORANGE"]  # Coming soon
+				else:
+					color = state.colors["GREEN"]  # Further out
+			except:
+				color = state.colors["WHITE"]  # Unknown time
+
+			arrival_label = bitmap_label.Label(
+				font,
+				color=color,
+				text=arrival_text,
+				x=2,
+				y=y_positions[i]
+			)
+			state.main_group.append(arrival_label)
+
+		log_info(f"Transit: {len(arrivals)} arrivals displayed")
+
+		# Display for specified duration
+		time.sleep(duration)
+
+		return True
+
+	except Exception as e:
+		log_error(f"Transit display error: {e}")
+		return False
+
+	finally:
+		gc.collect()
+
+
 def load_schedules_from_csv():
 	"""Load schedules from CSV file"""
 	schedules = {}
@@ -2975,6 +3195,12 @@ def apply_display_config(config_dict):
 		applied += 1
 	if "stocks_respect_market_hours" in config_dict:
 		display_config.stocks_respect_market_hours = config_dict["stocks_respect_market_hours"]
+		applied += 1
+	if "show_transit" in config_dict:
+		display_config.show_transit = config_dict["show_transit"]
+		applied += 1
+	if "transit_display_frequency" in config_dict:
+		display_config.transit_display_frequency = config_dict["transit_display_frequency"]
 		applied += 1
 
 	# Display elements
@@ -5491,6 +5717,25 @@ def _run_normal_cycle(rtc, cycle_count, cycle_start_time):
 				if stocks_shown:
 					state.tracker.current_stock_offset = next_offset  # Update for next display
 					state.tracker.record_display_success()
+
+	# Transit display (with frequency control)
+	if display_config.show_transit:
+		# Smart frequency: show every cycle if transit is the only display, otherwise respect frequency
+		other_displays_active = (display_config.show_weather or display_config.show_forecast or
+		                         display_config.show_events or display_config.show_stocks)
+
+		if other_displays_active:
+			# Other displays active - respect frequency (e.g., frequency=2 means cycles 1, 3, 5, 7...)
+			should_show_transit = (cycle_count - 1) % display_config.transit_display_frequency == 0
+		else:
+			# Transit is the only display - show every cycle to avoid clock fallback
+			should_show_transit = True
+
+		if should_show_transit:
+			transit_shown = show_transit_display(Timing.DEFAULT_EVENT)
+			something_displayed = something_displayed or transit_shown
+			if transit_shown:
+				state.tracker.record_display_success()
 
 	# Test modes
 	if display_config.show_color_test:

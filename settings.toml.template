@@ -28,5 +28,12 @@ ADAFRUIT_AIO_KEY = "YOUR_ADAFRUIT_AIO_KEY"
 # Timezone names from http://worldtimeapi.org/timezones
 TIMEZONE = "America/Chicago"
 
+# CTA Transit API (Chicago Transit Authority)
+CTA_API_KEY = "YOUR_CTA_API_KEY"
+CTA_STOP_ID = "YOUR_CTA_STOP_ID"
+
+# Twelve Data Stock API
+TWELVE_DATA_API_KEY = "YOUR_TWELVE_DATA_API_KEY"
+
 #GitHub Repo URL
 GITHUB_REPO_URL = "YOUR_GITHUB REPO URL"
