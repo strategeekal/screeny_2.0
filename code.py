@@ -3439,6 +3439,134 @@ def fetch_all_transit_arrivals():
 	log_info(f"Fetched {len(all_arrivals)} total transit arrivals")
 	return all_arrivals
 
+def show_transit_display(duration, rtc):
+	"""
+	Display CTA transit arrivals (trains + buses) - 3 arrivals at a time.
+
+	Display format:
+	- Train: Colored circle (red/brown/purple) + route + minutes
+	- Bus: White square + route + minutes
+
+	Args:
+		duration: How long to display in seconds
+		rtc: Real-time clock object for commute hours detection
+
+	Returns:
+		bool: True if displayed, False if skipped
+	"""
+	state.memory_monitor.check_memory("transit_display_start")
+
+	# Check commute hours if enabled
+	if display_config.transit_respect_commute_hours:
+		current_hour = rtc.datetime.tm_hour
+		is_commute_time = CTA.COMMUTE_START_HOUR <= current_hour < CTA.COMMUTE_END_HOUR
+
+		if not is_commute_time:
+			log_verbose(f"Transit skipped: Outside commute hours ({current_hour}:00, commute is {CTA.COMMUTE_START_HOUR}-{CTA.COMMUTE_END_HOUR})")
+			return False
+
+	# Check if we need to fetch fresh data (1 minute cache)
+	current_time = time.monotonic()
+	time_since_fetch = current_time - state.last_transit_fetch_time
+
+	if time_since_fetch >= CTA.CACHE_MAX_AGE or not state.cached_transit_arrivals:
+		# Fetch fresh transit data
+		arrivals = fetch_all_transit_arrivals()
+
+		if not arrivals:
+			log_info("No transit arrivals available")
+			return False
+	else:
+		# Use cached data
+		arrivals = state.cached_transit_arrivals
+		log_verbose(f"Using cached transit data ({int(time_since_fetch)}s old)")
+
+	# Take first 3 arrivals (already sorted by time)
+	arrivals_to_show = arrivals[:3]
+
+	if not arrivals_to_show:
+		log_info("No transit arrivals to display")
+		return False
+
+	# Build log message
+	arrival_details = []
+	for a in arrivals_to_show:
+		route = a["route"]
+		mins = a["minutes"]
+		arrival_details.append(f"{route} {mins}min")
+	log_info(f"Transit ({len(arrivals_to_show)}): {', '.join(arrival_details)}")
+
+	clear_display()
+	gc.collect()
+
+	try:
+		# Display arrivals in vertical rows
+		row_positions = [2, 13, 24]  # Y positions for each row
+
+		for i, arrival in enumerate(arrivals_to_show):
+			if i >= 3:
+				break
+
+			y_pos = row_positions[i]
+			route = arrival["route"]
+			minutes = arrival["minutes"]
+			arrival_type = arrival["type"]
+			color = arrival["color"]
+
+			# Create indicator (circle for trains, square for buses)
+			if arrival_type == "train":
+				# Draw filled circle (using a simple filled circle approximation)
+				# Circle at x=3, y=y_pos+2 (centered vertically), radius=2
+				from adafruit_display_shapes.circle import Circle
+				indicator = Circle(3, y_pos + 3, 2, fill=color)
+				state.main_group.append(indicator)
+			else:
+				# Draw filled square for bus (4x4 pixels)
+				from adafruit_display_shapes.rect import Rect
+				indicator = Rect(1, y_pos + 1, 4, 4, fill=color)
+				state.main_group.append(indicator)
+
+			# Route name/number (left side, after indicator)
+			route_label = bitmap_label.Label(
+				font,
+				color=state.colors["DIMMEST_WHITE"],
+				text=route,
+				x=8,
+				y=y_pos
+			)
+			state.main_group.append(route_label)
+
+			# Minutes until arrival (right side)
+			if minutes == 0:
+				time_text = "DUE"
+			elif minutes == 1:
+				time_text = "1 min"
+			else:
+				time_text = f"{minutes} min"
+
+			# Right-align the time
+			time_width = get_text_width(time_text, font)
+			time_x = Display.WIDTH - time_width - 1
+
+			time_label = bitmap_label.Label(
+				font,
+				color=color,  # Use line color for emphasis
+				text=time_text,
+				x=time_x,
+				y=y_pos
+			)
+			state.main_group.append(time_label)
+
+		# Sleep for the specified duration
+		interruptible_sleep(duration)
+
+		state.memory_monitor.check_memory("transit_display_complete")
+		return True
+
+	except Exception as e:
+		log_error(f"Error displaying transit: {e}")
+		return False
+
 ### DISPLAY FUNCTIONS ###
 
 def right_align_text(text, font, right_edge):
@@ -5791,6 +5919,25 @@ def _run_normal_cycle(rtc, cycle_count, cycle_start_time):
 				if stocks_shown:
 					state.tracker.current_stock_offset = next_offset  # Update for next display
 					state.tracker.record_display_success()
+
+	# Transit display (with frequency control)
+	if display_config.show_transit:
+		# Smart frequency: show every cycle if transit is the only display, otherwise respect frequency
+		other_displays_active = (display_config.show_weather or display_config.show_forecast or
+		                         display_config.show_events or display_config.show_stocks)
+
+		if other_displays_active:
+			# Other displays active - respect frequency (e.g., frequency=3 means cycles 1, 4, 7, 10...)
+			should_show_transit = (cycle_count - 1) % display_config.transit_display_frequency == 0
+		else:
+			# Transit is the only display - show every cycle to avoid clock fallback
+			should_show_transit = True
+
+		if should_show_transit:
+			transit_shown = show_transit_display(Timing.DEFAULT_EVENT, rtc)
+			something_displayed = something_displayed or transit_shown
+			if transit_shown:
+				state.tracker.record_display_success()
 
 	# Test modes
 	if display_config.show_color_test:
