@@ -1,4 +1,4 @@
-##### PANTALLITA 2.3.0 #####
+##### PANTALLITA 2.4.0 #####
 # Stack exhaustion fix: Flattened nested try/except blocks to prevent crashes (v2.0.1)
 # Socket exhaustion fix: response.close() + smart caching (v2.0.2)
 # Comprehensive socket fix: Added response.close() to ALL HTTP requests - startup & runtime (v2.0.3)
