@@ -2946,23 +2946,73 @@ def fetch_transit_arrivals():
 
 				log_info(f"Fetched {len(predictions)} total transit arrivals")
 
-				# Process predictions (limit to MAX_PREDICTIONS)
-				import time as time_module
-				for pred in predictions[:CTAAPI.MAX_PREDICTIONS]:
+				# Filter for Brown, Purple, Red lines going to Loop
+				loop_destinations = ["Loop", "95th/Dan Ryan", "Howard"]  # Destinations that indicate Loop direction
+				wanted_routes = ["Brn", "P", "Red"]  # Brown, Purple, Red
+
+				# Process predictions and filter
+				for pred in predictions:
 					route = pred.get("rt", "??")
 					destination = pred.get("destNm", "Unknown")
 
-					# Calculate minutes until arrival
-					arr_time_str = pred.get("arrT", "")
+					# Skip if not one of our wanted routes
+					if route not in wanted_routes:
+						continue
+
+					# Skip if not going to Loop (check destination)
+					# For Brown/Purple: heading to Loop
+					# For Red: either Howard or 95th direction goes through Loop
+					going_to_loop = False
+					if route == "Brn" and "Loop" in destination:
+						going_to_loop = True
+					elif route == "P" and "Loop" in destination:
+						going_to_loop = True
+					elif route == "Red":  # Red line always goes through Loop
+						going_to_loop = True
+
+					if not going_to_loop:
+						continue
+
+					# Map route names to abbreviations
+					route_abbrev = {
+						"Brn": "bro",
+						"P": "ppl",
+						"Red": "red"
+					}.get(route, route.lower())
+
+					# Calculate minutes until arrival using simple string parsing
+					arr_time_str = pred.get("arrT", "")  # Format: "20231127 13:50:00"
+					tmst = ctatt.get("tmst", "")  # Format: "20231127 13:45:00"
+
 					try:
-						# Parse arrival time: "20231127 13:50:00"
-						arr_time = time_module.strptime(arr_time_str, "%Y%m%d %H:%M:%S")
-						# Get current time from response timestamp
-						tmst = ctatt.get("tmst", "")
-						cur_time = time_module.strptime(tmst, "%Y%m%d %H:%M:%S")
-						# Calculate difference in minutes
-						time_diff = time_module.mktime(arr_time) - time_module.mktime(cur_time)
-						minutes = str(int(time_diff / 60))
+						# Parse times manually (CircuitPython doesn't have strptime)
+						# Extract hour and minute from "20231127 13:50:00"
+						arr_parts = arr_time_str.split()
+						if len(arr_parts) == 2:
+							arr_hms = arr_parts[1].split(':')  # ["13", "50", "00"]
+							arr_hour = int(arr_hms[0])
+							arr_min = int(arr_hms[1])
+
+							cur_parts = tmst.split()
+							if len(cur_parts) == 2:
+								cur_hms = cur_parts[1].split(':')
+								cur_hour = int(cur_hms[0])
+								cur_min = int(cur_hms[1])
+
+								# Calculate difference in minutes
+								total_arr_mins = arr_hour * 60 + arr_min
+								total_cur_mins = cur_hour * 60 + cur_min
+								diff_mins = total_arr_mins - total_cur_mins
+
+								# Handle day rollover (if arrival is tomorrow)
+								if diff_mins < 0:
+									diff_mins += 24 * 60
+
+								minutes = str(diff_mins)
+							else:
+								raise ValueError("Invalid time format")
+						else:
+							raise ValueError("Invalid time format")
 					except:
 						# If parsing fails, check if approaching
 						if pred.get("isApp") == "1":
@@ -2971,10 +3021,14 @@ def fetch_transit_arrivals():
 							minutes = "?"
 
 					arrivals.append({
-						"route": route,
+						"route": route_abbrev,
 						"destination": destination,
 						"minutes": minutes
 					})
+
+					# Stop after we have MAX_PREDICTIONS arrivals
+					if len(arrivals) >= CTAAPI.MAX_PREDICTIONS:
+						break
 
 				# Cache the results
 				state.cached_transit_arrivals = arrivals
@@ -3024,18 +3078,8 @@ def show_transit_display(rtc, duration):
 		return False
 
 	try:
-		# Display title
-		title_label = bitmap_label.Label(
-			font,
-			color=state.colors["WHITE"],
-			text="CTA ARRIVALS",
-			x=2,
-			y=4
-		)
-		state.main_group.append(title_label)
-
-		# Display arrivals (up to 3)
-		y_positions = [12, 20, 28]  # Vertical positions for each arrival
+		# Display arrivals (up to 3) - no title, start from top
+		y_positions = [4, 12, 20]  # Vertical positions for each arrival
 
 		for i, arrival in enumerate(arrivals):
 			if i >= len(y_positions):
@@ -3045,22 +3089,21 @@ def show_transit_display(rtc, duration):
 			destination = arrival["destination"]
 			minutes = arrival["minutes"]
 
-			# Format destination (truncate if too long)
-			if len(destination) > 12:
-				destination = destination[:12]
-
-			# Create arrival text: "22 Howard 5min"
+			# Format: "bro Howard 5m"
 			arrival_text = f"{route} {destination} {minutes}m"
 
 			# Choose color based on arrival time
 			try:
-				min_val = int(minutes)
-				if min_val <= 2:
-					color = state.colors["RED"]  # Urgent - leaving soon
-				elif min_val <= 5:
-					color = state.colors["ORANGE"]  # Coming soon
+				if minutes == "DUE":
+					color = state.colors["RED"]  # Arriving now
 				else:
-					color = state.colors["GREEN"]  # Further out
+					min_val = int(minutes)
+					if min_val <= 2:
+						color = state.colors["RED"]  # Urgent - leaving soon
+					elif min_val <= 5:
+						color = state.colors["ORANGE"]  # Coming soon
+					else:
+						color = state.colors["GREEN"]  # Further out
 			except:
 				color = state.colors["WHITE"]  # Unknown time
 
