@@ -2926,7 +2926,7 @@ def fetch_transit_arrivals():
 	return arrivals
 
 
-def show_transit_display(duration):
+def show_transit_display(rtc, duration):
 	"""Display CTA transit arrival predictions"""
 	import time
 
@@ -5732,7 +5732,7 @@ def _run_normal_cycle(rtc, cycle_count, cycle_start_time):
 			should_show_transit = True
 
 		if should_show_transit:
-			transit_shown = show_transit_display(Timing.DEFAULT_EVENT)
+			transit_shown = show_transit_display(rtc, Timing.DEFAULT_EVENT)
 			something_displayed = something_displayed or transit_shown
 			if transit_shown:
 				state.tracker.record_display_success()
