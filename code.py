@@ -1185,18 +1185,6 @@ def setup_buttons():
 		state.button_down = None
 		return False
 
-def check_button_stop():
-	"""Check if stop button (UP) is pressed. Returns True if should exit."""
-	if state.button_up is None:
-		return False
-
-	# Button is pressed when value is False (pulled low)
-	if not state.button_up.value:
-		log_info("Stop button (UP) pressed - exiting program")
-		return True
-
-	return False
-
 ### NETWORK FUNCTIONS ###
 
 def setup_wifi_with_recovery():
@@ -5667,10 +5655,6 @@ def main():
 		cycle_count = 0
 		while True:
 			try:
-				# Check stop button (UP button on MatrixPortal)
-				if check_button_stop():
-					raise KeyboardInterrupt("Stop button pressed")
-
 				cycle_count += 1
 				log_info(f"## CYCLE {cycle_count} ##")
 				run_display_cycle(rtc, cycle_count)
