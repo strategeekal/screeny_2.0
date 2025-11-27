@@ -3068,9 +3068,7 @@ def fetch_transit_arrivals():
 
 
 def show_transit_display(rtc, duration):
-	"""Display CTA transit arrival predictions"""
-	import time
-
+	"""Display CTA transit arrival predictions with colored rectangles"""
 	log_verbose("Starting transit display")
 	clear_display()
 
@@ -3082,47 +3080,108 @@ def show_transit_display(rtc, duration):
 		return False
 
 	try:
-		# Display arrivals (up to 3) - no title, start from top
-		y_positions = [4, 12, 20]  # Vertical positions for each arrival
+		# Display date and time at top
+		now = rtc.datetime
+		month_names = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+		               "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+		month = month_names[now.tm_mon]
+		day = now.tm_mday
+		hour = now.tm_hour
+		minute = now.tm_min
 
-		for i, arrival in enumerate(arrivals):
-			if i >= len(y_positions):
-				break
+		# Format time as 12-hour with am/pm
+		am_pm = "a" if hour < 12 else "p"
+		display_hour = hour if hour <= 12 else hour - 12
+		if display_hour == 0:
+			display_hour = 12
 
+		# Format: "Nov 27 2:30p"
+		time_str = f"{month} {day} {display_hour}:{minute:02d}{am_pm}"
+
+		time_label = bitmap_label.Label(
+			font,
+			color=state.colors["WHITE"],
+			text=time_str,
+			x=2,
+			y=2
+		)
+		state.main_group.append(time_label)
+
+		# Group arrivals by route
+		red_times = []
+		brown_purple_times = []  # Combined brown and purple
+
+		for arrival in arrivals:
 			route = arrival["route"]
 			minutes = arrival["minutes"]
 
-			# Format: "bro 5m" (removed destination to save space)
-			arrival_text = f"{route} {minutes}m"
+			if route == "red":
+				red_times.append(minutes)
+			elif route in ["bro", "ppl"]:
+				brown_purple_times.append(minutes)
 
-			# Choose color based on arrival time
-			try:
-				if minutes == "DUE":
-					color = state.colors["RED"]  # Arriving now
-				else:
-					min_val = int(minutes)
-					if min_val <= 2:
-						color = state.colors["RED"]  # Urgent - leaving soon
-					elif min_val <= 5:
-						color = state.colors["ORANGE"]  # Coming soon
-					else:
-						color = state.colors["GREEN"]  # Further out
-			except:
-				color = state.colors["WHITE"]  # Unknown time
+		# Take only next 3 arrivals per group
+		red_times = red_times[:3]
+		brown_purple_times = brown_purple_times[:3]
 
-			arrival_label = bitmap_label.Label(
+		y_pos = 12  # Start below date/time
+
+		# Display Red line
+		if red_times:
+			# Red rectangle (5px wide, font height ~6px)
+			red_rect = displayio.Bitmap(5, 6, 1)
+			red_palette = displayio.Palette(1)
+			red_palette[0] = state.colors["RED"]
+			red_tile = displayio.TileGrid(red_rect, pixel_shader=red_palette, x=2, y=y_pos)
+			state.main_group.append(red_tile)
+
+			# Times separated by commas
+			times_text = ", ".join(red_times)
+			times_label = bitmap_label.Label(
 				font,
-				color=color,
-				text=arrival_text,
-				x=2,
-				y=y_positions[i]
+				color=state.colors["WHITE"],
+				text=times_text,
+				x=9,  # After 5px rectangle + 2px gap
+				y=y_pos
 			)
-			state.main_group.append(arrival_label)
+			state.main_group.append(times_label)
+			y_pos += 8
+
+		# Display Brown+Purple line (diagonal split)
+		if brown_purple_times:
+			# Create 5x6 bitmap for brown/purple split
+			bp_rect = displayio.Bitmap(5, 6, 2)  # 2 colors
+			bp_palette = displayio.Palette(2)
+			bp_palette[0] = 0x964B00  # Brown color
+			bp_palette[1] = 0x800080  # Purple color
+
+			# Fill diagonally: upper-left brown, lower-right purple
+			for y in range(6):
+				for x in range(5):
+					# Diagonal split: if x+y < threshold, use brown, else purple
+					if x + y < 5:
+						bp_rect[x, y] = 0  # Brown
+					else:
+						bp_rect[x, y] = 1  # Purple
+
+			bp_tile = displayio.TileGrid(bp_rect, pixel_shader=bp_palette, x=2, y=y_pos)
+			state.main_group.append(bp_tile)
+
+			# Times separated by commas
+			times_text = ", ".join(brown_purple_times)
+			times_label = bitmap_label.Label(
+				font,
+				color=state.colors["WHITE"],
+				text=times_text,
+				x=9,
+				y=y_pos
+			)
+			state.main_group.append(times_label)
 
 		log_info(f"Transit: {len(arrivals)} arrivals displayed")
 
-		# Display for specified duration
-		time.sleep(duration)
+		# Use interruptible_sleep instead of time.sleep for button support
+		interruptible_sleep(duration)
 
 		return True
 
