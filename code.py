@@ -3230,9 +3230,9 @@ def fetch_cta_train_arrivals(station_mapid):
 	Fetch train arrivals from CTA Train Tracker API.
 	Returns list of dicts: [{route, destination, minutes, color}, ...]
 	"""
-	api_key = os.getenv("CTA_TRAIN_API_KEY")
+	api_key = os.getenv("CTA_API_KEY")
 	if not api_key:
-		log_warning("CTA_TRAIN_API_KEY not configured in settings.toml")
+		log_warning("CTA_API_KEY not configured in settings.toml")
 		return []
 
 	session = get_requests_session()
@@ -3338,9 +3338,9 @@ def fetch_cta_bus_arrivals(stop_id, route):
 	Fetch bus arrivals from CTA Bus Tracker API.
 	Returns list of dicts: [{route, destination, minutes, color}, ...]
 	"""
-	api_key = os.getenv("CTA_BUS_API_KEY")
+	api_key = os.getenv("CTA_API_KEY")
 	if not api_key:
-		log_warning("CTA_BUS_API_KEY not configured in settings.toml")
+		log_warning("CTA_API_KEY not configured in settings.toml")
 		return []
 
 	session = get_requests_session()
