@@ -2981,43 +2981,41 @@ def fetch_transit_arrivals():
 					}.get(route, route.lower())
 
 					# Calculate minutes until arrival using simple string parsing
-					arr_time_str = pred.get("arrT", "")  # Format: "20231127 13:50:00"
-					tmst = ctatt.get("tmst", "")  # Format: "20231127 13:45:00"
+					arr_time_str = pred.get("arrT", "")  # Format: "2025-11-27T14:34:20"
+					tmst = ctatt.get("tmst", "")  # Format: "2025-11-27T14:30:15"
 
 					try:
-						# Parse times manually (CircuitPython doesn't have strptime)
-						# Extract hour and minute from "20231127 13:50:00"
+						# Parse ISO 8601 format: "2025-11-27T14:34:20"
 						log_verbose(f"Parsing arr_time: {arr_time_str}, tmst: {tmst}")
 
-						arr_parts = arr_time_str.split()
-						if len(arr_parts) == 2:
-							arr_hms = arr_parts[1].split(':')  # ["13", "50", "00"]
+						# Split on 'T' to separate date and time
+						if 'T' in arr_time_str and 'T' in tmst:
+							arr_time_part = arr_time_str.split('T')[1]  # "14:34:20"
+							cur_time_part = tmst.split('T')[1]  # "14:30:15"
+
+							# Split time on ':'
+							arr_hms = arr_time_part.split(':')  # ["14", "34", "20"]
 							arr_hour = int(arr_hms[0])
 							arr_min = int(arr_hms[1])
 
-							cur_parts = tmst.split()
-							if len(cur_parts) == 2:
-								cur_hms = cur_parts[1].split(':')
-								cur_hour = int(cur_hms[0])
-								cur_min = int(cur_hms[1])
+							cur_hms = cur_time_part.split(':')  # ["14", "30", "15"]
+							cur_hour = int(cur_hms[0])
+							cur_min = int(cur_hms[1])
 
-								# Calculate difference in minutes
-								total_arr_mins = arr_hour * 60 + arr_min
-								total_cur_mins = cur_hour * 60 + cur_min
-								diff_mins = total_arr_mins - total_cur_mins
+							# Calculate difference in minutes
+							total_arr_mins = arr_hour * 60 + arr_min
+							total_cur_mins = cur_hour * 60 + cur_min
+							diff_mins = total_arr_mins - total_cur_mins
 
-								# Handle day rollover (if arrival is tomorrow)
-								if diff_mins < 0:
-									diff_mins += 24 * 60
+							# Handle day rollover (if arrival is tomorrow)
+							if diff_mins < 0:
+								diff_mins += 24 * 60
 
-								minutes = str(diff_mins)
-								log_verbose(f"Calculated {minutes} minutes until arrival")
-							else:
-								log_warning(f"Invalid current time format: {tmst}")
-								raise ValueError("Invalid current time format")
+							minutes = str(diff_mins)
+							log_verbose(f"Calculated {minutes} minutes until arrival")
 						else:
-							log_warning(f"Invalid arrival time format: {arr_time_str}")
-							raise ValueError("Invalid arrival time format")
+							log_warning(f"Missing 'T' separator in time format")
+							raise ValueError("Invalid time format")
 					except Exception as e:
 						log_warning(f"Time parsing error: {e}")
 						# If parsing fails, check if approaching
