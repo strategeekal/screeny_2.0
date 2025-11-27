@@ -189,7 +189,37 @@ class Timing:
 	EVENT_ALL_DAY_END = 24    # All-day events end at midnight next day
 	
 	API_RECOVERY_RETRY_INTERVAL = 1800
-	
+
+## CTA Transit Configuration
+class CTA:
+	# API URLs
+	TRAIN_TRACKER_URL = "http://lapi.transitchicago.com/api/1.0/ttarrivals.aspx"
+	BUS_TRACKER_URL = "http://www.ctabustracker.com/bustime/api/v2/getpredictions"
+
+	# Station IDs (mapid for trains)
+	STATION_DIVERSEY = "40530"      # Brown & Purple lines
+	STATION_FULLERTON = "41220"     # Red line
+
+	# Bus stop IDs (stpid for buses)
+	STOP_HALSTED_WRIGHTWOOD = "1446"  # 8 bus southbound (approximate - may need adjustment)
+
+	# Route IDs
+	ROUTE_8_HALSTED = "8"
+
+	# Line colors (for display circles)
+	COLOR_RED = 0xC60C30      # CTA Red
+	COLOR_BROWN = 0x62361B    # CTA Brown
+	COLOR_PURPLE = 0x522398   # CTA Purple
+	COLOR_BUS = 0xFFFFFF      # White for buses
+
+	# Cache settings
+	CACHE_MAX_AGE = 60        # 1 minute cache for transit data
+	UPDATE_INTERVAL = 60      # Update every minute
+
+	# Commute hours (9-11 AM)
+	COMMUTE_START_HOUR = 9
+	COMMUTE_END_HOUR = 11
+
 # Timezone offset table
 TIMEZONE_OFFSETS = {
 		"America/New_York": {"std": -5, "dst": -4, "dst_start": (3, 8), "dst_end": (11, 7)},
@@ -414,6 +444,9 @@ class DisplayConfig:
 		self.show_stocks = False  # Stock market display (disabled by default)
 		self.stocks_display_frequency = 3  # Show stocks every N cycles (e.g., 3 = every 15 min)
 		self.stocks_respect_market_hours = True  # True = only show during market hours + grace period, False = always show (for testing)
+		self.show_transit = False  # CTA transit display (disabled by default)
+		self.transit_display_frequency = 3  # Show transit every N cycles
+		self.transit_respect_commute_hours = True  # True = only show 9-11 AM, False = always show (for testing)
 
 		# Display Elements
 		self.show_weekday_indicator = True
@@ -474,6 +507,7 @@ class DisplayConfig:
 		if self.show_forecast: features.append("forecast")
 		if self.show_events: features.append("events")
 		if self.show_stocks: features.append("stocks")
+		if self.show_transit: features.append("transit")
 		if self.show_weekday_indicator: features.append("weekday_indicator")
 
 		# Add data source info
@@ -948,6 +982,8 @@ class WeatherDisplayState:
 		self.market_holiday_date = None  # Cache holiday status (YYYY-MM-DD format)
 		self.cached_intraday_data = {}  # {symbol: {data: [...], timestamp: monotonic, open_price: float}}
 		self.last_intraday_fetch_time = {}  # {symbol: monotonic_timestamp}
+		self.cached_transit_arrivals = []  # [{route, destination, minutes, type, color}, ...]
+		self.last_transit_fetch_time = 0  # monotonic timestamp
 
 		# Colors (set after matrix detection)
 		self.colors = {}
@@ -3186,6 +3222,222 @@ def clear_display():
 	if state.main_group is not None:
 		while len(state.main_group):
 			state.main_group.pop()
+
+### CTA TRANSIT FUNCTIONS ###
+
+def fetch_cta_train_arrivals(station_mapid):
+	"""
+	Fetch train arrivals from CTA Train Tracker API.
+	Returns list of dicts: [{route, destination, minutes, color}, ...]
+	"""
+	api_key = os.getenv("CTA_TRAIN_API_KEY")
+	if not api_key:
+		log_warning("CTA_TRAIN_API_KEY not configured in settings.toml")
+		return []
+
+	session = get_requests_session()
+	if not session:
+		log_warning("No session available for CTA train fetch")
+		return []
+
+	response = None
+	try:
+		# Build URL - CTA Train Tracker API
+		url = CTA.TRAIN_TRACKER_URL + "?key=" + api_key
+		url += "&mapid=" + station_mapid
+		url += "&max=5&outputType=JSON"
+
+		log_verbose("Fetching CTA train arrivals for station " + station_mapid)
+		response = session.get(url, timeout=10)
+
+		if not response:
+			log_warning("No response from CTA Train Tracker")
+			return []
+
+		if response.status_code == 200:
+			import json
+			data = json.loads(response.text)
+
+			# Check for errors
+			if "ctatt" not in data:
+				log_warning("Invalid CTA response format")
+				return []
+
+			ctatt = data["ctatt"]
+			if "eta" not in ctatt:
+				log_verbose("No arrivals for station " + station_mapid)
+				return []
+
+			arrivals = []
+			for eta in ctatt["eta"]:
+				# Calculate minutes until arrival
+				arrival_time = eta.get("arrT", "")
+				prediction_time = eta.get("prdt", "")
+
+				# Parse times and calculate difference
+				# Format: YYYYMMDD HH:MM:SS
+				try:
+					import time
+					# Simple minute calculation from prediction
+					arr_parts = arrival_time.split()
+					pred_parts = prediction_time.split()
+
+					if len(arr_parts) == 2 and len(pred_parts) == 2:
+						arr_time_parts = arr_parts[1].split(":")
+						pred_time_parts = pred_parts[1].split(":")
+
+						arr_minutes = int(arr_time_parts[0]) * 60 + int(arr_time_parts[1])
+						pred_minutes = int(pred_time_parts[0]) * 60 + int(pred_time_parts[1])
+
+						minutes_until = arr_minutes - pred_minutes
+						if minutes_until < 0:
+							minutes_until += 1440  # Handle midnight rollover
+
+						route = eta.get("rt", "")
+						destination = eta.get("destNm", "")
+
+						# Determine color based on route
+						color = CTA.COLOR_RED
+						if route == "Brn":
+							color = CTA.COLOR_BROWN
+						elif route == "P" or route == "Pexp":
+							color = CTA.COLOR_PURPLE
+
+						arrivals.append({
+							"route": route,
+							"destination": destination,
+							"minutes": minutes_until,
+							"type": "train",
+							"color": color
+						})
+
+				except Exception as e:
+					log_debug(f"Error parsing arrival time: {e}")
+					continue
+
+			log_verbose(f"Found {len(arrivals)} train arrivals")
+			return arrivals
+
+		else:
+			log_warning(f"CTA Train API error: {response.status_code}")
+			return []
+
+	except Exception as e:
+		log_warning(f"Error fetching CTA trains: {e}")
+		return []
+
+	finally:
+		if response:
+			try:
+				response.close()
+			except:
+				pass
+
+def fetch_cta_bus_arrivals(stop_id, route):
+	"""
+	Fetch bus arrivals from CTA Bus Tracker API.
+	Returns list of dicts: [{route, destination, minutes, color}, ...]
+	"""
+	api_key = os.getenv("CTA_BUS_API_KEY")
+	if not api_key:
+		log_warning("CTA_BUS_API_KEY not configured in settings.toml")
+		return []
+
+	session = get_requests_session()
+	if not session:
+		log_warning("No session available for CTA bus fetch")
+		return []
+
+	response = None
+	try:
+		# Build URL - CTA Bus Tracker API
+		url = CTA.BUS_TRACKER_URL + "?key=" + api_key
+		url += "&stpid=" + stop_id
+		url += "&rt=" + route
+		url += "&format=json"
+
+		log_verbose("Fetching CTA bus arrivals for stop " + stop_id)
+		response = session.get(url, timeout=10)
+
+		if not response:
+			log_warning("No response from CTA Bus Tracker")
+			return []
+
+		if response.status_code == 200:
+			import json
+			data = json.loads(response.text)
+
+			# Check for errors
+			if "bustime-response" not in data:
+				log_warning("Invalid CTA bus response format")
+				return []
+
+			bus_response = data["bustime-response"]
+			if "prd" not in bus_response:
+				log_verbose("No bus predictions for stop " + stop_id)
+				return []
+
+			arrivals = []
+			for prd in bus_response["prd"]:
+				# Get predicted minutes
+				minutes_until = int(prd.get("prdctdn", "0"))
+				route_name = prd.get("rt", "")
+				destination = prd.get("des", "")
+
+				arrivals.append({
+					"route": route_name,
+					"destination": destination,
+					"minutes": minutes_until,
+					"type": "bus",
+					"color": CTA.COLOR_BUS
+				})
+
+			log_verbose(f"Found {len(arrivals)} bus arrivals")
+			return arrivals
+
+		else:
+			log_warning(f"CTA Bus API error: {response.status_code}")
+			return []
+
+	except Exception as e:
+		log_warning(f"Error fetching CTA buses: {e}")
+		return []
+
+	finally:
+		if response:
+			try:
+				response.close()
+			except:
+				pass
+
+def fetch_all_transit_arrivals():
+	"""
+	Fetch all configured CTA transit arrivals (trains + buses).
+	Returns combined list sorted by arrival time.
+	"""
+	all_arrivals = []
+
+	# Fetch Diversey station (Brown & Purple)
+	diversey_arrivals = fetch_cta_train_arrivals(CTA.STATION_DIVERSEY)
+	all_arrivals.extend(diversey_arrivals)
+
+	# Fetch Fullerton station (Red)
+	fullerton_arrivals = fetch_cta_train_arrivals(CTA.STATION_FULLERTON)
+	all_arrivals.extend(fullerton_arrivals)
+
+	# Fetch 8 bus at Halsted & Wrightwood
+	bus_arrivals = fetch_cta_bus_arrivals(CTA.STOP_HALSTED_WRIGHTWOOD, CTA.ROUTE_8_HALSTED)
+	all_arrivals.extend(bus_arrivals)
+
+	# Sort by minutes (earliest first)
+	all_arrivals.sort(key=lambda x: x["minutes"])
+
+	# Update cache
+	state.cached_transit_arrivals = all_arrivals
+	state.last_transit_fetch_time = time.monotonic()
+
+	log_info(f"Fetched {len(all_arrivals)} total transit arrivals")
+	return all_arrivals
 
 ### DISPLAY FUNCTIONS ###
 
