@@ -2930,6 +2930,8 @@ def fetch_transit_arrivals():
 					try:
 						# Parse times manually (CircuitPython doesn't have strptime)
 						# Extract hour and minute from "20231127 13:50:00"
+						log_verbose(f"Parsing arr_time: {arr_time_str}, tmst: {tmst}")
+
 						arr_parts = arr_time_str.split()
 						if len(arr_parts) == 2:
 							arr_hms = arr_parts[1].split(':')  # ["13", "50", "00"]
@@ -2952,11 +2954,15 @@ def fetch_transit_arrivals():
 									diff_mins += 24 * 60
 
 								minutes = str(diff_mins)
+								log_verbose(f"Calculated {minutes} minutes until arrival")
 							else:
-								raise ValueError("Invalid time format")
+								log_warning(f"Invalid current time format: {tmst}")
+								raise ValueError("Invalid current time format")
 						else:
-							raise ValueError("Invalid time format")
-					except:
+							log_warning(f"Invalid arrival time format: {arr_time_str}")
+							raise ValueError("Invalid arrival time format")
+					except Exception as e:
+						log_warning(f"Time parsing error: {e}")
 						# If parsing fails, check if approaching
 						if pred.get("isApp") == "1":
 							minutes = "DUE"
@@ -3029,11 +3035,10 @@ def show_transit_display(rtc, duration):
 				break
 
 			route = arrival["route"]
-			destination = arrival["destination"]
 			minutes = arrival["minutes"]
 
-			# Format: "bro Howard 5m"
-			arrival_text = f"{route} {destination} {minutes}m"
+			# Format: "bro 5m" (removed destination to save space)
+			arrival_text = f"{route} {minutes}m"
 
 			# Choose color based on arrival time
 			try:
