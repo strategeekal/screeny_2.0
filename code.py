@@ -2842,115 +2842,51 @@ def fetch_transit_arrivals():
 	arrivals = []
 	import json
 
-	# Helper function to fetch arrivals for a specific station
-	def fetch_station_arrivals(station_id, station_name, filter_routes):
-		"""Fetch arrivals for a single station and filter for specific routes"""
+	# Fetch Fullerton station: Red line only
+	if fullerton_id:
 		response = None
-		station_arrivals = []
-
 		try:
-			url = f"{CTAAPI.BASE_URL}/{CTAAPI.ARRIVALS_ENDPOINT}?key={api_key}&mapid={station_id}&outputType=JSON"
-			log_verbose(f"Fetching {station_name} arrivals (station {station_id})")
-
+			url = f"{CTAAPI.BASE_URL}/{CTAAPI.ARRIVALS_ENDPOINT}?key={api_key}&mapid={fullerton_id}&outputType=JSON"
+			log_verbose(f"Fetching Fullerton arrivals (station {fullerton_id})")
 			response = session.get(url, timeout=CTAAPI.TIMEOUT)
 
-			if not response:
-				log_warning(f"No response from CTA API for {station_name}")
-				return station_arrivals
-
-			if response.status_code == 200:
+			if response and response.status_code == 200:
+				data = json.loads(response.text)
 				if "ctatt" in data:
 					ctatt = data["ctatt"]
+					if ctatt.get("errCd") == "0":
+						predictions = ctatt.get("eta", [])
+						log_debug(f"Fetched {len(predictions)} predictions from Fullerton")
 
-					# Check for errors
-					if ctatt.get("errCd") != "0":
-						error_msg = ctatt.get("errNm", "Unknown error")
-						log_warning(f"CTA API error for {station_name}: {error_msg}")
-						return station_arrivals
+						for pred in predictions:
+							route = pred.get("rt", "??")
+							if route != "Red":
+								continue
 
-					# Get arrival predictions
-					predictions = ctatt.get("eta", [])
-					log_debug(f"Fetched {len(predictions)} predictions from {station_name}")
+							destination = pred.get("destNm", "Unknown")
+							arr_time_str = pred.get("arrT", "")
+							tmst = ctatt.get("tmst", "")
 
-					# Process predictions and filter for specified routes
-					for pred in predictions:
-						route = pred.get("rt", "??")
-						destination = pred.get("destNm", "Unknown")
+							try:
+								if 'T' in arr_time_str and 'T' in tmst:
+									arr_time_part = arr_time_str.split('T')[1]
+									cur_time_part = tmst.split('T')[1]
+									arr_hms = arr_time_part.split(':')
+									cur_hms = cur_time_part.split(':')
+									total_arr_mins = int(arr_hms[0]) * 60 + int(arr_hms[1])
+									total_cur_mins = int(cur_hms[0]) * 60 + int(cur_hms[1])
+									diff_mins = total_arr_mins - total_cur_mins
+									if diff_mins < 0:
+										diff_mins += 24 * 60
+									minutes = str(diff_mins)
+								else:
+									raise ValueError("Invalid time format")
+							except Exception:
+								minutes = "DUE" if pred.get("isApp") == "1" else "?"
 
-						# Skip if not one of our filter routes
-						if route not in filter_routes:
-							continue
-
-						# Check if going to Loop
-						going_to_loop = False
-						if route == "Brn" and "Loop" in destination:
-							going_to_loop = True
-						elif route == "P" and "Loop" in destination:
-							going_to_loop = True
-						elif route == "Red":  # Red line - accept all southbound (toward Loop/95th)
-							going_to_loop = True
-
-						if not going_to_loop:
-							continue
-
-						# Map route names to abbreviations
-						route_abbrev = {
-							"Brn": "bro",
-							"P": "ppl",
-							"Red": "red"
-						}.get(route, route.lower())
-
-						# Calculate minutes until arrival
-						arr_time_str = pred.get("arrT", "")
-						tmst = ctatt.get("tmst", "")
-
-						try:
-							# Parse ISO 8601 format: "2025-11-27T14:34:20"
-							if 'T' in arr_time_str and 'T' in tmst:
-								arr_time_part = arr_time_str.split('T')[1]
-								cur_time_part = tmst.split('T')[1]
-
-								arr_hms = arr_time_part.split(':')
-								arr_hour = int(arr_hms[0])
-								arr_min = int(arr_hms[1])
-
-								cur_hms = cur_time_part.split(':')
-								cur_hour = int(cur_hms[0])
-								cur_min = int(cur_hms[1])
-
-								total_arr_mins = arr_hour * 60 + arr_min
-								total_cur_mins = cur_hour * 60 + cur_min
-								diff_mins = total_arr_mins - total_cur_mins
-
-								# Handle day rollover
-								if diff_mins < 0:
-									diff_mins += 24 * 60
-
-								minutes = str(diff_mins)
-							else:
-								raise ValueError("Invalid time format")
-						except Exception:
-							if pred.get("isApp") == "1":
-								minutes = "DUE"
-							else:
-								minutes = "?"
-
-						station_arrivals.append({
-							"route": route_abbrev,
-							"destination": destination,
-							"minutes": minutes
-						})
-
-			elif response.status_code == 400:
-				log_warning(f"CTA API: Invalid request for {station_name} (check map ID)")
-			elif response.status_code == 401:
-				log_warning(f"CTA API: Invalid API key")
-			else:
-				log_warning(f"CTA API returned status {response.status_code} for {station_name}")
-
+							arrivals.append({"route": "red", "destination": destination, "minutes": minutes})
 		except Exception as e:
-			log_error(f"Error fetching {station_name} arrivals: {e}")
-
+			log_error(f"Error fetching Fullerton arrivals: {e}")
 		finally:
 			if response:
 				try:
@@ -2958,45 +2894,76 @@ def fetch_transit_arrivals():
 				except:
 					pass
 
-		return station_arrivals
+	# Fetch Diversey station: Brown and Purple lines only
+	if diversey_id:
+		response = None
+		try:
+			url = f"{CTAAPI.BASE_URL}/{CTAAPI.ARRIVALS_ENDPOINT}?key={api_key}&mapid={diversey_id}&outputType=JSON"
+			log_verbose(f"Fetching Diversey arrivals (station {diversey_id})")
+			response = session.get(url, timeout=CTAAPI.TIMEOUT)
 
-	# Fetch arrivals from both stations
-	try:
-		# Fullerton station: Red line only
-		if fullerton_id:
-			fullerton_arrivals = fetch_station_arrivals(fullerton_id, "Fullerton", ["Red"])
-			arrivals.extend(fullerton_arrivals)
-			log_debug(f"Got {len(fullerton_arrivals)} Red line arrivals from Fullerton")
+			if response and response.status_code == 200:
+				data = json.loads(response.text)
+				if "ctatt" in data:
+					ctatt = data["ctatt"]
+					if ctatt.get("errCd") == "0":
+						predictions = ctatt.get("eta", [])
+						log_debug(f"Fetched {len(predictions)} predictions from Diversey")
 
-		# Diversey station: Brown and Purple lines only
-		if diversey_id:
-			diversey_arrivals = fetch_station_arrivals(diversey_id, "Diversey", ["Brn", "P"])
-			arrivals.extend(diversey_arrivals)
-			log_debug(f"Got {len(diversey_arrivals)} Brown/Purple arrivals from Diversey")
+						for pred in predictions:
+							route = pred.get("rt", "??")
+							if route not in ["Brn", "P"]:
+								continue
 
-		# Add placeholder data for route 8 bus (until Bus Tracker API is integrated)
-		# TODO: Replace with actual Bus Tracker API call
-		import random
-		placeholder_8_times = [str(random.randint(3, 15)) for _ in range(3)]
-		for minutes in placeholder_8_times:
-			arrivals.append({
-				"route": "8",
-				"destination": "South",
-				"minutes": minutes
-			})
-		log_debug(f"Added {len(placeholder_8_times)} placeholder route 8 arrivals")
+							destination = pred.get("destNm", "Unknown")
+							if "Loop" not in destination:
+								continue
 
-		# Cache the combined results
-		state.cached_transit_arrivals = arrivals
-		state.last_transit_fetch_time = time.monotonic()
+							route_abbrev = "bro" if route == "Brn" else "ppl"
+							arr_time_str = pred.get("arrT", "")
+							tmst = ctatt.get("tmst", "")
 
-		if arrivals:
-			log_info(f"Fetched {len(arrivals)} total transit arrivals")
-		else:
-			log_info("No transit arrivals available")
+							try:
+								if 'T' in arr_time_str and 'T' in tmst:
+									arr_time_part = arr_time_str.split('T')[1]
+									cur_time_part = tmst.split('T')[1]
+									arr_hms = arr_time_part.split(':')
+									cur_hms = cur_time_part.split(':')
+									total_arr_mins = int(arr_hms[0]) * 60 + int(arr_hms[1])
+									total_cur_mins = int(cur_hms[0]) * 60 + int(cur_hms[1])
+									diff_mins = total_arr_mins - total_cur_mins
+									if diff_mins < 0:
+										diff_mins += 24 * 60
+									minutes = str(diff_mins)
+								else:
+									raise ValueError("Invalid time format")
+							except Exception:
+								minutes = "DUE" if pred.get("isApp") == "1" else "?"
 
-	except Exception as e:
-		log_error(f"Error in transit fetch orchestration: {e}")
+							arrivals.append({"route": route_abbrev, "destination": destination, "minutes": minutes})
+		except Exception as e:
+			log_error(f"Error fetching Diversey arrivals: {e}")
+		finally:
+			if response:
+				try:
+					response.close()
+				except:
+					pass
+
+	# Add placeholder data for route 8 bus (until Bus Tracker API is integrated)
+	import random
+	placeholder_8_times = [str(random.randint(3, 15)) for _ in range(3)]
+	for minutes in placeholder_8_times:
+		arrivals.append({"route": "8", "destination": "South", "minutes": minutes})
+
+	# Cache the combined results
+	state.cached_transit_arrivals = arrivals
+	state.last_transit_fetch_time = time.monotonic()
+
+	if arrivals:
+		log_info(f"Fetched {len(arrivals)} total transit arrivals")
+	else:
+		log_info("No transit arrivals available")
 
 	return arrivals
 
