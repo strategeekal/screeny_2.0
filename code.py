@@ -4604,7 +4604,7 @@ def show_single_stock_chart(ticker, duration, rtc):
 	finally:
 		gc.collect()
 
-def show_transit_display(rtc, duration):
+def show_transit_display(rtc, duration, current_data=None):
 	"""
 	Display CTA transit arrivals with dynamic header.
 	Header: "CTA HH:MM TEMP" if weather available, otherwise "MMM DD HH:MM"
@@ -4629,8 +4629,8 @@ def show_transit_display(rtc, duration):
 		time_str = f"{hour_12}:{now.tm_min:02d}"
 
 		# Check if weather data is available
-		if state.current_weather and "temperature" in state.current_weather:
-			temp = round(state.current_weather["temperature"])
+		if current_data and "temperature" in current_data:
+			temp = round(current_data["temperature"])
 			header_text = f"CTA {time_str} {temp}"
 		else:
 			# Month abbreviations
@@ -5888,7 +5888,7 @@ def _run_normal_cycle(rtc, cycle_count, cycle_start_time):
 				log_verbose("Outside commute hours - skipping transit display")
 
 		if should_show_transit:
-			transit_shown = show_transit_display(rtc, Timing.DEFAULT_EVENT)
+			transit_shown = show_transit_display(rtc, Timing.DEFAULT_EVENT, current_data)
 			something_displayed = something_displayed or transit_shown
 			if transit_shown:
 				state.tracker.record_display_success()
