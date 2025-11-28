@@ -3450,6 +3450,7 @@ def apply_display_config(config_dict):
 		applied += 1
 	if "stocks_respect_market_hours" in config_dict:
 		display_config.stocks_respect_market_hours = config_dict["stocks_respect_market_hours"]
+		log_info(f"Applied stocks_respect_market_hours = {display_config.stocks_respect_market_hours} (type: {type(display_config.stocks_respect_market_hours).__name__})")
 		applied += 1
 	if "show_transit" in config_dict:
 		display_config.show_transit = config_dict["show_transit"]
@@ -4450,6 +4451,7 @@ def show_stocks_display(duration, offset, rtc):
 	has_any_cached = len(state.cached_stock_prices) > 0
 
 	# Respect market hours toggle (can be disabled for testing)
+	log_debug(f"stocks_respect_market_hours = {display_config.stocks_respect_market_hours} (type: {type(display_config.stocks_respect_market_hours).__name__})")
 	if display_config.stocks_respect_market_hours:
 		should_fetch, should_display, reason = is_market_hours_or_cache_valid(rtc.datetime, has_any_cached)
 
@@ -5474,8 +5476,8 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 				display_hour = get_12h_hour(hour)
 				time_label.text = f"{display_hour}:{current_minute:02d}"
 				last_minute = current_minute
-			
-			time.sleep(sleep_interval)
+
+			interruptible_sleep(sleep_interval)
 		
 		log_debug(f"Segment complete")
 		
