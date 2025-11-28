@@ -5417,8 +5417,8 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 				display_hour = get_12h_hour(hour)
 				time_label.text = f"{display_hour}:{current_minute:02d}"
 				last_minute = current_minute
-			
-			time.sleep(sleep_interval)
+
+			interruptible_sleep(sleep_interval)
 		
 		log_debug(f"Segment complete")
 		
