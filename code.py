@@ -2842,117 +2842,80 @@ def fetch_transit_arrivals():
 	arrivals = []
 	import json
 
-	# Fetch Fullerton station: Red line only
+	# Build comma-separated list of station IDs for single API call
+	station_ids = []
 	if fullerton_id:
-		response = None
-		try:
-			url = f"{CTAAPI.BASE_URL}/{CTAAPI.ARRIVALS_ENDPOINT}?key={api_key}&mapid={fullerton_id}&outputType=JSON"
-			log_verbose(f"Fetching Fullerton arrivals (station {fullerton_id})")
-			response = session.get(url, timeout=CTAAPI.TIMEOUT)
-
-			if response and response.status_code == 200:
-				data = json.loads(response.text)
-				if "ctatt" in data:
-					ctatt = data["ctatt"]
-					if ctatt.get("errCd") == "0":
-						predictions = ctatt.get("eta", [])
-						log_debug(f"Fetched {len(predictions)} predictions from Fullerton")
-
-						for pred in predictions:
-							route = pred.get("rt", "??")
-							if route != "Red":
-								continue
-
-							destination = pred.get("destNm", "Unknown")
-							arr_time_str = pred.get("arrT", "")
-							tmst = ctatt.get("tmst", "")
-
-							try:
-								if 'T' in arr_time_str and 'T' in tmst:
-									arr_time_part = arr_time_str.split('T')[1]
-									cur_time_part = tmst.split('T')[1]
-									arr_hms = arr_time_part.split(':')
-									cur_hms = cur_time_part.split(':')
-									total_arr_mins = int(arr_hms[0]) * 60 + int(arr_hms[1])
-									total_cur_mins = int(cur_hms[0]) * 60 + int(cur_hms[1])
-									diff_mins = total_arr_mins - total_cur_mins
-									if diff_mins < 0:
-										diff_mins += 24 * 60
-									minutes = str(diff_mins)
-								else:
-									raise ValueError("Invalid time format")
-							except Exception:
-								minutes = "DUE" if pred.get("isApp") == "1" else "?"
-
-							arrivals.append({"route": "red", "destination": destination, "minutes": minutes})
-		except Exception as e:
-			log_error(f"Error fetching Fullerton arrivals: {e}")
-		finally:
-			if response:
-				try:
-					response.close()
-				except:
-					pass
-
-		# Small delay between API calls to prevent socket exhaustion
-		gc.collect()
-		time.sleep(0.5)
-
-	# Fetch Diversey station: Brown and Purple lines only
+		station_ids.append(fullerton_id)
 	if diversey_id:
-		response = None
-		try:
-			url = f"{CTAAPI.BASE_URL}/{CTAAPI.ARRIVALS_ENDPOINT}?key={api_key}&mapid={diversey_id}&outputType=JSON"
-			log_verbose(f"Fetching Diversey arrivals (station {diversey_id})")
-			response = session.get(url, timeout=CTAAPI.TIMEOUT)
+		station_ids.append(diversey_id)
 
-			if response and response.status_code == 200:
-				data = json.loads(response.text)
-				if "ctatt" in data:
-					ctatt = data["ctatt"]
-					if ctatt.get("errCd") == "0":
-						predictions = ctatt.get("eta", [])
-						log_debug(f"Fetched {len(predictions)} predictions from Diversey")
+	mapid_param = ",".join(station_ids)
 
-						for pred in predictions:
-							route = pred.get("rt", "??")
-							if route not in ["Brn", "P"]:
-								continue
+	# Fetch all stations in single API call
+	response = None
+	try:
+		url = f"{CTAAPI.BASE_URL}/{CTAAPI.ARRIVALS_ENDPOINT}?key={api_key}&mapid={mapid_param}&outputType=JSON"
+		log_verbose(f"Fetching transit arrivals for stations: {mapid_param}")
+		response = session.get(url, timeout=CTAAPI.TIMEOUT)
 
-							destination = pred.get("destNm", "Unknown")
-							if "Loop" not in destination:
-								continue
+		if response and response.status_code == 200:
+			data = json.loads(response.text)
+			if "ctatt" in data:
+				ctatt = data["ctatt"]
+				if ctatt.get("errCd") == "0":
+					predictions = ctatt.get("eta", [])
+					log_debug(f"Fetched {len(predictions)} predictions from {len(station_ids)} stations")
 
-							route_abbrev = "bro" if route == "Brn" else "ppl"
-							arr_time_str = pred.get("arrT", "")
-							tmst = ctatt.get("tmst", "")
+					for pred in predictions:
+						route = pred.get("rt", "??")
+						destination = pred.get("destNm", "Unknown")
 
-							try:
-								if 'T' in arr_time_str and 'T' in tmst:
-									arr_time_part = arr_time_str.split('T')[1]
-									cur_time_part = tmst.split('T')[1]
-									arr_hms = arr_time_part.split(':')
-									cur_hms = cur_time_part.split(':')
-									total_arr_mins = int(arr_hms[0]) * 60 + int(arr_hms[1])
-									total_cur_mins = int(cur_hms[0]) * 60 + int(cur_hms[1])
-									diff_mins = total_arr_mins - total_cur_mins
-									if diff_mins < 0:
-										diff_mins += 24 * 60
-									minutes = str(diff_mins)
-								else:
-									raise ValueError("Invalid time format")
-							except Exception:
-								minutes = "DUE" if pred.get("isApp") == "1" else "?"
+						# Filter: Red line from Fullerton, Brown/Purple to Loop from Diversey
+						include = False
+						route_abbrev = None
 
-							arrivals.append({"route": route_abbrev, "destination": destination, "minutes": minutes})
-		except Exception as e:
-			log_error(f"Error fetching Diversey arrivals: {e}")
-		finally:
-			if response:
-				try:
-					response.close()
-				except:
-					pass
+						if route == "Red":
+							include = True
+							route_abbrev = "red"
+						elif route == "Brn" and "Loop" in destination:
+							include = True
+							route_abbrev = "bro"
+						elif route == "P" and "Loop" in destination:
+							include = True
+							route_abbrev = "ppl"
+
+						if not include:
+							continue
+
+						arr_time_str = pred.get("arrT", "")
+						tmst = ctatt.get("tmst", "")
+
+						try:
+							if 'T' in arr_time_str and 'T' in tmst:
+								arr_time_part = arr_time_str.split('T')[1]
+								cur_time_part = tmst.split('T')[1]
+								arr_hms = arr_time_part.split(':')
+								cur_hms = cur_time_part.split(':')
+								total_arr_mins = int(arr_hms[0]) * 60 + int(arr_hms[1])
+								total_cur_mins = int(cur_hms[0]) * 60 + int(cur_hms[1])
+								diff_mins = total_arr_mins - total_cur_mins
+								if diff_mins < 0:
+									diff_mins += 24 * 60
+								minutes = str(diff_mins)
+							else:
+								raise ValueError("Invalid time format")
+						except Exception:
+							minutes = "DUE" if pred.get("isApp") == "1" else "?"
+
+						arrivals.append({"route": route_abbrev, "destination": destination, "minutes": minutes})
+	except Exception as e:
+		log_error(f"Error fetching transit arrivals: {e}")
+	finally:
+		if response:
+			try:
+				response.close()
+			except:
+				pass
 
 	# Add placeholder data for route 8 bus (until Bus Tracker API is integrated)
 	import random
