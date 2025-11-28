@@ -29,8 +29,11 @@ ADAFRUIT_AIO_KEY = "YOUR_ADAFRUIT_AIO_KEY"
 TIMEZONE = "America/Chicago"
 
 # CTA Transit API (Chicago Transit Authority - Train/L Tracker)
+# Get your API key from: https://www.transitchicago.com/developers/traintracker/
+# Find station map IDs from: https://www.transitchicago.com/developers/ttdocs/
 CTA_API_KEY = "YOUR_CTA_API_KEY"
-CTA_MAP_ID = "YOUR_CTA_MAP_ID"
+CTA_FULLERTON_MAP_ID = "40360"  # Fullerton station - Red line southbound to Loop/95th
+CTA_DIVERSEY_MAP_ID = "40530"  # Diversey station - Brown/Purple lines to Loop
 
 # Twelve Data Stock API
 TWELVE_DATA_API_KEY = "YOUR_TWELVE_DATA_API_KEY"
