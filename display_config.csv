@@ -10,9 +10,17 @@ show_events,1
 show_stocks,1
 stocks_display_frequency,3
 # stocks_respect_market_hours: 1 = only show during market hours (9:30am-5:30pm ET weekdays), 0 = always show (for testing)
+<<<<<<< HEAD
 stocks_respect_market_hours,1
 show_transit,1
 transit_display_frequency,2
+=======
+stocks_respect_market_hours,0
+show_transit,1
+transit_display_frequency,3
+# transit_respect_commute_hours: 1 = only show during commute hours (9-11am), 0 = always show (for testing)
+transit_respect_commute_hours,0
+>>>>>>> d2b0ec73dfe3c291fb339e3bdb656791ff098f48
 
 # Display elements
 show_weekday_indicator,1
