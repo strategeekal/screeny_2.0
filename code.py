@@ -3032,13 +3032,17 @@ def show_transit_display(rtc, duration):
 		hour = now.tm_hour
 		minute = now.tm_min
 
-		# Get feels_like temperature from cached weather data
+		# Get feels_like temperature from cached weather data (if available)
 		temp_str = ""
-		if state.cached_current_weather:
-			feels_like = round(state.cached_current_weather.get("feels_like", 0))
-			temp_str = f" {feels_like}"
+		if state.cached_current_weather and "feels_like" in state.cached_current_weather:
+			try:
+				feels_like = round(state.cached_current_weather["feels_like"])
+				temp_str = f" {feels_like}"
+			except (ValueError, TypeError):
+				# Skip temperature if conversion fails
+				log_verbose("Could not format temperature for transit display")
 
-		# Format: "Nov 27 14:30 72" (24-hour format with temperature)
+		# Format: "Nov 27 14:30 72" or "Nov 27 14:30" (without temp if unavailable)
 		time_str = f"{month} {day} {hour}:{minute:02d}{temp_str}"
 
 		time_label = bitmap_label.Label(
