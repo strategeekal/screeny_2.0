@@ -5843,6 +5843,14 @@ def _run_normal_cycle(rtc, cycle_count, cycle_start_time):
 	"""Helper: Run normal display cycle (Category A2)"""
 	something_displayed = False
 
+	# Check market hours once at start of cycle (to avoid repeated calls)
+	stocks_allowed = True
+	if display_config.show_stocks and display_config.stocks_respect_market_hours:
+		has_cached_stocks = len(state.cached_stock_prices) > 0
+		_, stocks_allowed, market_reason = is_market_hours_or_cache_valid(rtc.datetime, has_cached_stocks)
+		if not stocks_allowed:
+			log_verbose(f"Stocks skipped (cycle {cycle_count}): {market_reason}")
+
 	# Fetch data once
 	current_data, forecast_data, forecast_is_fresh = fetch_cycle_data(rtc)
 	current_duration, forecast_duration, event_duration = calculate_display_durations(rtc)
@@ -5874,26 +5882,16 @@ def _run_normal_cycle(rtc, cycle_count, cycle_start_time):
 			interruptible_sleep(1)
 
 	# Stocks display (with frequency control)
-	if display_config.show_stocks:
-		# Check market hours first if enabled
-		should_show_stocks = True
-		if display_config.stocks_respect_market_hours:
-			has_cached_stocks = len(state.cached_stock_prices) > 0
-			_, should_display_stocks, market_reason = is_market_hours_or_cache_valid(rtc.datetime, has_cached_stocks)
-			if not should_display_stocks:
-				log_verbose(f"Stocks skipped (cycle {cycle_count}): {market_reason}")
-				should_show_stocks = False
-
+	if display_config.show_stocks and stocks_allowed:
 		# Smart frequency: show every cycle if stocks are the only display, otherwise respect frequency
-		if should_show_stocks:
-			other_displays_active = (display_config.show_weather or display_config.show_forecast or display_config.show_events)
+		other_displays_active = (display_config.show_weather or display_config.show_forecast or display_config.show_events)
 
-			if other_displays_active:
-				# Other displays active - respect frequency (e.g., frequency=3 means cycles 1, 4, 7, 10...)
-				should_show_stocks = (cycle_count - 1) % display_config.stocks_display_frequency == 0
-			else:
-				# Stocks are the only display - show every cycle to avoid clock fallback
-				should_show_stocks = True
+		if other_displays_active:
+			# Other displays active - respect frequency (e.g., frequency=3 means cycles 1, 4, 7, 10...)
+			should_show_stocks = (cycle_count - 1) % display_config.stocks_display_frequency == 0
+		else:
+			# Stocks are the only display - show every cycle to avoid clock fallback
+			should_show_stocks = True
 
 		if should_show_stocks:
 			# Smart rotation: Check if current stock is highlighted
