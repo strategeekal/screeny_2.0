@@ -5843,14 +5843,6 @@ def _run_normal_cycle(rtc, cycle_count, cycle_start_time):
 	"""Helper: Run normal display cycle (Category A2)"""
 	something_displayed = False
 
-	# Check market hours once at start of cycle (to avoid repeated calls)
-	stocks_allowed = True
-	if display_config.show_stocks and display_config.stocks_respect_market_hours:
-		has_cached_stocks = len(state.cached_stock_prices) > 0
-		_, stocks_allowed, market_reason = is_market_hours_or_cache_valid(rtc.datetime, has_cached_stocks)
-		if not stocks_allowed:
-			log_verbose(f"Stocks skipped (cycle {cycle_count}): {market_reason}")
-
 	# Fetch data once
 	current_data, forecast_data, forecast_is_fresh = fetch_cycle_data(rtc)
 	current_duration, forecast_duration, event_duration = calculate_display_durations(rtc)
@@ -5881,37 +5873,46 @@ def _run_normal_cycle(rtc, cycle_count, cycle_start_time):
 		else:
 			interruptible_sleep(1)
 
-	# Stocks display (with frequency control)
-	if display_config.show_stocks and stocks_allowed:
-		# Smart frequency: show every cycle if stocks are the only display, otherwise respect frequency
-		other_displays_active = (display_config.show_weather or display_config.show_forecast or display_config.show_events)
+	# Stocks display (with frequency control and market hours check)
+	if display_config.show_stocks:
+		# Check market hours if enabled (do this check here to avoid adding stack depth to other displays)
+		stocks_allowed = True
+		if display_config.stocks_respect_market_hours:
+			has_cached_stocks = len(state.cached_stock_prices) > 0
+			_, stocks_allowed, market_reason = is_market_hours_or_cache_valid(rtc.datetime, has_cached_stocks)
+			if not stocks_allowed:
+				log_verbose(f"Stocks skipped (cycle {cycle_count}): {market_reason}")
 
-		if other_displays_active:
-			# Other displays active - respect frequency (e.g., frequency=3 means cycles 1, 4, 7, 10...)
-			should_show_stocks = (cycle_count - 1) % display_config.stocks_display_frequency == 0
-		else:
-			# Stocks are the only display - show every cycle to avoid clock fallback
-			should_show_stocks = True
+		if stocks_allowed:
+			# Smart frequency: show every cycle if stocks are the only display, otherwise respect frequency
+			other_displays_active = (display_config.show_weather or display_config.show_forecast or display_config.show_events)
 
-		if should_show_stocks:
-			# Smart rotation: Check if current stock is highlighted
-			display_mode, ticker = get_stock_display_mode(state.cached_stocks, state.tracker.current_stock_offset)
-
-			if display_mode == "chart":
-				# Show single stock chart for highlighted stock
-				stocks_shown = show_single_stock_chart(ticker, Timing.DEFAULT_EVENT, rtc)
-				something_displayed = something_displayed or stocks_shown
-				if stocks_shown:
-					# Advance offset by 1 (move to next stock)
-					state.tracker.current_stock_offset = (state.tracker.current_stock_offset + 1) % len(state.cached_stocks)
-					state.tracker.record_display_success()
+			if other_displays_active:
+				# Other displays active - respect frequency (e.g., frequency=3 means cycles 1, 4, 7, 10...)
+				should_show_stocks = (cycle_count - 1) % display_config.stocks_display_frequency == 0
 			else:
-				# Show multi-stock rotation (3 stocks at a time)
-				stocks_shown, next_offset = show_stocks_display(Timing.DEFAULT_EVENT, state.tracker.current_stock_offset, rtc)
-				something_displayed = something_displayed or stocks_shown
-				if stocks_shown:
-					state.tracker.current_stock_offset = next_offset  # Update for next display
-					state.tracker.record_display_success()
+				# Stocks are the only display - show every cycle to avoid clock fallback
+				should_show_stocks = True
+
+			if should_show_stocks:
+				# Smart rotation: Check if current stock is highlighted
+				display_mode, ticker = get_stock_display_mode(state.cached_stocks, state.tracker.current_stock_offset)
+
+				if display_mode == "chart":
+					# Show single stock chart for highlighted stock
+					stocks_shown = show_single_stock_chart(ticker, Timing.DEFAULT_EVENT, rtc)
+					something_displayed = something_displayed or stocks_shown
+					if stocks_shown:
+						# Advance offset by 1 (move to next stock)
+						state.tracker.current_stock_offset = (state.tracker.current_stock_offset + 1) % len(state.cached_stocks)
+						state.tracker.record_display_success()
+				else:
+					# Show multi-stock rotation (3 stocks at a time)
+					stocks_shown, next_offset = show_stocks_display(Timing.DEFAULT_EVENT, state.tracker.current_stock_offset, rtc)
+					something_displayed = something_displayed or stocks_shown
+					if stocks_shown:
+						state.tracker.current_stock_offset = next_offset  # Update for next display
+						state.tracker.record_display_success()
 
 	# Transit display
 	if display_config.show_transit:
