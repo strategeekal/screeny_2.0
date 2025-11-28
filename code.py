@@ -2982,8 +2982,7 @@ def show_transit_display(rtc, duration):
 		time_12h = format_hour_12h(hour)
 
 		# Format: "11/27 3:30P 72" or "11/27 3:30P" (without temp if unavailable)
-		#time_str = f"{month}/{day} {time_12h[:-1]}:{minute:02d}{time_12h[-1]}{temp_str}"
-		time_str = f"CTA 12:22 -22°"
+		time_str = f"{month}/{day} {time_12h[:-1]}:{minute:02d}{time_12h[-1]}{temp_str}"
 
 		time_label = bitmap_label.Label(
 			font,
