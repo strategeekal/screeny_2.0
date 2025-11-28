@@ -2151,6 +2151,7 @@ def get_font_metrics(font, text="Aygjpq"):
 			return 8, 2
 	except Exception as e:
 		log_error(f"Font metrics error: {e}")
+		traceback.print_exception(type(e), e, e.__traceback__)
 		# Safe fallback values for small font
 		return 8, 2
 
@@ -5113,6 +5114,7 @@ def show_forecast_display(current_data, forecast_data, display_duration, is_fres
 	
 	except Exception as e:
 		log_error(f"Forecast display error: {e}")
+		traceback.print_exception(type(e), e, e.__traceback__)
 		state.memory_monitor.check_memory("forecast_display_error")
 		return False
 	
