@@ -1,4 +1,4 @@
-##### PANTALLITA 2.4.0 #####
+##### PANTALLITA 2.1.0 #####
 # Stack exhaustion fix: Flattened nested try/except blocks to prevent crashes (v2.0.1)
 # Socket exhaustion fix: response.close() + smart caching (v2.0.2)
 # Comprehensive socket fix: Added response.close() to ALL HTTP requests - startup & runtime (v2.0.3)
@@ -8,13 +8,10 @@
 # Split forecast and current weather functions into fully independent functions and helpers (v2.0.8)
 # Added remote display control via .csv like events and schedules (v2.0.9)
 # Stock market integration: Real-time stock prices with Twelve Data API, 3-stock rotation display (v2.1.0)
-# Single stock chart display with intraday data, smart rotation, API tracking (v2.2.0)
-# Built-in button control: MatrixPortal UP button for stop/exit (v2.3.0)
 
 # === LIBRARIES ===
 # Standard library
 import board
-import digitalio
 import os
 import supervisor
 import gc
@@ -189,37 +186,7 @@ class Timing:
 	EVENT_ALL_DAY_END = 24    # All-day events end at midnight next day
 	
 	API_RECOVERY_RETRY_INTERVAL = 1800
-
-## CTA Transit Configuration
-class CTA:
-	# API URLs
-	TRAIN_TRACKER_URL = "http://lapi.transitchicago.com/api/1.0/ttarrivals.aspx"
-	BUS_TRACKER_URL = "http://www.ctabustracker.com/bustime/api/v2/getpredictions"
-
-	# Station IDs (mapid for trains)
-	STATION_DIVERSEY = "40530"      # Brown & Purple lines
-	STATION_FULLERTON = "41220"     # Red line
-
-	# Bus stop IDs (stpid for buses)
-	STOP_HALSTED_WRIGHTWOOD = "1446"  # 8 bus southbound (approximate - may need adjustment)
-
-	# Route IDs
-	ROUTE_8_HALSTED = "8"
-
-	# Line colors (for display circles)
-	COLOR_RED = 0xC60C30      # CTA Red
-	COLOR_BROWN = 0x62361B    # CTA Brown
-	COLOR_PURPLE = 0x522398   # CTA Purple
-	COLOR_BUS = 0xFFFFFF      # White for buses
-
-	# Cache settings
-	CACHE_MAX_AGE = 60        # 1 minute cache for transit data
-	UPDATE_INTERVAL = 60      # Update every minute
-
-	# Commute hours (9-11 AM)
-	COMMUTE_START_HOUR = 9
-	COMMUTE_END_HOUR = 11
-
+	
 # Timezone offset table
 TIMEZONE_OFFSETS = {
 		"America/New_York": {"std": -5, "dst": -4, "dst_start": (3, 8), "dst_end": (11, 7)},
@@ -460,7 +427,6 @@ class DisplayConfig:
 		self.stocks_respect_market_hours = True  # True = only show during market hours + grace period, False = always show (for testing)
 		self.show_transit = False  # CTA transit arrival display (disabled by default)
 		self.transit_display_frequency = 2  # Show transit every N cycles (e.g., 2 = every 10 min)
-		self.transit_respect_commute_hours = True  # True = 
 
 		# Display Elements
 		self.show_weekday_indicator = True
@@ -977,8 +943,6 @@ class WeatherDisplayState:
 		self.display = None
 		self.main_group = None
 		self.matrix_type_cache = None
-		self.button_up = None  # MatrixPortal UP button
-		self.button_down = None  # MatrixPortal DOWN button
 
 		# Centralized success/failure tracking
 		self.tracker = StateTracker()
@@ -1183,14 +1147,10 @@ def initialize_display():
 
 
 def interruptible_sleep(duration):
-	"""Sleep that can be interrupted more easily (checks stop button)"""
+	"""Sleep that can be interrupted more easily"""
 	end_time = time.monotonic() + duration
 	while time.monotonic() < end_time:
-		# Check stop button - direct GPIO read, no function calls to avoid stack depth
-		if state.button_up and not state.button_up.value:
-			raise KeyboardInterrupt("Stop button pressed")
-
-		time.sleep(Timing.INTERRUPTIBLE_SLEEP_INTERVAL)
+		time.sleep(Timing.INTERRUPTIBLE_SLEEP_INTERVAL)  # Short sleep allows more interrupt opportunities
 
 def setup_rtc():
 	"""Initialize RTC with retry logic"""
@@ -1209,32 +1169,6 @@ def setup_rtc():
 	
 	log_error("RTC initialization failed, restarting...")
 	supervisor.reload()
-
-### BUTTON FUNCTIONS ###
-
-def setup_buttons():
-	"""Initialize built-in MatrixPortal S3 buttons (optional - graceful if not available)"""
-	try:
-		# Set up UP button (typically used for stop/exit)
-		button_up = digitalio.DigitalInOut(board.BUTTON_UP)
-		button_up.direction = digitalio.Direction.INPUT
-		button_up.pull = digitalio.Pull.UP
-		state.button_up = button_up
-
-		# Set up DOWN button (typically used for manual advance)
-		button_down = digitalio.DigitalInOut(board.BUTTON_DOWN)
-		button_down.direction = digitalio.Direction.INPUT
-		button_down.pull = digitalio.Pull.UP
-		state.button_down = button_down
-
-		log_info("MatrixPortal buttons initialized - UP=stop, DOWN=advance")
-		return True
-
-	except Exception as e:
-		log_debug(f"Buttons not available (optional): {e}")
-		state.button_up = None
-		state.button_down = None
-		return False
 
 ### NETWORK FUNCTIONS ###
 
@@ -2046,38 +1980,30 @@ def should_fetch_forecast():
 	return (current_time - state.last_forecast_fetch) >= Timing.FORECAST_UPDATE_INTERVAL
 	
 def get_today_events_info(rtc):
-	"""Get information about today's ACTIVE events (filtered by time and year)"""
+	"""Get information about today's ACTIVE events (filtered by time)"""
 	month_day = f"{rtc.datetime.tm_mon:02d}{rtc.datetime.tm_mday:02d}"
 	events = get_events()
-
+	
 	if month_day not in events:
 		return 0, []
-
+	
 	current_hour = rtc.datetime.tm_hour
-	current_year = rtc.datetime.tm_year
-
-	# Filter events by current time AND year (0 = any year, otherwise must match current year)
-	active_events = [event for event in events[month_day]
-	                 if is_event_active(event, current_hour)
-	                 and (len(event) < 7 or event[6] == 0 or event[6] == current_year)]
-
+	
+	# Filter events by current time
+	active_events = [event for event in events[month_day] if is_event_active(event, current_hour)]
+	
 	return len(active_events), active_events
 	
 def get_today_all_events_info(rtc):
-	"""Get ALL events for today (not filtered by time, but filtered by year)"""
+	"""Get ALL events for today (not filtered by time)"""
 	month_day = f"{rtc.datetime.tm_mon:02d}{rtc.datetime.tm_mday:02d}"
 	events = get_events()
-
+	
 	if month_day not in events:
 		return 0, []
-
-	current_year = rtc.datetime.tm_year
-
-	# Filter by year (0 = any year, otherwise must match current year)
-	today_events = [event for event in events[month_day]
-	                if (len(event) < 7 or event[6] == 0 or event[6] == current_year)]
-
-	return len(today_events), today_events
+	
+	# Return all events without time filtering
+	return len(events[month_day]), events[month_day]
 
 ### DISPLAY UTILITIES ###
 
@@ -2171,7 +2097,6 @@ def get_font_metrics(font, text="Aygjpq"):
 			return 8, 2
 	except Exception as e:
 		log_error(f"Font metrics error: {e}")
-		traceback.print_exception(type(e), e, e.__traceback__)
 		# Safe fallback values for small font
 		return 8, 2
 
@@ -2209,15 +2134,14 @@ def normalize_date_key(date_str):
 	return date_key
 
 def parse_event_data(parts):
-	"""Extract event data fields from CSV parts. Returns [top_line, bottom_line, image, color, start_hour, end_hour, year]"""
+	"""Extract event data fields from CSV parts. Returns [top_line, bottom_line, image, color, start_hour, end_hour]"""
 	return [
 		parts[1],  # top_line
 		parts[2],  # bottom_line
 		parts[3],  # image
 		parts[4] if len(parts) > 4 and parts[4].strip() else Strings.DEFAULT_EVENT_COLOR,
 		int(parts[5]) if len(parts) > 5 and parts[5].strip() else Timing.EVENT_ALL_DAY_START,
-		int(parts[6]) if len(parts) > 6 and parts[6].strip() else Timing.EVENT_ALL_DAY_END,
-		0  # year - will be set when parsing (0 = any year for permanent events)
+		int(parts[6]) if len(parts) > 6 and parts[6].strip() else Timing.EVENT_ALL_DAY_END
 	]
 
 def load_events_from_file(filepath):
@@ -2362,7 +2286,6 @@ def parse_events_csv_content(csv_content, rtc):
 							# Convert YYYY-MM-DD to MMDD and extract event data
 							date_key = normalize_date_key(f"{date_parts[1]}-{date_parts[2]}")
 							event_data = parse_event_data(parts)
-							event_data[6] = event_year  # Store the year for ephemeral events
 							events.setdefault(date_key, []).append(event_data)
 
 					except (ValueError, IndexError):
@@ -2919,119 +2842,93 @@ def fetch_transit_arrivals():
 	arrivals = []
 	import json
 
-	# Fetch Fullerton station: Red line only
+	# Build comma-separated list of station IDs for single API call
+	station_ids = []
 	if fullerton_id:
-		response = None
-		try:
-			url = f"{CTAAPI.BASE_URL}/{CTAAPI.ARRIVALS_ENDPOINT}?key={api_key}&mapid={fullerton_id}&outputType=JSON"
-			log_verbose(f"Fetching Fullerton arrivals (station {fullerton_id})")
-			response = session.get(url, timeout=CTAAPI.TIMEOUT)
-
-			if response and response.status_code == 200:
-				data = json.loads(response.text)
-				if "ctatt" in data:
-					ctatt = data["ctatt"]
-					if ctatt.get("errCd") == "0":
-						predictions = ctatt.get("eta", [])
-						log_debug(f"Fetched {len(predictions)} predictions from Fullerton")
-
-						for pred in predictions:
-							route = pred.get("rt", "??")
-							if route != "Red":
-								continue
-
-							destination = pred.get("destNm", "Unknown")
-							arr_time_str = pred.get("arrT", "")
-							tmst = ctatt.get("tmst", "")
-
-							try:
-								if 'T' in arr_time_str and 'T' in tmst:
-									arr_time_part = arr_time_str.split('T')[1]
-									cur_time_part = tmst.split('T')[1]
-									arr_hms = arr_time_part.split(':')
-									cur_hms = cur_time_part.split(':')
-									total_arr_mins = int(arr_hms[0]) * 60 + int(arr_hms[1])
-									total_cur_mins = int(cur_hms[0]) * 60 + int(cur_hms[1])
-									diff_mins = total_arr_mins - total_cur_mins
-									if diff_mins < 0:
-										diff_mins += 24 * 60
-									minutes = str(diff_mins)
-								else:
-									raise ValueError("Invalid time format")
-							except Exception:
-								minutes = "DUE" if pred.get("isApp") == "1" else "?"
-
-							arrivals.append({"route": "red", "destination": destination, "minutes": minutes})
-		except Exception as e:
-			log_error(f"Error fetching {station_name} arrivals: {e}")
-			traceback.print_exception(type(e), e, e.__traceback__)
-
-		finally:
-			if response:
-				try:
-					response.close()
-				except:
-					pass
-
-		# Small delay between API calls to prevent socket exhaustion
-		gc.collect()
-		time.sleep(0.5)
-
-	# Fetch Diversey station: Brown and Purple lines only
+		station_ids.append(fullerton_id)
 	if diversey_id:
-		response = None
-		try:
-			url = f"{CTAAPI.BASE_URL}/{CTAAPI.ARRIVALS_ENDPOINT}?key={api_key}&mapid={diversey_id}&outputType=JSON"
-			log_verbose(f"Fetching Diversey arrivals (station {diversey_id})")
-			response = session.get(url, timeout=CTAAPI.TIMEOUT)
+		station_ids.append(diversey_id)
 
-			if response and response.status_code == 200:
-				data = json.loads(response.text)
-				if "ctatt" in data:
-					ctatt = data["ctatt"]
-					if ctatt.get("errCd") == "0":
-						predictions = ctatt.get("eta", [])
-						log_debug(f"Fetched {len(predictions)} predictions from Diversey")
+	mapid_param = ",".join(station_ids)
 
-						for pred in predictions:
-							route = pred.get("rt", "??")
-							if route not in ["Brn", "P"]:
-								continue
+	# Fetch all stations in single API call
+	response = None
+	try:
+		url = f"{CTAAPI.BASE_URL}/{CTAAPI.ARRIVALS_ENDPOINT}?key={api_key}&mapid={mapid_param}&outputType=JSON"
+		log_verbose(f"Fetching transit arrivals for stations: {mapid_param}")
+		response = session.get(url, timeout=CTAAPI.TIMEOUT)
 
-							destination = pred.get("destNm", "Unknown")
-							if "Loop" not in destination:
-								continue
+		if response and response.status_code == 200:
+			data = json.loads(response.text)
+			if "ctatt" in data:
+				ctatt = data["ctatt"]
+				if ctatt.get("errCd") == "0":
+					predictions = ctatt.get("eta", [])
+					log_debug(f"Fetched {len(predictions)} predictions from {len(station_ids)} stations")
 
-							route_abbrev = "bro" if route == "Brn" else "ppl"
-							arr_time_str = pred.get("arrT", "")
-							tmst = ctatt.get("tmst", "")
+					for pred in predictions:
+						route = pred.get("rt", "??")
+						destination = pred.get("destNm", "Unknown")
 
-							try:
-								if 'T' in arr_time_str and 'T' in tmst:
-									arr_time_part = arr_time_str.split('T')[1]
-									cur_time_part = tmst.split('T')[1]
-									arr_hms = arr_time_part.split(':')
-									cur_hms = cur_time_part.split(':')
-									total_arr_mins = int(arr_hms[0]) * 60 + int(arr_hms[1])
-									total_cur_mins = int(cur_hms[0]) * 60 + int(cur_hms[1])
-									diff_mins = total_arr_mins - total_cur_mins
-									if diff_mins < 0:
-										diff_mins += 24 * 60
-									minutes = str(diff_mins)
-								else:
-									raise ValueError("Invalid time format")
-							except Exception:
-								minutes = "DUE" if pred.get("isApp") == "1" else "?"
+						# Filter: Red line from Fullerton, Brown/Purple to Loop from Diversey
+						include = False
+						route_abbrev = None
 
-							arrivals.append({"route": route_abbrev, "destination": destination, "minutes": minutes})
-		except Exception as e:
-			log_error(f"Error fetching Diversey arrivals: {e}")
-		finally:
-			if response:
-				try:
-					response.close()
-				except:
-					pass
+						if route == "Red":
+							include = True
+							route_abbrev = "red"
+						elif route == "Brn" and "Loop" in destination:
+							include = True
+							route_abbrev = "bro"
+						elif route == "P" and "Loop" in destination:
+							include = True
+							route_abbrev = "ppl"
+
+						if not include:
+							continue
+
+						arr_time_str = pred.get("arrT", "")
+						tmst = ctatt.get("tmst", "")
+
+						try:
+							if 'T' in arr_time_str and 'T' in tmst:
+								arr_time_part = arr_time_str.split('T')[1]
+								cur_time_part = tmst.split('T')[1]
+								arr_hms = arr_time_part.split(':')
+								cur_hms = cur_time_part.split(':')
+								total_arr_mins = int(arr_hms[0]) * 60 + int(arr_hms[1])
+								total_cur_mins = int(cur_hms[0]) * 60 + int(cur_hms[1])
+								diff_mins = total_arr_mins - total_cur_mins
+								if diff_mins < 0:
+									diff_mins += 24 * 60
+								minutes = str(diff_mins)
+							else:
+								raise ValueError("Invalid time format")
+						except Exception:
+							minutes = "DUE" if pred.get("isApp") == "1" else "?"
+
+						# Apply minimum time filters
+						# Red line (Fullerton): skip arrivals < 14 minutes
+						# Brown/Purple (Diversey): skip arrivals < 10 minutes
+						try:
+							mins_int = int(minutes)
+							if route == "Red" and mins_int < 14:
+								continue  # Skip this arrival, too soon
+							elif route in ["Brn", "P"] and mins_int < 10:
+								continue  # Skip this arrival, too soon
+						except ValueError:
+							# If minutes is "DUE" or "?", skip it (too soon)
+							continue
+
+						arrivals.append({"route": route_abbrev, "destination": destination, "minutes": minutes})
+	except Exception as e:
+		log_error(f"Error fetching transit arrivals: {e}")
+	finally:
+		if response:
+			try:
+				response.close()
+			except:
+				pass
 
 	# Add placeholder data for route 8 bus (until Bus Tracker API is integrated)
 	import random
@@ -3085,11 +2982,12 @@ def show_transit_display(rtc, duration):
 		time_12h = format_hour_12h(hour)
 
 		# Format: "11/27 3:30P 72" or "11/27 3:30P" (without temp if unavailable)
-		time_str = f"{month}/{day} {time_12h[:-1]}:{minute:02d}{time_12h[-1]}{temp_str}"
+		#time_str = f"{month}/{day} {time_12h[:-1]}:{minute:02d}{time_12h[-1]}{temp_str}"
+		time_str = f"CTA 12:22 -22°"
 
 		time_label = bitmap_label.Label(
 			font,
-			color=state.colors["WHITE"],
+			color=state.colors["ORANGE"],
 			text=time_str,
 			x=2,
 			y=1  # Moved up 1 pixel
@@ -3126,9 +3024,9 @@ def show_transit_display(rtc, duration):
 		route_8_times.sort(key=sort_key)
 
 		# Take only next 3 soonest arrivals per group
-		red_times = red_times[:3]
-		brown_purple_times = brown_purple_times[:3]
-		route_8_times = route_8_times[:3]
+		red_times = red_times[:2]
+		brown_purple_times = brown_purple_times[:2]
+		route_8_times = route_8_times[:2]
 
 		y_pos = 9  # Start below date/time
 
@@ -3157,7 +3055,7 @@ def show_transit_display(rtc, duration):
 				font,
 				color=state.colors["WHITE"],
 				text="Loop",
-				x=9,
+				x=10,
 				y=y_pos
 			)
 			state.main_group.append(label_loop)
@@ -3168,7 +3066,7 @@ def show_transit_display(rtc, duration):
 				font,
 				color=state.colors["WHITE"],
 				text=times_text,
-				x=33,  # After rectangle + "Loop" + gap
+				x=38,  # After rectangle + "Loop" + gap
 				y=y_pos
 			)
 			state.main_group.append(times_label)
@@ -3188,7 +3086,7 @@ def show_transit_display(rtc, duration):
 				font,
 				color=state.colors["WHITE"],
 				text="95st",
-				x=9,  # After rectangle
+				x=10,  # After rectangle
 				y=y_pos
 			)
 			state.main_group.append(label_95st)
@@ -3199,7 +3097,7 @@ def show_transit_display(rtc, duration):
 				font,
 				color=state.colors["WHITE"],
 				text=times_text,
-				x=27,  # After rectangle + "95st" + gap
+				x=38,  # After rectangle + "95st" + gap
 				y=y_pos
 			)
 			state.main_group.append(times_label)
@@ -3222,8 +3120,8 @@ def show_transit_display(rtc, duration):
 			label_south = bitmap_label.Label(
 				font,
 				color=state.colors["WHITE"],
-				text="south",
-				x=9,  # After "8"
+				text="South",
+				x=10,  # After "8"
 				y=y_pos
 			)
 			state.main_group.append(label_south)
@@ -3234,7 +3132,7 @@ def show_transit_display(rtc, duration):
 				font,
 				color=state.colors["WHITE"],
 				text=times_text,
-				x=33,  # After "8 south "
+				x=38,  # After "8 south "
 				y=y_pos
 			)
 			state.main_group.append(times_label)
@@ -3617,350 +3515,6 @@ def clear_display():
 	if state.main_group is not None:
 		while len(state.main_group):
 			state.main_group.pop()
-
-### CTA TRANSIT FUNCTIONS ###
-
-def fetch_cta_train_arrivals(station_mapid):
-	"""
-	Fetch train arrivals from CTA Train Tracker API.
-	Returns list of dicts: [{route, destination, minutes, color}, ...]
-	"""
-	api_key = os.getenv("CTA_API_KEY")
-	if not api_key:
-		log_warning("CTA_API_KEY not configured in settings.toml")
-		return []
-
-	session = get_requests_session()
-	if not session:
-		log_warning("No session available for CTA train fetch")
-		return []
-
-	response = None
-	try:
-		# Build URL - CTA Train Tracker API
-		url = CTA.TRAIN_TRACKER_URL + "?key=" + api_key
-		url += "&mapid=" + station_mapid
-		url += "&max=5&outputType=JSON"
-
-		log_verbose("Fetching CTA train arrivals for station " + station_mapid)
-		response = session.get(url, timeout=10)
-
-		if not response:
-			log_warning("No response from CTA Train Tracker")
-			return []
-
-		if response.status_code == 200:
-			import json
-			data = json.loads(response.text)
-
-			# Check for errors
-			if "ctatt" not in data:
-				log_warning("Invalid CTA response format")
-				return []
-
-			ctatt = data["ctatt"]
-			if "eta" not in ctatt:
-				log_verbose("No arrivals for station " + station_mapid)
-				return []
-
-			arrivals = []
-			for eta in ctatt["eta"]:
-				# Calculate minutes until arrival
-				arrival_time = eta.get("arrT", "")
-				prediction_time = eta.get("prdt", "")
-
-				# Parse times and calculate difference
-				# Format: YYYYMMDD HH:MM:SS
-				try:
-					import time
-					# Simple minute calculation from prediction
-					arr_parts = arrival_time.split()
-					pred_parts = prediction_time.split()
-
-					if len(arr_parts) == 2 and len(pred_parts) == 2:
-						arr_time_parts = arr_parts[1].split(":")
-						pred_time_parts = pred_parts[1].split(":")
-
-						arr_minutes = int(arr_time_parts[0]) * 60 + int(arr_time_parts[1])
-						pred_minutes = int(pred_time_parts[0]) * 60 + int(pred_time_parts[1])
-
-						minutes_until = arr_minutes - pred_minutes
-						if minutes_until < 0:
-							minutes_until += 1440  # Handle midnight rollover
-
-						route = eta.get("rt", "")
-						destination = eta.get("destNm", "")
-
-						# Determine color based on route
-						color = CTA.COLOR_RED
-						if route == "Brn":
-							color = CTA.COLOR_BROWN
-						elif route == "P" or route == "Pexp":
-							color = CTA.COLOR_PURPLE
-
-						arrivals.append({
-							"route": route,
-							"destination": destination,
-							"minutes": minutes_until,
-							"type": "train",
-							"color": color
-						})
-
-				except Exception as e:
-					log_debug(f"Error parsing arrival time: {e}")
-					continue
-
-			log_verbose(f"Found {len(arrivals)} train arrivals")
-			return arrivals
-
-		else:
-			log_warning(f"CTA Train API error: {response.status_code}")
-			return []
-
-	except Exception as e:
-		log_warning(f"Error fetching CTA trains: {e}")
-		return []
-
-	finally:
-		if response:
-			try:
-				response.close()
-			except:
-				pass
-
-def fetch_cta_bus_arrivals(stop_id, route):
-	"""
-	Fetch bus arrivals from CTA Bus Tracker API.
-	Returns list of dicts: [{route, destination, minutes, color}, ...]
-	"""
-	api_key = os.getenv("CTA_API_KEY")
-	if not api_key:
-		log_warning("CTA_API_KEY not configured in settings.toml")
-		return []
-
-	session = get_requests_session()
-	if not session:
-		log_warning("No session available for CTA bus fetch")
-		return []
-
-	response = None
-	try:
-		# Build URL - CTA Bus Tracker API
-		url = CTA.BUS_TRACKER_URL + "?key=" + api_key
-		url += "&stpid=" + stop_id
-		url += "&rt=" + route
-		url += "&format=json"
-
-		log_verbose("Fetching CTA bus arrivals for stop " + stop_id)
-		response = session.get(url, timeout=10)
-
-		if not response:
-			log_warning("No response from CTA Bus Tracker")
-			return []
-
-		if response.status_code == 200:
-			import json
-			data = json.loads(response.text)
-
-			# Check for errors
-			if "bustime-response" not in data:
-				log_warning("Invalid CTA bus response format")
-				return []
-
-			bus_response = data["bustime-response"]
-			if "prd" not in bus_response:
-				log_verbose("No bus predictions for stop " + stop_id)
-				return []
-
-			arrivals = []
-			for prd in bus_response["prd"]:
-				# Get predicted minutes
-				minutes_until = int(prd.get("prdctdn", "0"))
-				route_name = prd.get("rt", "")
-				destination = prd.get("des", "")
-
-				arrivals.append({
-					"route": route_name,
-					"destination": destination,
-					"minutes": minutes_until,
-					"type": "bus",
-					"color": CTA.COLOR_BUS
-				})
-
-			log_verbose(f"Found {len(arrivals)} bus arrivals")
-			return arrivals
-
-		else:
-			log_warning(f"CTA Bus API error: {response.status_code}")
-			return []
-
-	except Exception as e:
-		log_warning(f"Error fetching CTA buses: {e}")
-		return []
-
-	finally:
-		if response:
-			try:
-				response.close()
-			except:
-				pass
-
-def fetch_all_transit_arrivals():
-	"""
-	Fetch all configured CTA transit arrivals (trains + buses).
-	Returns combined list sorted by arrival time.
-	"""
-	all_arrivals = []
-
-	# Fetch Diversey station (Brown & Purple)
-	diversey_arrivals = fetch_cta_train_arrivals(CTA.STATION_DIVERSEY)
-	all_arrivals.extend(diversey_arrivals)
-
-	# Fetch Fullerton station (Red)
-	fullerton_arrivals = fetch_cta_train_arrivals(CTA.STATION_FULLERTON)
-	all_arrivals.extend(fullerton_arrivals)
-
-	# Fetch 8 bus at Halsted & Wrightwood
-	bus_arrivals = fetch_cta_bus_arrivals(CTA.STOP_HALSTED_WRIGHTWOOD, CTA.ROUTE_8_HALSTED)
-	all_arrivals.extend(bus_arrivals)
-
-	# Sort by minutes (earliest first)
-	all_arrivals.sort(key=lambda x: x["minutes"])
-
-	# Update cache
-	state.cached_transit_arrivals = all_arrivals
-	state.last_transit_fetch_time = time.monotonic()
-
-	log_info(f"Fetched {len(all_arrivals)} total transit arrivals")
-	return all_arrivals
-
-def show_transit_display(duration, rtc):
-	"""
-	Display CTA transit arrivals (trains + buses) - 3 arrivals at a time.
-
-	Display format:
-	- Train: Colored circle (red/brown/purple) + route + minutes
-	- Bus: White square + route + minutes
-
-	Args:
-		duration: How long to display in seconds
-		rtc: Real-time clock object for commute hours detection
-
-	Returns:
-		bool: True if displayed, False if skipped
-	"""
-	state.memory_monitor.check_memory("transit_display_start")
-
-	# Check commute hours if enabled
-	if display_config.transit_respect_commute_hours:
-		current_hour = rtc.datetime.tm_hour
-		is_commute_time = CTA.COMMUTE_START_HOUR <= current_hour < CTA.COMMUTE_END_HOUR
-
-		if not is_commute_time:
-			log_verbose(f"Transit skipped: Outside commute hours ({current_hour}:00, commute is {CTA.COMMUTE_START_HOUR}-{CTA.COMMUTE_END_HOUR})")
-			return False
-
-	# Check if we need to fetch fresh data (1 minute cache)
-	current_time = time.monotonic()
-	time_since_fetch = current_time - state.last_transit_fetch_time
-
-	if time_since_fetch >= CTA.CACHE_MAX_AGE or not state.cached_transit_arrivals:
-		# Fetch fresh transit data
-		arrivals = fetch_all_transit_arrivals()
-
-		if not arrivals:
-			log_info("No transit arrivals available")
-			return False
-	else:
-		# Use cached data
-		arrivals = state.cached_transit_arrivals
-		log_verbose(f"Using cached transit data ({int(time_since_fetch)}s old)")
-
-	# Take first 3 arrivals (already sorted by time)
-	arrivals_to_show = arrivals[:3]
-
-	if not arrivals_to_show:
-		log_info("No transit arrivals to display")
-		return False
-
-	# Build log message
-	arrival_details = []
-	for a in arrivals_to_show:
-		route = a["route"]
-		mins = a["minutes"]
-		arrival_details.append(f"{route} {mins}min")
-	log_info(f"Transit ({len(arrivals_to_show)}): {', '.join(arrival_details)}")
-
-	clear_display()
-	gc.collect()
-
-	try:
-		# Display arrivals in vertical rows
-		row_positions = [2, 13, 24]  # Y positions for each row
-
-		for i, arrival in enumerate(arrivals_to_show):
-			if i >= 3:
-				break
-
-			y_pos = row_positions[i]
-			route = arrival["route"]
-			minutes = arrival["minutes"]
-			arrival_type = arrival["type"]
-			color = arrival["color"]
-
-			# Create indicator (circle for trains, square for buses)
-			if arrival_type == "train":
-				# Draw filled circle (using a simple filled circle approximation)
-				# Circle at x=3, y=y_pos+2 (centered vertically), radius=2
-				from adafruit_display_shapes.circle import Circle
-				indicator = Circle(3, y_pos + 3, 2, fill=color)
-				state.main_group.append(indicator)
-			else:
-				# Draw filled square for bus (4x4 pixels)
-				from adafruit_display_shapes.rect import Rect
-				indicator = Rect(1, y_pos + 1, 4, 4, fill=color)
-				state.main_group.append(indicator)
-
-			# Route name/number (left side, after indicator)
-			route_label = bitmap_label.Label(
-				font,
-				color=state.colors["DIMMEST_WHITE"],
-				text=route,
-				x=8,
-				y=y_pos
-			)
-			state.main_group.append(route_label)
-
-			# Minutes until arrival (right side)
-			if minutes == 0:
-				time_text = "DUE"
-			elif minutes == 1:
-				time_text = "1 min"
-			else:
-				time_text = f"{minutes} min"
-
-			# Right-align the time
-			time_width = get_text_width(time_text, font)
-			time_x = Display.WIDTH - time_width - 1
-
-			time_label = bitmap_label.Label(
-				font,
-				color=color,  # Use line color for emphasis
-				text=time_text,
-				x=time_x,
-				y=y_pos
-			)
-			state.main_group.append(time_label)
-
-		# Sleep for the specified duration
-		interruptible_sleep(duration)
-
-		state.memory_monitor.check_memory("transit_display_complete")
-		return True
-
-	except Exception as e:
-		log_error(f"Error displaying transit: {e}")
-		return False
 
 ### DISPLAY FUNCTIONS ###
 
@@ -5149,6 +4703,7 @@ def show_single_stock_chart(ticker, duration, rtc):
 			font,
 			text=display_name,
 			color=state.colors["WHITE"],
+			x=1,
 			y=1
 		)
 		state.main_group.append(ticker_label)
@@ -5464,7 +5019,6 @@ def show_forecast_display(current_data, forecast_data, display_duration, is_fres
 	
 	except Exception as e:
 		log_error(f"Forecast display error: {e}")
-		traceback.print_exception(type(e), e, e.__traceback__)
 		state.memory_monitor.check_memory("forecast_display_error")
 		return False
 	
@@ -5951,10 +5505,7 @@ def initialize_system(rtc):
 	
 	# Initialize hardware
 	initialize_display()
-
-	# Initialize built-in buttons (optional)
-	setup_buttons()
-
+	
 	# Detect matrix type and initialize colors
 	matrix_type = detect_matrix_type()
 	state.colors = get_matrix_colors()
