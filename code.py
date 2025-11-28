@@ -3034,40 +3034,9 @@ def show_transit_display(rtc, duration):
 		brown_purple_times = brown_purple_times[:3]
 		route_8_times = route_8_times[:3]
 
-		y_pos = 9  # Start below date/time (moved up 2 pixels from 11)
+		y_pos = 9  # Start below date/time
 
-		# Display Red line with red square on LEFT of "95st"
-		if red_times:
-			# Red rectangle on left (5px wide, font height ~6px)
-			red_rect = displayio.Bitmap(5, 6, 1)
-			red_palette = displayio.Palette(1)
-			red_palette[0] = state.colors["RED"]
-			red_tile = displayio.TileGrid(red_rect, pixel_shader=red_palette, x=2, y=y_pos)
-			state.main_group.append(red_tile)
-
-			# "95st" label after rectangle
-			label_95st = bitmap_label.Label(
-				font,
-				color=state.colors["WHITE"],
-				text="95st",
-				x=9,  # After rectangle
-				y=y_pos
-			)
-			state.main_group.append(label_95st)
-
-			# Times separated by commas
-			times_text = ", ".join(red_times)
-			times_label = bitmap_label.Label(
-				font,
-				color=state.colors["WHITE"],
-				text=times_text,
-				x=27,  # After rectangle + "95st" + gap
-				y=y_pos
-			)
-			state.main_group.append(times_label)
-			y_pos += 8
-
-		# Display Brown+Purple line (diagonal split) with "Loop" suffix
+		# Display Brown+Purple line FIRST (diagonal split) with "Loop" suffix
 		if brown_purple_times:
 			# Create 5x6 bitmap for brown/purple split
 			bp_rect = displayio.Bitmap(5, 6, 2)  # 2 colors
@@ -3104,6 +3073,37 @@ def show_transit_display(rtc, duration):
 				color=state.colors["WHITE"],
 				text=times_text,
 				x=33,  # After rectangle + "Loop" + gap
+				y=y_pos
+			)
+			state.main_group.append(times_label)
+			y_pos += 8
+
+		# Display Red line SECOND with red square on LEFT of "95st"
+		if red_times:
+			# Red rectangle on left (5px wide, font height ~6px)
+			red_rect = displayio.Bitmap(5, 6, 1)
+			red_palette = displayio.Palette(1)
+			red_palette[0] = state.colors["RED"]
+			red_tile = displayio.TileGrid(red_rect, pixel_shader=red_palette, x=2, y=y_pos)
+			state.main_group.append(red_tile)
+
+			# "95st" label after rectangle
+			label_95st = bitmap_label.Label(
+				font,
+				color=state.colors["WHITE"],
+				text="95st",
+				x=9,  # After rectangle
+				y=y_pos
+			)
+			state.main_group.append(label_95st)
+
+			# Times separated by commas
+			times_text = ", ".join(red_times)
+			times_label = bitmap_label.Label(
+				font,
+				color=state.colors["WHITE"],
+				text=times_text,
+				x=27,  # After rectangle + "95st" + gap
 				y=y_pos
 			)
 			state.main_group.append(times_label)
