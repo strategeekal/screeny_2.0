@@ -2889,9 +2889,9 @@ def fetch_transit_arrivals():
 
 				log_info(f"Fetched {len(predictions)} total transit arrivals")
 
-				# Filter for Brown, Purple, Red lines going to Loop
+				# Filter for Brown, Purple, Red lines going to Loop, and route 8 bus
 				loop_destinations = ["Loop", "95th/Dan Ryan", "Howard"]  # Destinations that indicate Loop direction
-				wanted_routes = ["Brn", "P", "Red"]  # Brown, Purple, Red
+				wanted_routes = ["Brn", "P", "Red", "8"]  # Brown, Purple, Red, Route 8 bus
 
 				# Process predictions and filter
 				for pred in predictions:
@@ -2905,12 +2905,15 @@ def fetch_transit_arrivals():
 					# Skip if not going to Loop (check destination)
 					# For Brown/Purple: heading to Loop
 					# For Red: either Howard or 95th direction goes through Loop
+					# For route 8: accept all
 					going_to_loop = False
 					if route == "Brn" and "Loop" in destination:
 						going_to_loop = True
 					elif route == "P" and "Loop" in destination:
 						going_to_loop = True
 					elif route == "Red":  # Red line always goes through Loop
+						going_to_loop = True
+					elif route == "8":  # Route 8 bus - accept all
 						going_to_loop = True
 
 					if not going_to_loop:
@@ -2920,7 +2923,8 @@ def fetch_transit_arrivals():
 					route_abbrev = {
 						"Brn": "bro",
 						"P": "ppl",
-						"Red": "red"
+						"Red": "red",
+						"8": "8"
 					}.get(route, route.lower())
 
 					# Calculate minutes until arrival using simple string parsing
@@ -3050,13 +3054,14 @@ def show_transit_display(rtc, duration):
 			color=state.colors["WHITE"],
 			text=time_str,
 			x=2,
-			y=2
+			y=1  # Moved up 1 pixel
 		)
 		state.main_group.append(time_label)
 
 		# Group arrivals by route
 		red_times = []
 		brown_purple_times = []  # Combined brown and purple
+		route_8_times = []  # Route 8 bus
 
 		for arrival in arrivals:
 			route = arrival["route"]
@@ -3066,12 +3071,15 @@ def show_transit_display(rtc, duration):
 				red_times.append(minutes)
 			elif route in ["bro", "ppl"]:
 				brown_purple_times.append(minutes)
+			elif route == "8":
+				route_8_times.append(minutes)
 
 		# Take only next 3 arrivals per group
 		red_times = red_times[:3]
 		brown_purple_times = brown_purple_times[:3]
+		route_8_times = route_8_times[:3]
 
-		y_pos = 12  # Start below date/time
+		y_pos = 11  # Start below date/time (more compact)
 
 		# Display Red line with "95st" prefix
 		if red_times:
@@ -3141,6 +3149,40 @@ def show_transit_display(rtc, duration):
 				color=state.colors["WHITE"],
 				text=times_text,
 				x=33,  # After rectangle + "Loop" + gap
+				y=y_pos
+			)
+			state.main_group.append(times_label)
+			y_pos += 8
+
+		# Display Route 8 bus with "south" prefix
+		if route_8_times:
+			# "south" label
+			label_south = bitmap_label.Label(
+				font,
+				color=state.colors["WHITE"],
+				text="south",
+				x=2,
+				y=y_pos
+			)
+			state.main_group.append(label_south)
+
+			# "8" label (number instead of colored rectangle)
+			label_8 = bitmap_label.Label(
+				font,
+				color=state.colors["WHITE"],
+				text="8",
+				x=27,  # After "south"
+				y=y_pos
+			)
+			state.main_group.append(label_8)
+
+			# Times separated by commas
+			times_text = ", ".join(route_8_times)
+			times_label = bitmap_label.Label(
+				font,
+				color=state.colors["WHITE"],
+				text=times_text,
+				x=33,  # After "south 8 "
 				y=y_pos
 			)
 			state.main_group.append(times_label)
