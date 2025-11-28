@@ -967,6 +967,7 @@ class WeatherDisplayState:
 		self.last_intraday_fetch_time = {}  # {symbol: monotonic_timestamp}
 		self.cached_transit_arrivals = []  # Cache for transit arrival predictions
 		self.last_transit_fetch_time = 0  # Timestamp of last transit fetch
+		self.market_hours_allowed = True  # Cached market hours check (updated each cycle to avoid stack depth)
 
 		# Colors (set after matrix detection)
 		self.colors = {}
@@ -3917,9 +3918,9 @@ def show_weather_display(rtc, duration, weather_data=None):
 			# Update ONLY the time text content
 			time_text.text = current_time
 			
-			# Position time text based on other elements
+			# Position time text based on other elements - inline to reduce stack depth
 			if feels_shade_text:
-				time_text.x = center_text(current_time, font, 0, Display.WIDTH)
+				time_text.x = 0 + (Display.WIDTH - state.text_cache.get_text_width(current_time, font)) // 2
 			else:
 				time_text.x = right_align_text(current_time, font, Layout.RIGHT_EDGE)
 			
@@ -5027,24 +5028,24 @@ def show_forecast_display(current_data, forecast_data, display_duration, is_fres
 		col1_time_label = bitmap_label.Label(
 			font,
 			color=state.colors["DIMMEST_WHITE"],
-			x=max(center_text("00:00", font, Layout.FORECAST_COL1_X, column_width), 1),  # Initial placeholder
+			x=max(Layout.FORECAST_COL1_X + (column_width - state.text_cache.get_text_width("00:00", font)) // 2, 1),
 			y=time_y
 		)
-		
+
 		# Use these colors in the labels
 		col2_time_label = bitmap_label.Label(
 			font,
 			color=col2_color,
 			text=col2_time,
-			x=max(center_text(col2_time, font, Layout.FORECAST_COL2_X, column_width), 1),
+			x=max(Layout.FORECAST_COL2_X + (column_width - state.text_cache.get_text_width(col2_time, font)) // 2, 1),
 			y=time_y
 		)
-		
+
 		col3_time_label = bitmap_label.Label(
 			font,
 			color=col3_color,
 			text=col3_time,
-			x=max(center_text(col3_time, font, Layout.FORECAST_COL3_X, column_width), 1),
+			x=max(Layout.FORECAST_COL3_X + (column_width - state.text_cache.get_text_width(col3_time, font)) // 2, 1),
 			y=time_y
 		)
 		
@@ -5053,10 +5054,10 @@ def show_forecast_display(current_data, forecast_data, display_duration, is_fres
 		state.main_group.append(col2_time_label)
 		state.main_group.append(col3_time_label)
 		
-		# Create temperature labels (all static)
+		# Create temperature labels (all static) - inline center calculation to reduce stack depth
 		for col in columns_data:
-			centered_x = center_text(col["temp"], font, col["x"], column_width) + 1
-			
+			centered_x = col["x"] + (column_width - state.text_cache.get_text_width(col["temp"], font)) // 2 + 1
+
 			temp_label = bitmap_label.Label(
 				font,
 				color=state.colors["DIMMEST_WHITE"],
@@ -5096,8 +5097,8 @@ def show_forecast_display(current_data, forecast_data, display_duration, is_fres
 
 				# Update ONLY the first column time text
 				col1_time_label.text = new_time
-				# Recenter the text
-				col1_time_label.x = max(center_text(new_time, font, Layout.FORECAST_COL1_X, column_width), 1)
+				# Recenter the text - inline calculation to reduce stack depth
+				col1_time_label.x = max(Layout.FORECAST_COL1_X + (column_width - state.text_cache.get_text_width(new_time, font)) // 2, 1)
 
 				last_minute = current_minute
 
@@ -5905,14 +5906,6 @@ def _run_normal_cycle(rtc, cycle_count, cycle_start_time):
 	"""Helper: Run normal display cycle (Category A2)"""
 	something_displayed = False
 
-	# Check market hours once at start of cycle (to avoid repeated calls)
-	stocks_allowed = True
-	if display_config.show_stocks and display_config.stocks_respect_market_hours:
-		has_cached_stocks = len(state.cached_stock_prices) > 0
-		_, stocks_allowed, market_reason = is_market_hours_or_cache_valid(rtc.datetime, has_cached_stocks)
-		if not stocks_allowed:
-			log_verbose(f"Stocks skipped (cycle {cycle_count}): {market_reason}")
-
 	# Fetch data once
 	current_data, forecast_data, forecast_is_fresh = fetch_cycle_data(rtc)
 	current_duration, forecast_duration, event_duration = calculate_display_durations(rtc)
@@ -5943,8 +5936,8 @@ def _run_normal_cycle(rtc, cycle_count, cycle_start_time):
 		else:
 			interruptible_sleep(1)
 
-	# Stocks display (with frequency control)
-	if display_config.show_stocks and stocks_allowed:
+	# Stocks display (with frequency control and market hours check)
+	if display_config.show_stocks and state.market_hours_allowed:
 		# Smart frequency: show every cycle if stocks are the only display, otherwise respect frequency
 		other_displays_active = (display_config.show_weather or display_config.show_forecast or display_config.show_events)
 
@@ -6043,6 +6036,13 @@ def run_display_cycle(rtc, cycle_count):
 	# Try scheduled display first (priority path)
 	if _run_scheduled_cycle(rtc, cycle_count, cycle_start_time):
 		return  # Schedule handled everything
+
+	# Check market hours BEFORE normal cycle (outside display stack to avoid exhaustion)
+	if display_config.show_stocks and display_config.stocks_respect_market_hours:
+		has_cached_stocks = len(state.cached_stock_prices) > 0
+		_, state.market_hours_allowed, _ = is_market_hours_or_cache_valid(rtc.datetime, has_cached_stocks)
+	else:
+		state.market_hours_allowed = True  # Always allow if check is disabled
 
 	# Normal cycle
 	_run_normal_cycle(rtc, cycle_count, cycle_start_time)
