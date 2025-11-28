@@ -3154,27 +3154,27 @@ def show_transit_display(rtc, duration):
 			state.main_group.append(times_label)
 			y_pos += 8
 
-		# Display Route 8 bus with "south" prefix
+		# Display Route 8 bus (format: "8 south times")
 		if route_8_times:
-			# "south" label
-			label_south = bitmap_label.Label(
-				font,
-				color=state.colors["WHITE"],
-				text="south",
-				x=2,
-				y=y_pos
-			)
-			state.main_group.append(label_south)
-
-			# "8" label (number instead of colored rectangle)
+			# "8" label on left (where colored rectangles are for trains)
 			label_8 = bitmap_label.Label(
 				font,
 				color=state.colors["WHITE"],
 				text="8",
-				x=27,  # After "south"
+				x=2,
 				y=y_pos
 			)
 			state.main_group.append(label_8)
+
+			# "south" label after "8"
+			label_south = bitmap_label.Label(
+				font,
+				color=state.colors["WHITE"],
+				text="south",
+				x=9,  # After "8"
+				y=y_pos
+			)
+			state.main_group.append(label_south)
 
 			# Times separated by commas
 			times_text = ", ".join(route_8_times)
@@ -3182,7 +3182,7 @@ def show_transit_display(rtc, duration):
 				font,
 				color=state.colors["WHITE"],
 				text=times_text,
-				x=33,  # After "south 8 "
+				x=33,  # After "8 south "
 				y=y_pos
 			)
 			state.main_group.append(times_label)
