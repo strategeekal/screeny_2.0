@@ -3023,7 +3023,7 @@ def show_transit_display(rtc, duration):
 		return False
 
 	try:
-		# Display date and time at top
+		# Display date, time, and temperature at top
 		now = rtc.datetime
 		month_names = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
 		               "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
@@ -3032,14 +3032,14 @@ def show_transit_display(rtc, duration):
 		hour = now.tm_hour
 		minute = now.tm_min
 
-		# Format time as 12-hour with am/pm
-		am_pm = "a" if hour < 12 else "p"
-		display_hour = hour if hour <= 12 else hour - 12
-		if display_hour == 0:
-			display_hour = 12
+		# Get feels_like temperature from cached weather data
+		temp_str = ""
+		if state.cached_current_weather:
+			feels_like = round(state.cached_current_weather.get("feels_like", 0))
+			temp_str = f" {feels_like}"
 
-		# Format: "Nov 27 2:30p"
-		time_str = f"{month} {day} {display_hour}:{minute:02d}{am_pm}"
+		# Format: "Nov 27 14:30 72" (24-hour format with temperature)
+		time_str = f"{month} {day} {hour}:{minute:02d}{temp_str}"
 
 		time_label = bitmap_label.Label(
 			font,
@@ -3069,13 +3069,23 @@ def show_transit_display(rtc, duration):
 
 		y_pos = 12  # Start below date/time
 
-		# Display Red line
+		# Display Red line with "95st" prefix
 		if red_times:
-			# Red rectangle (5px wide, font height ~6px)
+			# "95st" label before rectangle
+			label_95st = bitmap_label.Label(
+				font,
+				color=state.colors["WHITE"],
+				text="95st",
+				x=2,
+				y=y_pos
+			)
+			state.main_group.append(label_95st)
+
+			# Red rectangle (5px wide, font height ~6px) after "95st"
 			red_rect = displayio.Bitmap(5, 6, 1)
 			red_palette = displayio.Palette(1)
 			red_palette[0] = state.colors["RED"]
-			red_tile = displayio.TileGrid(red_rect, pixel_shader=red_palette, x=2, y=y_pos)
+			red_tile = displayio.TileGrid(red_rect, pixel_shader=red_palette, x=20, y=y_pos)
 			state.main_group.append(red_tile)
 
 			# Times separated by commas
@@ -3084,13 +3094,13 @@ def show_transit_display(rtc, duration):
 				font,
 				color=state.colors["WHITE"],
 				text=times_text,
-				x=9,  # After 5px rectangle + 2px gap
+				x=27,  # After "95st" + rectangle + gap
 				y=y_pos
 			)
 			state.main_group.append(times_label)
 			y_pos += 8
 
-		# Display Brown+Purple line (diagonal split)
+		# Display Brown+Purple line (diagonal split) with "Loop" suffix
 		if brown_purple_times:
 			# Create 5x6 bitmap for brown/purple split
 			bp_rect = displayio.Bitmap(5, 6, 2)  # 2 colors
@@ -3110,13 +3120,23 @@ def show_transit_display(rtc, duration):
 			bp_tile = displayio.TileGrid(bp_rect, pixel_shader=bp_palette, x=2, y=y_pos)
 			state.main_group.append(bp_tile)
 
+			# "Loop" label after rectangle
+			label_loop = bitmap_label.Label(
+				font,
+				color=state.colors["WHITE"],
+				text="Loop",
+				x=9,
+				y=y_pos
+			)
+			state.main_group.append(label_loop)
+
 			# Times separated by commas
 			times_text = ", ".join(brown_purple_times)
 			times_label = bitmap_label.Label(
 				font,
 				color=state.colors["WHITE"],
 				text=times_text,
-				x=9,
+				x=33,  # After rectangle + "Loop" + gap
 				y=y_pos
 			)
 			state.main_group.append(times_label)
