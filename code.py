@@ -2954,6 +2954,10 @@ def fetch_transit_arrivals():
 				except:
 					pass
 
+		# Small delay between API calls to prevent socket exhaustion
+		gc.collect()
+		time.sleep(0.5)
+
 	# Fetch Diversey station: Brown and Purple lines only
 	if diversey_id:
 		response = None
