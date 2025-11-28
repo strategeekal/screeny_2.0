@@ -3029,9 +3029,7 @@ def show_transit_display(rtc, duration):
 	try:
 		# Display date, time, and temperature at top
 		now = rtc.datetime
-		month_names = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-		               "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-		month = month_names[now.tm_mon]
+		month = now.tm_mon
 		day = now.tm_mday
 		hour = now.tm_hour
 		minute = now.tm_min
@@ -3046,8 +3044,11 @@ def show_transit_display(rtc, duration):
 				# Skip temperature if conversion fails
 				log_verbose("Could not format temperature for transit display")
 
-		# Format: "Nov 27 14:30 72" or "Nov 27 14:30" (without temp if unavailable)
-		time_str = f"{month} {day} {hour}:{minute:02d}{temp_str}"
+		# Format time using existing helper (12-hour format: "3P", "12A")
+		time_12h = format_hour_12h(hour)
+
+		# Format: "11/27 3:30P 72" or "11/27 3:30P" (without temp if unavailable)
+		time_str = f"{month}/{day} {time_12h[:-1]}:{minute:02d}{time_12h[-1]}{temp_str}"
 
 		time_label = bitmap_label.Label(
 			font,
@@ -3079,26 +3080,26 @@ def show_transit_display(rtc, duration):
 		brown_purple_times = brown_purple_times[:3]
 		route_8_times = route_8_times[:3]
 
-		y_pos = 11  # Start below date/time (more compact)
+		y_pos = 9  # Start below date/time (moved up 2 pixels from 11)
 
-		# Display Red line with "95st" prefix
+		# Display Red line with red square on LEFT of "95st"
 		if red_times:
-			# "95st" label before rectangle
+			# Red rectangle on left (5px wide, font height ~6px)
+			red_rect = displayio.Bitmap(5, 6, 1)
+			red_palette = displayio.Palette(1)
+			red_palette[0] = state.colors["RED"]
+			red_tile = displayio.TileGrid(red_rect, pixel_shader=red_palette, x=2, y=y_pos)
+			state.main_group.append(red_tile)
+
+			# "95st" label after rectangle
 			label_95st = bitmap_label.Label(
 				font,
 				color=state.colors["WHITE"],
 				text="95st",
-				x=2,
+				x=9,  # After rectangle
 				y=y_pos
 			)
 			state.main_group.append(label_95st)
-
-			# Red rectangle (5px wide, font height ~6px) after "95st"
-			red_rect = displayio.Bitmap(5, 6, 1)
-			red_palette = displayio.Palette(1)
-			red_palette[0] = state.colors["RED"]
-			red_tile = displayio.TileGrid(red_rect, pixel_shader=red_palette, x=20, y=y_pos)
-			state.main_group.append(red_tile)
 
 			# Times separated by commas
 			times_text = ", ".join(red_times)
@@ -3106,7 +3107,7 @@ def show_transit_display(rtc, duration):
 				font,
 				color=state.colors["WHITE"],
 				text=times_text,
-				x=27,  # After "95st" + rectangle + gap
+				x=27,  # After rectangle + "95st" + gap
 				y=y_pos
 			)
 			state.main_group.append(times_label)
