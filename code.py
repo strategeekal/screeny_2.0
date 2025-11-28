@@ -3008,6 +3008,7 @@ def fetch_transit_arrivals():
 
 		except Exception as e:
 			log_error(f"Error fetching {station_name} arrivals: {e}")
+			traceback.print_exception(type(e), e, e.__traceback__)
 
 		finally:
 			if response:
