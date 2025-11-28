@@ -30,3 +30,15 @@ TIMEZONE = "America/Chicago"
 
 #GitHub Repo URL
 GITHUB_REPO_URL = "YOUR_GITHUB REPO URL"
+
+# CTA Transit API (Chicago Transit Authority)
+# Get your API key from: https://www.transitchicago.com/developers/traintracker/
+# Find station map IDs from: https://www.transitchicago.com/developers/ttdocs/
+CTA_API_KEY = "YOUR_CTA_API_KEY"
+CTA_FULLERTON_MAP_ID = "40360"  # Fullerton station - Red line southbound to Loop/95th
+CTA_DIVERSEY_MAP_ID = "40530"  # Diversey station - Brown/Purple lines to Loop
+
+# CTA Bus Tracker API
+# Get your API key from: https://www.transitchicago.com/developers/bustracker/
+CTA_BUS_API_KEY = "YOUR_CTA_BUS_API_KEY"
+CTA_STOP_ID = "1653"  # Stop ID for route 8 southbound

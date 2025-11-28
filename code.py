@@ -223,6 +223,16 @@ class API:
 	HTTP_TOO_MANY_REQUESTS = 429
 	HTTP_INTERNAL_SERVER_ERROR = 500
 
+## CTA API Configuration
+class CTAAPI:
+	TIMEOUT = 10
+	# Train Tracker API
+	TRAIN_BASE_URL = "https://lapi.transitchicago.com/api/1.0"
+	TRAIN_ARRIVALS_ENDPOINT = "ttarrivals.aspx"
+	# Bus Tracker API
+	BUS_BASE_URL = "http://www.ctabustracker.com/bustime/api/v2"
+	BUS_PREDICTIONS_ENDPOINT = "getpredictions"
+
 ## Error Handling & Recovery
 class Recovery:
 	# Retry strategies
@@ -356,6 +366,11 @@ class Strings:
 	API_KEY_FALLBACK = "ACCUWEATHER_API_KEY"
 	API_LOCATION_KEY = "ACCUWEATHER_LOCATION_KEY"
 	TWELVE_DATA_API_KEY = "TWELVE_DATA_API_KEY"
+	CTA_API_KEY = "CTA_API_KEY"
+	CTA_BUS_API_KEY = "CTA_BUS_API_KEY"
+	CTA_FULLERTON_MAP_ID = "CTA_FULLERTON_MAP_ID"
+	CTA_DIVERSEY_MAP_ID = "CTA_DIVERSEY_MAP_ID"
+	CTA_STOP_ID = "CTA_STOP_ID"
 	
 	# Environment variables
 	WIFI_SSID_VAR = "CIRCUITPY_WIFI_SSID"
@@ -411,6 +426,8 @@ class DisplayConfig:
 		self.show_stocks = False  # Stock market display (disabled by default)
 		self.stocks_display_frequency = 3  # Show stocks every N cycles (e.g., 3 = every 15 min)
 		self.stocks_respect_market_hours = True  # True = only show during market hours + grace period, False = always show (for testing)
+		self.show_transit = False  # CTA transit arrival display (disabled by default)
+		self.transit_respect_commute_hours = True  # True = only show Mon-Fri 9:30am-12pm, False = always show (for testing)
 
 		# Display Elements
 		self.show_weekday_indicator = True
@@ -471,6 +488,7 @@ class DisplayConfig:
 		if self.show_forecast: features.append("forecast")
 		if self.show_events: features.append("events")
 		if self.show_stocks: features.append("stocks")
+		if self.show_transit: features.append("transit")
 		if self.show_weekday_indicator: features.append("weekday_indicator")
 
 		# Add data source info
@@ -1360,6 +1378,34 @@ def sync_time_with_timezone(rtc):
 	except Exception as e:
 		log_error(f"NTP sync failed: {e}")
 		return None  # IMPORTANT: Return None on failure
+
+def is_commute_hours(local_datetime):
+	"""
+	Check if current time is within commute hours for transit display.
+
+	Args:
+		local_datetime: RTC datetime in user's local timezone
+
+	Returns:
+		bool: True if Mon-Fri 9:30am-12:00pm in local time, False otherwise
+	"""
+	# Check if it's a weekday (0=Monday, 4=Friday)
+	weekday = local_datetime.tm_wday
+	is_weekday = 0 <= weekday <= 4
+
+	if not is_weekday:
+		return False
+
+	# Check time window: 9:30am - 12:00pm (local time)
+	hour = local_datetime.tm_hour
+	minute = local_datetime.tm_min
+
+	# Convert to minutes since midnight for easier comparison
+	time_in_minutes = hour * 60 + minute
+	start_time = 9 * 60 + 30  # 9:30am = 570 minutes
+	end_time = 12 * 60  # 12:00pm = 720 minutes
+
+	return start_time <= time_in_minutes < end_time
 
 def is_market_hours_or_cache_valid(local_datetime, has_cached_data=False):
 	"""
@@ -2753,6 +2799,147 @@ def fetch_intraday_time_series(symbol, interval="15min", outputsize=26):
 
 	return []
 
+def fetch_transit_arrivals():
+	"""
+	Fetch CTA train and bus arrival predictions.
+	Returns list of arrival predictions: [{"route": str, "destination": str, "minutes": str}, ...]
+	"""
+	session = get_requests_session()
+	if not session:
+		log_warning("No session for transit fetch")
+		return []
+
+	train_api_key = os.getenv(Strings.CTA_API_KEY)
+	bus_api_key = os.getenv(Strings.CTA_BUS_API_KEY)
+	fullerton_id = os.getenv(Strings.CTA_FULLERTON_MAP_ID)
+	diversey_id = os.getenv(Strings.CTA_DIVERSEY_MAP_ID)
+	bus_stop_id = os.getenv(Strings.CTA_STOP_ID)
+
+	arrivals = []
+	import json
+
+	# Fetch train arrivals (Fullerton + Diversey in single API call)
+	if train_api_key and (fullerton_id or diversey_id):
+		station_ids = []
+		if fullerton_id:
+			station_ids.append(fullerton_id)
+		if diversey_id:
+			station_ids.append(diversey_id)
+
+		mapid_param = ",".join(station_ids)
+		response = None
+		try:
+			url = f"{CTAAPI.TRAIN_BASE_URL}/{CTAAPI.TRAIN_ARRIVALS_ENDPOINT}?key={train_api_key}&mapid={mapid_param}&outputType=JSON"
+			log_verbose(f"Fetching train arrivals for stations: {mapid_param}")
+			response = session.get(url, timeout=CTAAPI.TIMEOUT)
+
+			if response and response.status_code == 200:
+				data = json.loads(response.text)
+				if "ctatt" in data:
+					ctatt = data["ctatt"]
+					if ctatt.get("errCd") == "0":
+						predictions = ctatt.get("eta", [])
+						log_debug(f"Fetched {len(predictions)} train predictions")
+
+						for pred in predictions:
+							route = pred.get("rt", "??")
+							destination = pred.get("destNm", "Unknown")
+
+							# Filter: Red line from Fullerton, Brown/Purple to Loop from Diversey
+							route_abbrev = None
+							if route == "Red":
+								route_abbrev = "red"
+							elif route == "Brn" and "Loop" in destination:
+								route_abbrev = "brn"
+							elif route == "P" and "Loop" in destination:
+								route_abbrev = "ppl"
+							else:
+								continue  # Skip this prediction
+
+							# Calculate minutes until arrival
+							arr_time_str = pred.get("arrT", "")
+							tmst = ctatt.get("tmst", "")
+
+							try:
+								if 'T' in arr_time_str and 'T' in tmst:
+									arr_time_part = arr_time_str.split('T')[1]
+									cur_time_part = tmst.split('T')[1]
+									arr_hms = arr_time_part.split(':')
+									cur_hms = cur_time_part.split(':')
+									total_arr_mins = int(arr_hms[0]) * 60 + int(arr_hms[1])
+									total_cur_mins = int(cur_hms[0]) * 60 + int(cur_hms[1])
+									diff_mins = total_arr_mins - total_cur_mins
+									if diff_mins < 0:
+										diff_mins += 24 * 60
+									minutes = str(diff_mins)
+								else:
+									raise ValueError("Invalid time format")
+							except Exception:
+								minutes = "DUE" if pred.get("isApp") == "1" else "?"
+
+							# Apply minimum time filters: Red (Fullerton) >= 14 min, Brown/Purple (Diversey) >= 10 min
+							try:
+								mins_int = int(minutes)
+								if route == "Red" and mins_int < 14:
+									continue
+								elif route in ["Brn", "P"] and mins_int < 10:
+									continue
+							except ValueError:
+								continue  # Skip "DUE" or "?"
+
+							arrivals.append({"route": route_abbrev, "destination": destination, "minutes": minutes})
+					else:
+						log_warning(f"CTA Train API error: {ctatt.get('errNm', 'Unknown error')}")
+		except Exception as e:
+			log_error(f"Error fetching train arrivals: {e}")
+		finally:
+			if response:
+				try:
+					response.close()
+				except:
+					pass
+
+	# Fetch bus arrivals (route 8 southbound)
+	if bus_api_key and bus_stop_id:
+		response = None
+		try:
+			url = f"{CTAAPI.BUS_BASE_URL}/{CTAAPI.BUS_PREDICTIONS_ENDPOINT}?key={bus_api_key}&stpid={bus_stop_id}&rt=8&format=json"
+			log_verbose(f"Fetching bus predictions for stop {bus_stop_id}")
+			response = session.get(url, timeout=CTAAPI.TIMEOUT)
+
+			if response and response.status_code == 200:
+				data = json.loads(response.text)
+				if "bustime-response" in data:
+					bus_response = data["bustime-response"]
+					if "prd" in bus_response:
+						predictions = bus_response["prd"]
+						log_debug(f"Fetched {len(predictions)} bus predictions")
+
+						for pred in predictions:
+							route = pred.get("rt", "8")
+							destination = pred.get("des", "South")
+							minutes = pred.get("prdctdn", "?")
+
+							# Convert "DUE" to 0 for consistency
+							if minutes == "DUE":
+								minutes = "0"
+
+							arrivals.append({"route": "8", "destination": destination, "minutes": minutes})
+					elif "error" in bus_response:
+						errors = bus_response["error"]
+						for err in errors:
+							log_warning(f"CTA Bus API error: {err.get('msg', 'Unknown error')}")
+		except Exception as e:
+			log_error(f"Error fetching bus arrivals: {e}")
+		finally:
+			if response:
+				try:
+					response.close()
+				except:
+					pass
+
+	return arrivals
+
 def fetch_github_data(rtc):
 	"""
 	Fetch events, schedules, and stocks from GitHub in one operation
@@ -2975,6 +3162,12 @@ def apply_display_config(config_dict):
 		applied += 1
 	if "stocks_respect_market_hours" in config_dict:
 		display_config.stocks_respect_market_hours = config_dict["stocks_respect_market_hours"]
+		applied += 1
+	if "show_transit" in config_dict:
+		display_config.show_transit = config_dict["show_transit"]
+		applied += 1
+	if "transit_respect_commute_hours" in config_dict:
+		display_config.transit_respect_commute_hours = config_dict["transit_respect_commute_hours"]
 		applied += 1
 
 	# Display elements
@@ -4411,6 +4604,199 @@ def show_single_stock_chart(ticker, duration, rtc):
 	finally:
 		gc.collect()
 
+def show_transit_display(rtc, duration):
+	"""
+	Display CTA transit arrivals with dynamic header.
+	Header: "CTA HH:MM TEMP" if weather available, otherwise "MMM DD HH:MM"
+	"""
+	try:
+		clear_display()
+		gc.collect()
+
+		# Fetch transit arrivals
+		arrivals = fetch_transit_arrivals()
+		if not arrivals:
+			log_verbose("No transit arrivals to display")
+			return False
+
+		font = state.font
+
+		# Build dynamic header
+		now = rtc.datetime
+		hour_12 = now.tm_hour % 12
+		if hour_12 == 0:
+			hour_12 = 12
+		time_str = f"{hour_12}:{now.tm_min:02d}"
+
+		# Check if weather data is available
+		if state.current_weather and "temperature" in state.current_weather:
+			temp = round(state.current_weather["temperature"])
+			header_text = f"CTA {time_str} {temp}"
+		else:
+			# Month abbreviations
+			months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
+			month_abbr = months[now.tm_mon - 1] if 1 <= now.tm_mon <= 12 else "???"
+			header_text = f"{month_abbr} {now.tm_mday:02d} {time_str}"
+
+		# Display header
+		header_label = bitmap_label.Label(
+			font,
+			color=state.colors["WHITE"],
+			text=header_text,
+			x=1,
+			y=1
+		)
+		state.main_group.append(header_label)
+
+		# Group arrivals by route
+		red_times = []
+		brown_purple_times = []
+		bus_8_times = []
+
+		for arrival in arrivals:
+			route = arrival.get("route", "")
+			minutes = arrival.get("minutes", "?")
+
+			if route == "red":
+				red_times.append(minutes)
+			elif route in ["brn", "ppl"]:
+				brown_purple_times.append(minutes)
+			elif route == "8":
+				bus_8_times.append(minutes)
+
+		# Sort each group by arrival time
+		def sort_key(m):
+			try:
+				return int(m)
+			except:
+				return 999
+
+		red_times.sort(key=sort_key)
+		brown_purple_times.sort(key=sort_key)
+		bus_8_times.sort(key=sort_key)
+
+		# Take only next 3 soonest arrivals per group
+		red_times = red_times[:3]
+		brown_purple_times = brown_purple_times[:3]
+		bus_8_times = bus_8_times[:3]
+
+		y_pos = 9  # Start below header
+
+		# Display Brown+Purple line FIRST (diagonal split) with "Loop" suffix
+		if brown_purple_times:
+			# Create 5x6 bitmap for brown/purple split
+			bp_rect = displayio.Bitmap(5, 6, 2)  # 2 colors
+			bp_palette = displayio.Palette(2)
+			bp_palette[0] = 0x8B4513  # Brown color
+			bp_palette[1] = 0x800080  # Purple color
+
+			# Fill diagonal split: top-left brown, bottom-right purple
+			for y in range(6):
+				for x in range(5):
+					if y < x:  # Below diagonal = purple
+						bp_rect[x, y] = 1
+					else:  # Above/on diagonal = brown
+						bp_rect[x, y] = 0
+
+			bp_tile = displayio.TileGrid(bp_rect, pixel_shader=bp_palette, x=2, y=y_pos)
+			state.main_group.append(bp_tile)
+
+			# "Loop" label after rectangle
+			label_loop = bitmap_label.Label(
+				font,
+				color=state.colors["WHITE"],
+				text="Loop",
+				x=9,
+				y=y_pos
+			)
+			state.main_group.append(label_loop)
+
+			# Times separated by commas
+			times_text = ", ".join(brown_purple_times)
+			times_label = bitmap_label.Label(
+				font,
+				color=state.colors["WHITE"],
+				text=times_text,
+				x=33,
+				y=y_pos
+			)
+			state.main_group.append(times_label)
+			y_pos += 8
+
+		# Display Red line SECOND with red square
+		if red_times:
+			# Red rectangle
+			red_rect = displayio.Bitmap(5, 6, 1)
+			red_palette = displayio.Palette(1)
+			red_palette[0] = state.colors["RED"]
+			red_tile = displayio.TileGrid(red_rect, pixel_shader=red_palette, x=2, y=y_pos)
+			state.main_group.append(red_tile)
+
+			# "95st" label after rectangle
+			label_95st = bitmap_label.Label(
+				font,
+				color=state.colors["WHITE"],
+				text="95st",
+				x=9,
+				y=y_pos
+			)
+			state.main_group.append(label_95st)
+
+			# Times separated by commas
+			times_text = ", ".join(red_times)
+			times_label = bitmap_label.Label(
+				font,
+				color=state.colors["WHITE"],
+				text=times_text,
+				x=27,
+				y=y_pos
+			)
+			state.main_group.append(times_label)
+			y_pos += 8
+
+		# Display Route 8 bus
+		if bus_8_times:
+			# Orange circle for bus (simplified as rectangle for now)
+			bus_rect = displayio.Bitmap(5, 6, 1)
+			bus_palette = displayio.Palette(1)
+			bus_palette[0] = 0xFFA500  # Orange color
+			bus_tile = displayio.TileGrid(bus_rect, pixel_shader=bus_palette, x=2, y=y_pos)
+			state.main_group.append(bus_tile)
+
+			# "8 So" label (8 South)
+			label_8 = bitmap_label.Label(
+				font,
+				color=state.colors["WHITE"],
+				text="8 So",
+				x=9,
+				y=y_pos
+			)
+			state.main_group.append(label_8)
+
+			# Times separated by commas
+			times_text = ", ".join(bus_8_times)
+			times_label = bitmap_label.Label(
+				font,
+				color=state.colors["WHITE"],
+				text=times_text,
+				x=27,
+				y=y_pos
+			)
+			state.main_group.append(times_label)
+
+		log_info(f"Transit: Brn/Ppl={len(brown_purple_times)}, Red={len(red_times)}, Bus8={len(bus_8_times)}")
+
+		# Hold display
+		time.sleep(duration)
+		return True
+
+	except Exception as e:
+		log_error(f"Transit display error: {e}")
+		traceback.print_exception(e)
+		return False
+	finally:
+		gc.collect()
+
 def show_forecast_display(current_data, forecast_data, display_duration, is_fresh=False):
 	"""Optimized forecast display with smart precipitation detection"""
 	
@@ -5491,6 +5877,21 @@ def _run_normal_cycle(rtc, cycle_count, cycle_start_time):
 				if stocks_shown:
 					state.tracker.current_stock_offset = next_offset  # Update for next display
 					state.tracker.record_display_success()
+
+	# Transit display (with commute hours check if enabled)
+	if display_config.show_transit:
+		# Check commute hours if respect_commute_hours is enabled
+		should_show_transit = True
+		if display_config.transit_respect_commute_hours:
+			should_show_transit = is_commute_hours(rtc.datetime)
+			if not should_show_transit:
+				log_verbose("Outside commute hours - skipping transit display")
+
+		if should_show_transit:
+			transit_shown = show_transit_display(rtc, Timing.DEFAULT_EVENT)
+			something_displayed = something_displayed or transit_shown
+			if transit_shown:
+				state.tracker.record_display_success()
 
 	# Test modes
 	if display_config.show_color_test:
