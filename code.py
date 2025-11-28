@@ -2907,6 +2907,19 @@ def fetch_transit_arrivals():
 						except Exception:
 							minutes = "DUE" if pred.get("isApp") == "1" else "?"
 
+						# Apply minimum time filters
+						# Red line (Fullerton): skip arrivals < 14 minutes
+						# Brown/Purple (Diversey): skip arrivals < 10 minutes
+						try:
+							mins_int = int(minutes)
+							if route == "Red" and mins_int < 14:
+								continue  # Skip this arrival, too soon
+							elif route in ["Brn", "P"] and mins_int < 10:
+								continue  # Skip this arrival, too soon
+						except ValueError:
+							# If minutes is "DUE" or "?", skip it (too soon)
+							continue
+
 						arrivals.append({"route": route_abbrev, "destination": destination, "minutes": minutes})
 	except Exception as e:
 		log_error(f"Error fetching transit arrivals: {e}")
