@@ -223,17 +223,6 @@ class API:
 	HTTP_TOO_MANY_REQUESTS = 429
 	HTTP_INTERNAL_SERVER_ERROR = 500
 
-<<<<<<< HEAD
-
-class CTAAPI:
-	"""CTA Train Tracker API Constants"""
-	BASE_URL = "https://lapi.transitchicago.com/api/1.0"
-	ARRIVALS_ENDPOINT = "ttarrivals.aspx"
-	TIMEOUT = 10
-	MAX_PREDICTIONS = 3  # Show up to 3 upcoming arrivals
-	CACHE_DURATION = 60  # Cache for 60 seconds
-
-=======
 ## CTA API Configuration
 class CTAAPI:
 	TIMEOUT = 10
@@ -243,7 +232,6 @@ class CTAAPI:
 	# Bus Tracker API
 	BUS_BASE_URL = "http://www.ctabustracker.com/bustime/api/v2"
 	BUS_PREDICTIONS_ENDPOINT = "getpredictions"
->>>>>>> edfb839098bc3de07e2478ee60b097a53f778c75
 
 ## Error Handling & Recovery
 class Recovery:
@@ -379,22 +367,15 @@ class Strings:
 	API_LOCATION_KEY = "ACCUWEATHER_LOCATION_KEY"
 	TWELVE_DATA_API_KEY = "TWELVE_DATA_API_KEY"
 	CTA_API_KEY = "CTA_API_KEY"
-<<<<<<< HEAD
-	CTA_MAP_ID = "CTA_MAP_ID"  # Legacy - keeping for backward compatibility
-	CTA_FULLERTON_MAP_ID = "CTA_FULLERTON_MAP_ID"  # Red line at Fullerton
-	CTA_DIVERSEY_MAP_ID = "CTA_DIVERSEY_MAP_ID"  # Brown/Purple at Diversey
-
-=======
 	CTA_BUS_API_KEY = "CTA_BUS_API_KEY"
 	CTA_FULLERTON_MAP_ID = "CTA_FULLERTON_MAP_ID"
 	CTA_DIVERSEY_MAP_ID = "CTA_DIVERSEY_MAP_ID"
 	CTA_STOP_ID = "CTA_STOP_ID"
 	
->>>>>>> edfb839098bc3de07e2478ee60b097a53f778c75
 	# Environment variables
 	WIFI_SSID_VAR = "CIRCUITPY_WIFI_SSID"
 	WIFI_PASSWORD_VAR = "CIRCUITPY_WIFI_PASSWORD"
-
+	
 	# Event sources
 	GITHUB_REPO_URL = os.getenv("GITHUB_REPO_URL")
 	STOCKS_CSV_URL = os.getenv("STOCKS_CSV_URL")
@@ -446,11 +427,7 @@ class DisplayConfig:
 		self.stocks_display_frequency = 3  # Show stocks every N cycles (e.g., 3 = every 15 min)
 		self.stocks_respect_market_hours = True  # True = only show during market hours + grace period, False = always show (for testing)
 		self.show_transit = False  # CTA transit arrival display (disabled by default)
-<<<<<<< HEAD
-		self.transit_display_frequency = 2  # Show transit every N cycles (e.g., 2 = every 10 min)
-=======
 		self.transit_respect_commute_hours = True  # True = only show Mon-Fri 9:30am-12pm, False = always show (for testing)
->>>>>>> edfb839098bc3de07e2478ee60b097a53f778c75
 
 		# Display Elements
 		self.show_weekday_indicator = True
@@ -984,9 +961,6 @@ class WeatherDisplayState:
 		self.market_holiday_date = None  # Cache holiday status (YYYY-MM-DD format)
 		self.cached_intraday_data = {}  # {symbol: {data: [...], timestamp: monotonic, open_price: float}}
 		self.last_intraday_fetch_time = {}  # {symbol: monotonic_timestamp}
-		self.cached_transit_arrivals = []  # Cache for transit arrival predictions
-		self.last_transit_fetch_time = 0  # Timestamp of last transit fetch
-		self.market_hours_allowed = True  # Cached market hours check (updated each cycle to avoid stack depth)
 
 		# Colors (set after matrix detection)
 		self.colors = {}
@@ -2997,353 +2971,7 @@ def fetch_github_data(rtc):
 	stocks = fetch_stocks_from_github(session, cache_buster)
 
 	return events, schedules, schedule_source, stocks
-
-
-### ====================================== TRANSIT FUNCTIONS ====================================== ###
-
-def fetch_transit_arrivals():
-	"""
-	Fetch transit arrival predictions from CTA API.
-	Returns list of arrival predictions with route, destination, and arrival time.
-	"""
-	import time
-
-	# Check cache first
-	cache_age = time.monotonic() - state.last_transit_fetch_time
-	if cache_age < CTAAPI.CACHE_DURATION and state.cached_transit_arrivals:
-		log_verbose(f"Using cached transit data (age: {int(cache_age)}s)")
-		return state.cached_transit_arrivals
-
-	# Get API credentials
-	api_key = os.getenv(Strings.CTA_API_KEY)
-	fullerton_id = os.getenv(Strings.CTA_FULLERTON_MAP_ID)
-	diversey_id = os.getenv(Strings.CTA_DIVERSEY_MAP_ID)
-
-	if not api_key:
-		log_warning("CTA_API_KEY not configured in settings.toml")
-		return []
-
-	if not fullerton_id and not diversey_id:
-		log_warning("No CTA station IDs configured (need CTA_FULLERTON_MAP_ID and/or CTA_DIVERSEY_MAP_ID)")
-		return []
-
-	session = get_requests_session()
-	if not session:
-		log_warning("No session available for transit fetch")
-		return []
-
-	arrivals = []
-	import json
-
-	# Build comma-separated list of station IDs for single API call
-	station_ids = []
-	if fullerton_id:
-		station_ids.append(fullerton_id)
-	if diversey_id:
-		station_ids.append(diversey_id)
-
-	mapid_param = ",".join(station_ids)
-
-	# Fetch all stations in single API call
-	response = None
-	try:
-		url = f"{CTAAPI.BASE_URL}/{CTAAPI.ARRIVALS_ENDPOINT}?key={api_key}&mapid={mapid_param}&outputType=JSON"
-		log_verbose(f"Fetching transit arrivals for stations: {mapid_param}")
-		response = session.get(url, timeout=CTAAPI.TIMEOUT)
-
-		if response and response.status_code == 200:
-			data = json.loads(response.text)
-			if "ctatt" in data:
-				ctatt = data["ctatt"]
-				if ctatt.get("errCd") == "0":
-					predictions = ctatt.get("eta", [])
-					log_debug(f"Fetched {len(predictions)} predictions from {len(station_ids)} stations")
-
-					for pred in predictions:
-						route = pred.get("rt", "??")
-						destination = pred.get("destNm", "Unknown")
-
-						# Filter: Red line from Fullerton, Brown/Purple to Loop from Diversey
-						include = False
-						route_abbrev = None
-
-						if route == "Red":
-							include = True
-							route_abbrev = "red"
-						elif route == "Brn" and "Loop" in destination:
-							include = True
-							route_abbrev = "bro"
-						elif route == "P" and "Loop" in destination:
-							include = True
-							route_abbrev = "ppl"
-
-						if not include:
-							continue
-
-						arr_time_str = pred.get("arrT", "")
-						tmst = ctatt.get("tmst", "")
-
-						try:
-							if 'T' in arr_time_str and 'T' in tmst:
-								arr_time_part = arr_time_str.split('T')[1]
-								cur_time_part = tmst.split('T')[1]
-								arr_hms = arr_time_part.split(':')
-								cur_hms = cur_time_part.split(':')
-								total_arr_mins = int(arr_hms[0]) * 60 + int(arr_hms[1])
-								total_cur_mins = int(cur_hms[0]) * 60 + int(cur_hms[1])
-								diff_mins = total_arr_mins - total_cur_mins
-								if diff_mins < 0:
-									diff_mins += 24 * 60
-								minutes = str(diff_mins)
-							else:
-								raise ValueError("Invalid time format")
-						except Exception:
-							minutes = "DUE" if pred.get("isApp") == "1" else "?"
-
-						# Apply minimum time filters
-						# Red line (Fullerton): skip arrivals < 14 minutes
-						# Brown/Purple (Diversey): skip arrivals < 10 minutes
-						try:
-							mins_int = int(minutes)
-							if route == "Red" and mins_int < 14:
-								continue  # Skip this arrival, too soon
-							elif route in ["Brn", "P"] and mins_int < 10:
-								continue  # Skip this arrival, too soon
-						except ValueError:
-							# If minutes is "DUE" or "?", skip it (too soon)
-							continue
-
-						arrivals.append({"route": route_abbrev, "destination": destination, "minutes": minutes})
-	except Exception as e:
-		log_error(f"Error fetching transit arrivals: {e}")
-	finally:
-		if response:
-			try:
-				response.close()
-			except:
-				pass
-
-	# Add placeholder data for route 8 bus (until Bus Tracker API is integrated)
-	import random
-	placeholder_8_times = [str(random.randint(3, 15)) for _ in range(3)]
-	for minutes in placeholder_8_times:
-		arrivals.append({"route": "8", "destination": "South", "minutes": minutes})
-
-	# Cache the combined results
-	state.cached_transit_arrivals = arrivals
-	state.last_transit_fetch_time = time.monotonic()
-
-	if arrivals:
-		log_info(f"Fetched {len(arrivals)} total transit arrivals")
-	else:
-		log_info("No transit arrivals available")
-
-	return arrivals
-
-
-def show_transit_display(rtc, duration):
-	"""Display CTA transit arrival predictions with colored rectangles"""
-	log_verbose("Starting transit display")
-	clear_display()
-
-	# Fetch transit arrivals
-	arrivals = fetch_transit_arrivals()
-
-	if not arrivals:
-		log_warning("No transit arrivals to display")
-		return False
-
-	try:
-		# Display date, time, and temperature at top
-		now = rtc.datetime
-		month = now.tm_mon
-		day = now.tm_mday
-		hour = now.tm_hour
-		minute = now.tm_min
-
-		# Get feels_like temperature from cached weather data (if available)
-		temp_str = ""
-		if state.cached_current_weather and "feels_like" in state.cached_current_weather:
-			try:
-				feels_like = round(state.cached_current_weather["feels_like"])
-				temp_str = f" {feels_like}"
-			except (ValueError, TypeError):
-				# Skip temperature if conversion fails
-				log_verbose("Could not format temperature for transit display")
-
-		# Format time using existing helper (12-hour format: "3P", "12A")
-		time_12h = format_hour_12h(hour)
-
-		# Format: "11/27 3:30P 72" or "11/27 3:30P" (without temp if unavailable)
-		time_str = f"{month}/{day} {time_12h[:-1]}:{minute:02d}{time_12h[-1]}{temp_str}"
-
-		time_label = bitmap_label.Label(
-			font,
-			color=state.colors["ORANGE"],
-			text=time_str,
-			x=2,
-			y=1  # Moved up 1 pixel
-		)
-		state.main_group.append(time_label)
-
-		# Group arrivals by route
-		red_times = []
-		brown_purple_times = []  # Combined brown and purple
-		route_8_times = []  # Route 8 bus (placeholder data for now)
-
-		for arrival in arrivals:
-			route = arrival["route"]
-			minutes = arrival["minutes"]
-
-			if route == "red":
-				red_times.append(minutes)
-			elif route in ["bro", "ppl"]:
-				brown_purple_times.append(minutes)
-			elif route == "8":
-				route_8_times.append(minutes)
-
-		# Sort each group by arrival time (convert to int for sorting, handle "DUE" and "?" as 0)
-		def sort_key(m):
-			if m == "DUE" or m == "?":
-				return 0
-			try:
-				return int(m)
-			except:
-				return 999
-
-		red_times.sort(key=sort_key)
-		brown_purple_times.sort(key=sort_key)
-		route_8_times.sort(key=sort_key)
-
-		# Take only next 3 soonest arrivals per group
-		red_times = red_times[:2]
-		brown_purple_times = brown_purple_times[:2]
-		route_8_times = route_8_times[:2]
-
-		y_pos = 9  # Start below date/time
-
-		# Display Brown+Purple line FIRST (diagonal split) with "Loop" suffix
-		if brown_purple_times:
-			# Create 5x6 bitmap for brown/purple split
-			bp_rect = displayio.Bitmap(5, 6, 2)  # 2 colors
-			bp_palette = displayio.Palette(2)
-			bp_palette[0] = state.colors["BROWN"]  # Brown color
-			bp_palette[1] = state.colors["PURPLE"]  # Purple color
-
-			# Fill diagonally: upper-left brown, lower-right purple
-			for y in range(6):
-				for x in range(5):
-					# Diagonal split: if x+y < threshold, use brown, else purple
-					if x + y < 5:
-						bp_rect[x, y] = 0  # Brown
-					else:
-						bp_rect[x, y] = 1  # Purple
-
-			bp_tile = displayio.TileGrid(bp_rect, pixel_shader=bp_palette, x=2, y=y_pos)
-			state.main_group.append(bp_tile)
-
-			# "Loop" label after rectangle
-			label_loop = bitmap_label.Label(
-				font,
-				color=state.colors["WHITE"],
-				text="Loop",
-				x=10,
-				y=y_pos
-			)
-			state.main_group.append(label_loop)
-
-			# Times separated by commas
-			times_text = ", ".join(brown_purple_times)
-			times_label = bitmap_label.Label(
-				font,
-				color=state.colors["WHITE"],
-				text=times_text,
-				x=38,  # After rectangle + "Loop" + gap
-				y=y_pos
-			)
-			state.main_group.append(times_label)
-			y_pos += 8
-
-		# Display Red line SECOND with red square on LEFT of "95st"
-		if red_times:
-			# Red rectangle on left (5px wide, font height ~6px)
-			red_rect = displayio.Bitmap(5, 6, 1)
-			red_palette = displayio.Palette(1)
-			red_palette[0] = state.colors["RED"]
-			red_tile = displayio.TileGrid(red_rect, pixel_shader=red_palette, x=2, y=y_pos)
-			state.main_group.append(red_tile)
-
-			# "95st" label after rectangle
-			label_95st = bitmap_label.Label(
-				font,
-				color=state.colors["WHITE"],
-				text="95st",
-				x=10,  # After rectangle
-				y=y_pos
-			)
-			state.main_group.append(label_95st)
-
-			# Times separated by commas
-			times_text = ", ".join(red_times)
-			times_label = bitmap_label.Label(
-				font,
-				color=state.colors["WHITE"],
-				text=times_text,
-				x=38,  # After rectangle + "95st" + gap
-				y=y_pos
-			)
-			state.main_group.append(times_label)
-			y_pos += 8
-
-		# Display Route 8 bus (format: "8 south times")
-		# NOTE: Using placeholder data until Bus Tracker API is integrated
-		if route_8_times:
-			# "8" label on left (where colored rectangles are for trains)
-			label_8 = bitmap_label.Label(
-				font,
-				color=state.colors["WHITE"],
-				text="8",
-				x=2,
-				y=y_pos
-			)
-			state.main_group.append(label_8)
-
-			# "south" label after "8"
-			label_south = bitmap_label.Label(
-				font,
-				color=state.colors["WHITE"],
-				text="South",
-				x=10,  # After "8"
-				y=y_pos
-			)
-			state.main_group.append(label_south)
-
-			# Times separated by commas
-			times_text = ", ".join(route_8_times)
-			times_label = bitmap_label.Label(
-				font,
-				color=state.colors["WHITE"],
-				text=times_text,
-				x=38,  # After "8 south "
-				y=y_pos
-			)
-			state.main_group.append(times_label)
-
-		log_info(f"Transit: {len(arrivals)} arrivals displayed")
-
-		# Use interruptible_sleep instead of time.sleep for button support
-		interruptible_sleep(duration)
-
-		return True
-
-	except Exception as e:
-		log_error(f"Transit display error: {e}")
-		return False
-
-	finally:
-		gc.collect()
-
-
+	
 def load_schedules_from_csv():
 	"""Load schedules from CSV file"""
 	schedules = {}
@@ -3534,13 +3162,6 @@ def apply_display_config(config_dict):
 		applied += 1
 	if "stocks_respect_market_hours" in config_dict:
 		display_config.stocks_respect_market_hours = config_dict["stocks_respect_market_hours"]
-		log_info(f"Applied stocks_respect_market_hours = {display_config.stocks_respect_market_hours} (type: {type(display_config.stocks_respect_market_hours).__name__})")
-		applied += 1
-	if "show_transit" in config_dict:
-		display_config.show_transit = config_dict["show_transit"]
-		applied += 1
-	if "transit_display_frequency" in config_dict:
-		display_config.transit_display_frequency = config_dict["transit_display_frequency"]
 		applied += 1
 	if "show_transit" in config_dict:
 		display_config.show_transit = config_dict["show_transit"]
@@ -4019,9 +3640,9 @@ def show_weather_display(rtc, duration, weather_data=None):
 			# Update ONLY the time text content
 			time_text.text = current_time
 			
-			# Position time text based on other elements - inline to reduce stack depth
+			# Position time text based on other elements
 			if feels_shade_text:
-				time_text.x = 0 + (Display.WIDTH - state.text_cache.get_text_width(current_time, font)) // 2
+				time_text.x = center_text(current_time, font, 0, Display.WIDTH)
 			else:
 				time_text.x = right_align_text(current_time, font, Layout.RIGHT_EDGE)
 			
@@ -4541,7 +4162,6 @@ def show_stocks_display(duration, offset, rtc):
 	has_any_cached = len(state.cached_stock_prices) > 0
 
 	# Respect market hours toggle (can be disabled for testing)
-	log_debug(f"stocks_respect_market_hours = {display_config.stocks_respect_market_hours} (type: {type(display_config.stocks_respect_market_hours).__name__})")
 	if display_config.stocks_respect_market_hours:
 		should_fetch, should_display, reason = is_market_hours_or_cache_valid(rtc.datetime, has_any_cached)
 
@@ -4901,7 +4521,6 @@ def show_single_stock_chart(ticker, duration, rtc):
 			font,
 			text=display_name,
 			color=state.colors["WHITE"],
-			x=1,
 			y=1
 		)
 		state.main_group.append(ticker_label)
@@ -4999,8 +4618,6 @@ def show_transit_display(rtc, duration):
 		if not arrivals:
 			log_verbose("No transit arrivals to display")
 			return False
-
-		font = state.font
 
 		# Build dynamic header
 		now = rtc.datetime
@@ -5323,24 +4940,24 @@ def show_forecast_display(current_data, forecast_data, display_duration, is_fres
 		col1_time_label = bitmap_label.Label(
 			font,
 			color=state.colors["DIMMEST_WHITE"],
-			x=max(Layout.FORECAST_COL1_X + (column_width - state.text_cache.get_text_width("00:00", font)) // 2, 1),
+			x=max(center_text("00:00", font, Layout.FORECAST_COL1_X, column_width), 1),  # Initial placeholder
 			y=time_y
 		)
-
+		
 		# Use these colors in the labels
 		col2_time_label = bitmap_label.Label(
 			font,
 			color=col2_color,
 			text=col2_time,
-			x=max(Layout.FORECAST_COL2_X + (column_width - state.text_cache.get_text_width(col2_time, font)) // 2, 1),
+			x=max(center_text(col2_time, font, Layout.FORECAST_COL2_X, column_width), 1),
 			y=time_y
 		)
-
+		
 		col3_time_label = bitmap_label.Label(
 			font,
 			color=col3_color,
 			text=col3_time,
-			x=max(Layout.FORECAST_COL3_X + (column_width - state.text_cache.get_text_width(col3_time, font)) // 2, 1),
+			x=max(center_text(col3_time, font, Layout.FORECAST_COL3_X, column_width), 1),
 			y=time_y
 		)
 		
@@ -5349,10 +4966,10 @@ def show_forecast_display(current_data, forecast_data, display_duration, is_fres
 		state.main_group.append(col2_time_label)
 		state.main_group.append(col3_time_label)
 		
-		# Create temperature labels (all static) - inline center calculation to reduce stack depth
+		# Create temperature labels (all static)
 		for col in columns_data:
-			centered_x = col["x"] + (column_width - state.text_cache.get_text_width(col["temp"], font)) // 2 + 1
-
+			centered_x = center_text(col["temp"], font, col["x"], column_width) + 1
+			
 			temp_label = bitmap_label.Label(
 				font,
 				color=state.colors["DIMMEST_WHITE"],
@@ -5392,8 +5009,8 @@ def show_forecast_display(current_data, forecast_data, display_duration, is_fres
 
 				# Update ONLY the first column time text
 				col1_time_label.text = new_time
-				# Recenter the text - inline calculation to reduce stack depth
-				col1_time_label.x = max(Layout.FORECAST_COL1_X + (column_width - state.text_cache.get_text_width(new_time, font)) // 2, 1)
+				# Recenter the text
+				col1_time_label.x = max(center_text(new_time, font, Layout.FORECAST_COL1_X, column_width), 1)
 
 				last_minute = current_minute
 
@@ -5760,8 +5377,8 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 				display_hour = get_12h_hour(hour)
 				time_label.text = f"{display_hour}:{current_minute:02d}"
 				last_minute = current_minute
-
-			interruptible_sleep(sleep_interval)
+			
+			time.sleep(sleep_interval)
 		
 		log_debug(f"Segment complete")
 		
@@ -6227,8 +5844,8 @@ def _run_normal_cycle(rtc, cycle_count, cycle_start_time):
 		else:
 			interruptible_sleep(1)
 
-	# Stocks display (with frequency control and market hours check)
-	if display_config.show_stocks and state.market_hours_allowed:
+	# Stocks display (with frequency control)
+	if display_config.show_stocks:
 		# Smart frequency: show every cycle if stocks are the only display, otherwise respect frequency
 		other_displays_active = (display_config.show_weather or display_config.show_forecast or display_config.show_events)
 
@@ -6259,14 +5876,6 @@ def _run_normal_cycle(rtc, cycle_count, cycle_start_time):
 					state.tracker.current_stock_offset = next_offset  # Update for next display
 					state.tracker.record_display_success()
 
-<<<<<<< HEAD
-	# Transit display
-	if display_config.show_transit:
-		transit_shown = show_transit_display(rtc, Timing.DEFAULT_EVENT)
-		something_displayed = something_displayed or transit_shown
-		if transit_shown:
-			state.tracker.record_display_success()
-=======
 	# Transit display (with commute hours check if enabled)
 	if display_config.show_transit:
 		# Check commute hours if respect_commute_hours is enabled
@@ -6281,7 +5890,6 @@ def _run_normal_cycle(rtc, cycle_count, cycle_start_time):
 			something_displayed = something_displayed or transit_shown
 			if transit_shown:
 				state.tracker.record_display_success()
->>>>>>> edfb839098bc3de07e2478ee60b097a53f778c75
 
 	# Test modes
 	if display_config.show_color_test:
@@ -6344,13 +5952,6 @@ def run_display_cycle(rtc, cycle_count):
 	# Try scheduled display first (priority path)
 	if _run_scheduled_cycle(rtc, cycle_count, cycle_start_time):
 		return  # Schedule handled everything
-
-	# Check market hours BEFORE normal cycle (outside display stack to avoid exhaustion)
-	if display_config.show_stocks and display_config.stocks_respect_market_hours:
-		has_cached_stocks = len(state.cached_stock_prices) > 0
-		_, state.market_hours_allowed, _ = is_market_hours_or_cache_valid(rtc.datetime, has_cached_stocks)
-	else:
-		state.market_hours_allowed = True  # Always allow if check is disabled
 
 	# Normal cycle
 	_run_normal_cycle(rtc, cycle_count, cycle_start_time)
