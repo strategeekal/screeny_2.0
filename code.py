@@ -5916,24 +5916,12 @@ def _run_normal_cycle(rtc, cycle_count, cycle_start_time):
 					state.tracker.current_stock_offset = next_offset  # Update for next display
 					state.tracker.record_display_success()
 
-	# Transit display (with frequency control)
+	# Transit display
 	if display_config.show_transit:
-		# Smart frequency: show every cycle if transit is the only display, otherwise respect frequency
-		other_displays_active = (display_config.show_weather or display_config.show_forecast or
-		                         display_config.show_events or display_config.show_stocks)
-
-		if other_displays_active:
-			# Other displays active - respect frequency (e.g., frequency=2 means cycles 1, 3, 5, 7...)
-			should_show_transit = (cycle_count - 1) % display_config.transit_display_frequency == 0
-		else:
-			# Transit is the only display - show every cycle to avoid clock fallback
-			should_show_transit = True
-
-		if should_show_transit:
-			transit_shown = show_transit_display(rtc, Timing.DEFAULT_EVENT)
-			something_displayed = something_displayed or transit_shown
-			if transit_shown:
-				state.tracker.record_display_success()
+		transit_shown = show_transit_display(rtc, Timing.DEFAULT_EVENT)
+		something_displayed = something_displayed or transit_shown
+		if transit_shown:
+			state.tracker.record_display_success()
 
 	# Test modes
 	if display_config.show_color_test:
