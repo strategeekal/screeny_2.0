@@ -16,11 +16,17 @@ show_transit,1
 transit_display_frequency,2
 =======
 stocks_respect_market_hours,0
+<<<<<<< HEAD
 show_transit,1
 transit_display_frequency,3
 # transit_respect_commute_hours: 1 = only show during commute hours (9-11am), 0 = always show (for testing)
 transit_respect_commute_hours,0
 >>>>>>> d2b0ec73dfe3c291fb339e3bdb656791ff098f48
+=======
+show_transit,0
+# transit_respect_commute_hours: 1 = only show Mon-Fri 9:30am-12pm, 0 = always show (for testing)
+transit_respect_commute_hours,1
+>>>>>>> edfb839098bc3de07e2478ee60b097a53f778c75
 
 # Display elements
 show_weekday_indicator,1
