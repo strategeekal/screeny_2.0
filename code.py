@@ -458,14 +458,8 @@ class DisplayConfig:
 		self.show_stocks = False  # Stock market display (disabled by default)
 		self.stocks_display_frequency = 3  # Show stocks every N cycles (e.g., 3 = every 15 min)
 		self.stocks_respect_market_hours = True  # True = only show during market hours + grace period, False = always show (for testing)
-<<<<<<< HEAD
 		self.show_transit = False  # CTA transit arrival display (disabled by default)
 		self.transit_display_frequency = 2  # Show transit every N cycles (e.g., 2 = every 10 min)
-=======
-		self.show_transit = False  # CTA transit display (disabled by default)
-		self.transit_display_frequency = 3  # Show transit every N cycles
-		self.transit_respect_commute_hours = True  # True = only show 9-11 AM, False = always show (for testing)
->>>>>>> d2b0ec73dfe3c291fb339e3bdb656791ff098f48
 
 		# Display Elements
 		self.show_weekday_indicator = True
@@ -1001,14 +995,9 @@ class WeatherDisplayState:
 		self.market_holiday_date = None  # Cache holiday status (YYYY-MM-DD format)
 		self.cached_intraday_data = {}  # {symbol: {data: [...], timestamp: monotonic, open_price: float}}
 		self.last_intraday_fetch_time = {}  # {symbol: monotonic_timestamp}
-<<<<<<< HEAD
 		self.cached_transit_arrivals = []  # Cache for transit arrival predictions
 		self.last_transit_fetch_time = 0  # Timestamp of last transit fetch
 		self.market_hours_allowed = True  # Cached market hours check (updated each cycle to avoid stack depth)
-=======
-		self.cached_transit_arrivals = []  # [{route, destination, minutes, type, color}, ...]
-		self.last_transit_fetch_time = 0  # monotonic timestamp
->>>>>>> d2b0ec73dfe3c291fb339e3bdb656791ff098f48
 
 		# Colors (set after matrix detection)
 		self.colors = {}
