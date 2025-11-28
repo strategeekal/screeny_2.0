@@ -2944,13 +2944,9 @@ def fetch_transit_arrivals():
 
 							arrivals.append({"route": "red", "destination": destination, "minutes": minutes})
 		except Exception as e:
-<<<<<<< HEAD
 			log_error(f"Error fetching {station_name} arrivals: {e}")
 			traceback.print_exception(type(e), e, e.__traceback__)
 
-=======
-			log_error(f"Error fetching Fullerton arrivals: {e}")
->>>>>>> b2a14a68fb92242cfdd59ae2b14c42b899516429
 		finally:
 			if response:
 				try:
