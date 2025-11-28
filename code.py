@@ -3029,7 +3029,20 @@ def show_transit_display(rtc, duration):
 			elif route == "8":
 				route_8_times.append(minutes)
 
-		# Take only next 3 arrivals per group
+		# Sort each group by arrival time (convert to int for sorting, handle "DUE" and "?" as 0)
+		def sort_key(m):
+			if m == "DUE" or m == "?":
+				return 0
+			try:
+				return int(m)
+			except:
+				return 999
+
+		red_times.sort(key=sort_key)
+		brown_purple_times.sort(key=sort_key)
+		route_8_times.sort(key=sort_key)
+
+		# Take only next 3 soonest arrivals per group
 		red_times = red_times[:3]
 		brown_purple_times = brown_purple_times[:3]
 		route_8_times = route_8_times[:3]
