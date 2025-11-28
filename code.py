@@ -2946,9 +2946,9 @@ def fetch_transit_arrivals():
 
 				log_info(f"Fetched {len(predictions)} total transit arrivals")
 
-				# Filter for Brown, Purple, Red lines going to Loop
+				# Filter for Brown, Purple, Red lines going to Loop, and route 8 bus
 				loop_destinations = ["Loop", "95th/Dan Ryan", "Howard"]  # Destinations that indicate Loop direction
-				wanted_routes = ["Brn", "P", "Red"]  # Brown, Purple, Red
+				wanted_routes = ["Brn", "P", "Red", "8"]  # Brown, Purple, Red, Route 8 bus
 
 				# Process predictions and filter
 				for pred in predictions:
@@ -2962,12 +2962,15 @@ def fetch_transit_arrivals():
 					# Skip if not going to Loop (check destination)
 					# For Brown/Purple: heading to Loop
 					# For Red: either Howard or 95th direction goes through Loop
+					# For route 8: accept all
 					going_to_loop = False
 					if route == "Brn" and "Loop" in destination:
 						going_to_loop = True
 					elif route == "P" and "Loop" in destination:
 						going_to_loop = True
 					elif route == "Red":  # Red line always goes through Loop
+						going_to_loop = True
+					elif route == "8":  # Route 8 bus - accept all
 						going_to_loop = True
 
 					if not going_to_loop:
@@ -2977,7 +2980,8 @@ def fetch_transit_arrivals():
 					route_abbrev = {
 						"Brn": "bro",
 						"P": "ppl",
-						"Red": "red"
+						"Red": "red",
+						"8": "8"
 					}.get(route, route.lower())
 
 					# Calculate minutes until arrival using simple string parsing
@@ -3080,7 +3084,7 @@ def show_transit_display(rtc, duration):
 		return False
 
 	try:
-		# Display date and time at top
+		# Display date, time, and temperature at top
 		now = rtc.datetime
 		month_names = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
 		               "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
@@ -3089,27 +3093,32 @@ def show_transit_display(rtc, duration):
 		hour = now.tm_hour
 		minute = now.tm_min
 
-		# Format time as 12-hour with am/pm
-		am_pm = "a" if hour < 12 else "pm"
-		display_hour = hour if hour <= 12 else hour - 12
-		if display_hour == 0:
-			display_hour = 12
+		# Get feels_like temperature from cached weather data (if available)
+		temp_str = ""
+		if state.cached_current_weather and "feels_like" in state.cached_current_weather:
+			try:
+				feels_like = round(state.cached_current_weather["feels_like"])
+				temp_str = f" {feels_like}"
+			except (ValueError, TypeError):
+				# Skip temperature if conversion fails
+				log_verbose("Could not format temperature for transit display")
 
-		# Format: "Nov 27 2:30p"
-		time_str = f"{month} {day} {display_hour}:{minute:02d}{am_pm}"
+		# Format: "Nov 27 14:30 72" or "Nov 27 14:30" (without temp if unavailable)
+		time_str = f"{month} {day} {hour}:{minute:02d}{temp_str}"
 
 		time_label = bitmap_label.Label(
 			font,
 			color=state.colors["WHITE"],
 			text=time_str,
 			x=2,
-			y=2
+			y=1  # Moved up 1 pixel
 		)
 		state.main_group.append(time_label)
 
 		# Group arrivals by route
 		red_times = []
 		brown_purple_times = []  # Combined brown and purple
+		route_8_times = []  # Route 8 bus
 
 		for arrival in arrivals:
 			route = arrival["route"]
@@ -3119,20 +3128,33 @@ def show_transit_display(rtc, duration):
 				red_times.append(minutes)
 			elif route in ["bro", "ppl"]:
 				brown_purple_times.append(minutes)
+			elif route == "8":
+				route_8_times.append(minutes)
 
 		# Take only next 3 arrivals per group
 		red_times = red_times[:3]
 		brown_purple_times = brown_purple_times[:3]
+		route_8_times = route_8_times[:3]
 
-		y_pos = 12  # Start below date/time
+		y_pos = 11  # Start below date/time (more compact)
 
-		# Display Red line
+		# Display Red line with "95st" prefix
 		if red_times:
-			# Red rectangle (5px wide, font height ~6px)
+			# "95st" label before rectangle
+			label_95st = bitmap_label.Label(
+				font,
+				color=state.colors["WHITE"],
+				text="95st",
+				x=2,
+				y=y_pos
+			)
+			state.main_group.append(label_95st)
+
+			# Red rectangle (5px wide, font height ~6px) after "95st"
 			red_rect = displayio.Bitmap(5, 6, 1)
 			red_palette = displayio.Palette(1)
 			red_palette[0] = state.colors["RED"]
-			red_tile = displayio.TileGrid(red_rect, pixel_shader=red_palette, x=2, y=y_pos)
+			red_tile = displayio.TileGrid(red_rect, pixel_shader=red_palette, x=20, y=y_pos)
 			state.main_group.append(red_tile)
 
 			# Times separated by commas
@@ -3141,13 +3163,13 @@ def show_transit_display(rtc, duration):
 				font,
 				color=state.colors["WHITE"],
 				text=times_text,
-				x=9,  # After 5px rectangle + 2px gap
+				x=27,  # After "95st" + rectangle + gap
 				y=y_pos
 			)
 			state.main_group.append(times_label)
 			y_pos += 8
 
-		# Display Brown+Purple line (diagonal split)
+		# Display Brown+Purple line (diagonal split) with "Loop" suffix
 		if brown_purple_times:
 			# Create 5x6 bitmap for brown/purple split
 			bp_rect = displayio.Bitmap(5, 6, 2)  # 2 colors
@@ -3167,13 +3189,57 @@ def show_transit_display(rtc, duration):
 			bp_tile = displayio.TileGrid(bp_rect, pixel_shader=bp_palette, x=2, y=y_pos)
 			state.main_group.append(bp_tile)
 
+			# "Loop" label after rectangle
+			label_loop = bitmap_label.Label(
+				font,
+				color=state.colors["WHITE"],
+				text="Loop",
+				x=9,
+				y=y_pos
+			)
+			state.main_group.append(label_loop)
+
 			# Times separated by commas
 			times_text = ", ".join(brown_purple_times)
 			times_label = bitmap_label.Label(
 				font,
 				color=state.colors["WHITE"],
 				text=times_text,
-				x=9,
+				x=33,  # After rectangle + "Loop" + gap
+				y=y_pos
+			)
+			state.main_group.append(times_label)
+			y_pos += 8
+
+		# Display Route 8 bus (format: "8 south times")
+		if route_8_times:
+			# "8" label on left (where colored rectangles are for trains)
+			label_8 = bitmap_label.Label(
+				font,
+				color=state.colors["WHITE"],
+				text="8",
+				x=2,
+				y=y_pos
+			)
+			state.main_group.append(label_8)
+
+			# "south" label after "8"
+			label_south = bitmap_label.Label(
+				font,
+				color=state.colors["WHITE"],
+				text="south",
+				x=9,  # After "8"
+				y=y_pos
+			)
+			state.main_group.append(label_south)
+
+			# Times separated by commas
+			times_text = ", ".join(route_8_times)
+			times_label = bitmap_label.Label(
+				font,
+				color=state.colors["WHITE"],
+				text=times_text,
+				x=33,  # After "8 south "
 				y=y_pos
 			)
 			state.main_group.append(times_label)
