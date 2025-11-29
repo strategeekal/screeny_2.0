@@ -4520,7 +4520,8 @@ def show_single_stock_chart(ticker, duration, rtc):
 		ticker_label = bitmap_label.Label(
 			font,
 			text=display_name,
-			color=state.colors["WHITE"],
+			color=state.colors["DIMMEST_WHITE"],
+			x=1,
 			y=1
 		)
 		state.main_group.append(ticker_label)
@@ -4627,9 +4628,9 @@ def show_transit_display(rtc, duration, current_data=None):
 		time_str = f"{hour_12}:{now.tm_min:02d}"
 
 		# Check if weather data is available
-		if current_data and "temperature" in current_data:
-			temp = round(current_data["temperature"])
-			header_text = f"CTA {time_str} {temp}"
+		if current_data and "feels_like" in current_data:
+			temp = round(current_data["feels_like"])
+			header_text = f"CTA {time_str} {temp}°"
 		else:
 			# Month abbreviations
 			months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
@@ -4639,7 +4640,7 @@ def show_transit_display(rtc, duration, current_data=None):
 		# Display header
 		header_label = bitmap_label.Label(
 			font,
-			color=state.colors["WHITE"],
+			color=state.colors["MINT"],
 			text=header_text,
 			x=1,
 			y=1
@@ -4674,9 +4675,9 @@ def show_transit_display(rtc, duration, current_data=None):
 		bus_8_times.sort(key=sort_key)
 
 		# Take only next 3 soonest arrivals per group
-		red_times = red_times[:3]
-		brown_purple_times = brown_purple_times[:3]
-		bus_8_times = bus_8_times[:3]
+		red_times = red_times[:2]
+		brown_purple_times = brown_purple_times[:2]
+		bus_8_times = bus_8_times[:2]
 
 		y_pos = 9  # Start below header
 
@@ -4685,16 +4686,17 @@ def show_transit_display(rtc, duration, current_data=None):
 			# Create 5x6 bitmap for brown/purple split
 			bp_rect = displayio.Bitmap(5, 6, 2)  # 2 colors
 			bp_palette = displayio.Palette(2)
-			bp_palette[0] = 0x8B4513  # Brown color
-			bp_palette[1] = 0x800080  # Purple color
+			bp_palette[0] = state.colors["BROWN"]  # Brown color
+			bp_palette[1] = state.colors["PURPLE"]  # Purple color
 
 			# Fill diagonal split: top-left brown, bottom-right purple
 			for y in range(6):
 				for x in range(5):
-					if y < x:  # Below diagonal = purple
-						bp_rect[x, y] = 1
-					else:  # Above/on diagonal = brown
-						bp_rect[x, y] = 0
+					# Diagonal split: if x+y < threshold, use brown, else purple
+					if x + y < 5:
+						bp_rect[x, y] = 0  # Brown
+					else:
+						bp_rect[x, y] = 1  # Purple
 
 			bp_tile = displayio.TileGrid(bp_rect, pixel_shader=bp_palette, x=2, y=y_pos)
 			state.main_group.append(bp_tile)
@@ -4704,7 +4706,7 @@ def show_transit_display(rtc, duration, current_data=None):
 				font,
 				color=state.colors["WHITE"],
 				text="Loop",
-				x=9,
+				x=10,
 				y=y_pos
 			)
 			state.main_group.append(label_loop)
@@ -4715,7 +4717,7 @@ def show_transit_display(rtc, duration, current_data=None):
 				font,
 				color=state.colors["WHITE"],
 				text=times_text,
-				x=33,
+				x=35,
 				y=y_pos
 			)
 			state.main_group.append(times_label)
@@ -4735,7 +4737,7 @@ def show_transit_display(rtc, duration, current_data=None):
 				font,
 				color=state.colors["WHITE"],
 				text="95st",
-				x=9,
+				x=10,
 				y=y_pos
 			)
 			state.main_group.append(label_95st)
@@ -4746,7 +4748,7 @@ def show_transit_display(rtc, duration, current_data=None):
 				font,
 				color=state.colors["WHITE"],
 				text=times_text,
-				x=27,
+				x=35,
 				y=y_pos
 			)
 			state.main_group.append(times_label)
@@ -4754,21 +4756,24 @@ def show_transit_display(rtc, duration, current_data=None):
 
 		# Display Route 8 bus
 		if bus_8_times:
-			# Orange circle for bus (simplified as rectangle for now)
-			bus_rect = displayio.Bitmap(5, 6, 1)
-			bus_palette = displayio.Palette(1)
-			bus_palette[0] = 0xFFA500  # Orange color
-			bus_tile = displayio.TileGrid(bus_rect, pixel_shader=bus_palette, x=2, y=y_pos)
-			state.main_group.append(bus_tile)
+			# "8 So" label (8 South)
+			icon_8 = bitmap_label.Label(
+				font,
+				color=state.colors["WHITE"],
+				text="8",
+				x=3,
+				y=y_pos
+			)
 
 			# "8 So" label (8 South)
 			label_8 = bitmap_label.Label(
 				font,
 				color=state.colors["WHITE"],
-				text="8 So",
-				x=9,
+				text="South",
+				x=10,
 				y=y_pos
 			)
+			state.main_group.append(icon_8)
 			state.main_group.append(label_8)
 
 			# Times separated by commas
@@ -4777,7 +4782,7 @@ def show_transit_display(rtc, duration, current_data=None):
 				font,
 				color=state.colors["WHITE"],
 				text=times_text,
-				x=27,
+				x=35,
 				y=y_pos
 			)
 			state.main_group.append(times_label)
