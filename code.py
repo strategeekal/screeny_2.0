@@ -959,6 +959,7 @@ class WeatherDisplayState:
 		self.cached_stock_prices = {}  # {symbol: {price, change_percent, direction, timestamp}}
 		self.last_stock_fetch_time = 0
 		self.market_holiday_date = None  # Cache holiday status (YYYY-MM-DD format)
+		self.market_hours_allowed = True  # Cached market hours check (updated each cycle to avoid stack depth)
 		self.cached_intraday_data = {}  # {symbol: {data: [...], timestamp: monotonic, open_price: float}}
 		self.last_intraday_fetch_time = {}  # {symbol: monotonic_timestamp}
 
@@ -5382,8 +5383,8 @@ def show_scheduled_display(rtc, schedule_name, schedule_config, total_duration, 
 				display_hour = get_12h_hour(hour)
 				time_label.text = f"{display_hour}:{current_minute:02d}"
 				last_minute = current_minute
-			
-			time.sleep(sleep_interval)
+
+			interruptible_sleep(sleep_interval)
 		
 		log_debug(f"Segment complete")
 		
@@ -5849,8 +5850,8 @@ def _run_normal_cycle(rtc, cycle_count, cycle_start_time):
 		else:
 			interruptible_sleep(1)
 
-	# Stocks display (with frequency control)
-	if display_config.show_stocks:
+	# Stocks display (with frequency control and market hours check)
+	if display_config.show_stocks and state.market_hours_allowed:
 		# Smart frequency: show every cycle if stocks are the only display, otherwise respect frequency
 		other_displays_active = (display_config.show_weather or display_config.show_forecast or display_config.show_events)
 
@@ -5957,6 +5958,13 @@ def run_display_cycle(rtc, cycle_count):
 	# Try scheduled display first (priority path)
 	if _run_scheduled_cycle(rtc, cycle_count, cycle_start_time):
 		return  # Schedule handled everything
+
+	# Check market hours BEFORE normal cycle (outside display stack to avoid exhaustion)
+	if display_config.show_stocks and display_config.stocks_respect_market_hours:
+		has_cached_stocks = len(state.cached_stock_prices) > 0
+		_, state.market_hours_allowed, _ = is_market_hours_or_cache_valid(rtc.datetime, has_cached_stocks)
+	else:
+		state.market_hours_allowed = True  # Always allow if check is disabled
 
 	# Normal cycle
 	_run_normal_cycle(rtc, cycle_count, cycle_start_time)
