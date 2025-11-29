@@ -4189,7 +4189,7 @@ def show_stocks_display(duration, offset, rtc):
 		if time_since_last_fetch < MIN_FETCH_INTERVAL and state.last_stock_fetch_time > 0:
 			wait_time = MIN_FETCH_INTERVAL - time_since_last_fetch
 			log_info(f"Rate limit: waiting {int(wait_time)}s before next fetch")
-			time.sleep(wait_time)
+			interruptible_sleep(wait_time)
 
 		# Fetch prices for 4 stocks (3 to display + 1 buffer)
 		log_verbose(f"Fetching prices for: {', '.join([s['symbol'] for s in stocks_to_fetch])}")
@@ -4594,7 +4594,7 @@ def show_single_stock_chart(ticker, duration, rtc):
 		log_info("Chart: " + display_name + " " + pct_text + " (" + price_text + ") with " + str(num_points) + " data points " + cache_status)
 
 		# Hold display for duration
-		time.sleep(duration)
+		interruptible_sleep(duration)
 
 		return True
 
@@ -4791,7 +4791,7 @@ def show_transit_display(rtc, duration, current_data=None):
 		log_info(f"Transit: Brn/Ppl={len(brown_purple_times)}, Red={len(red_times)}, Bus8={len(bus_8_times)}")
 
 		# Hold display
-		time.sleep(duration)
+		interruptible_sleep(duration)
 		return True
 
 	except Exception as e:
