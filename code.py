@@ -4760,7 +4760,7 @@ def show_transit_display(rtc, duration, current_data=None):
 			# "8 So" label (8 South)
 			icon_8 = bitmap_label.Label(
 				font,
-				color=state.colors["WHITE"],
+				color=state.colors["BLUE"],
 				text="8",
 				x=3,
 				y=y_pos
