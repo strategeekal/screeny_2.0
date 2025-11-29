@@ -1,16 +1,17 @@
-# Pantallita 2.2.0
+# Pantallita 2.4.0
 
-A dual RGB matrix weather display system running on MatrixPortal S3, showing real-time weather, forecasts, stock prices with intraday charts, events, and scheduled activities for family use.
+A dual RGB matrix weather display system running on MatrixPortal S3, showing real-time weather, forecasts, stock prices with intraday charts, CTA transit arrivals, events, and scheduled activities for family use. Features built-in button control for easy stop/exit.
 
 ## Overview
 
-Pantallita displays weather information, 12-hour forecasts, stock market data, family events (birthdays, special occasions), and scheduled activities (morning/evening routines) on two 64×32 RGB LED matrices. The system runs continuously with automatic daily restarts, defensive error handling, and smart caching to manage CircuitPython's memory and socket constraints.
+Pantallita displays weather information, 12-hour forecasts, stock market data, CTA transit arrival times, family events (birthdays, special occasions), and scheduled activities (morning/evening routines) on two 64×32 RGB LED matrices. The system runs continuously with automatic daily restarts, defensive error handling, and smart caching to manage CircuitPython's memory and socket constraints.
 
 ## Hardware
 
 - **Controller:** Adafruit MatrixPortal S3 (ESP32-S3, 8MB flash, 2MB SRAM)
 - **Displays:** 2× RGB LED matrices (64×32 pixels, 4-bit color depth)
 - **RTC:** DS3231 real-time clock module
+- **Buttons:** 2× built-in buttons on MatrixPortal S3 (UP/DOWN)
 - **Power:** 5V power supply
 - **Firmware:** Adafruit CircuitPython 9.2.8
 
@@ -20,11 +21,13 @@ Pantallita displays weather information, 12-hour forecasts, stock market data, f
 - **APIs:**
   - AccuWeather API (current conditions & 12-hour forecast)
   - Twelve Data API (real-time stock prices)
+  - CTA Transit APIs (Train Tracker & Bus Tracker for real-time arrivals)
   - GitHub raw content (remote events/schedules/stocks)
 - **Libraries:**
   - `adafruit_requests` - HTTP client
   - `adafruit_ntp` - Time synchronization
   - `adafruit_ds3231` - RTC module
+  - `digitalio` - Built-in button control (GPIO)
   - `adafruit_imageload` - BMP image loading
   - `adafruit_bitmap_font` - Text rendering
   - `adafruit_display_shapes` - Line shapes for chart rendering
@@ -367,6 +370,98 @@ GC=F,Gold Futures,commodity,GLD,0
   - Works with both local CSV and remote GitHub configuration
   - Automatic timezone conversion (works from any US timezone)
 
+### Built-in Button Control (NEW in 2.3.0)
+
+The **MatrixPortal S3's built-in buttons** provide simple, hardware-integrated control for stopping the program.
+
+**Hardware:**
+- **UP Button:** Physical button on the side of MatrixPortal S3
+- **DOWN Button:** Physical button on the side of MatrixPortal S3 (reserved for future use)
+- **No additional hardware required** - buttons are built into the controller
+- **Direct GPIO access** - simple, lightweight implementation
+
+**Button Functions:**
+- **UP Button (Stop):** Press to immediately stop the program
+  - Raises `KeyboardInterrupt` for clean shutdown
+  - Exits gracefully with memory report
+  - Equivalent to ctrl+c
+  - Checked once per display cycle (minimal overhead)
+
+- **DOWN Button:** Reserved for future manual display advance feature
+
+**Implementation:**
+- Uses built-in `digitalio` library (no external dependencies)
+- Simple GPIO reading with pull-up resistors
+- Button check in main loop only (not in hot path)
+- Graceful degradation if buttons unavailable
+- Zero pystack impact - no nested functions or complex logic
+
+**Setup:**
+- Auto-initialized during system startup
+- Logs "MatrixPortal buttons initialized - UP=stop, DOWN=advance" if successful
+- No configuration required
+- Works immediately after deployment
+
+**Advantages:**
+- ✅ No extra hardware needed
+- ✅ No library dependencies beyond built-in
+- ✅ Simple implementation (~40 lines of code)
+- ✅ Zero stack depth issues
+- ✅ Fast response time
+
+### CTA Transit Display (NEW in 2.4.0)
+
+Real-time CTA (Chicago Transit Authority) train and bus arrival tracking for morning commute.
+
+**Display Features:**
+- Shows **3 arrivals at a time** (trains + buses combined, sorted by time)
+- **Visual Indicators:**
+  - **Trains:** Colored circles (🔴 Red line, 🟤 Brown line, 🟣 Purple line)
+  - **Buses:** White squares (⬜ for bus routes)
+- **Layout:** Route name on left, arrival time on right
+- **Time Format:** "DUE", "1 min", or "X min"
+- Automatically sorts all arrivals by time (earliest first)
+
+**Configured Stations:**
+- **Diversey Station (40530):** Brown & Purple lines to Loop
+- **Fullerton Station (41220):** Red line southbound
+- **Halsted & Wrightwood Stop (1446):** 8 bus southbound
+
+**API Integration:**
+- **Train Tracker API:** Fetches train arrivals with route colors
+- **Bus Tracker API:** Fetches bus predictions
+- Single `CTA_API_KEY` for both APIs (from settings.toml)
+- **60-second caching** to minimize API calls
+- Calculates arrival times in minutes from prediction data
+
+**Smart Display Control:**
+- **Commute Hours Only (default):** Shows 9-11 AM only
+- **Configurable Toggle:** `transit_respect_commute_hours` (1=commute only, 0=all day)
+- **Display Frequency:** `transit_display_frequency=3` (shows every 3rd cycle)
+- **Smart Frequency:** Always shows if only display enabled (prevents clock fallback)
+- Works with display rotation system
+
+**Configuration:**
+```csv
+# In display_config.csv
+show_transit,transit_display_frequency,transit_respect_commute_hours
+1,3,1
+```
+
+**API Setup:**
+1. Get free CTA API key from: https://www.transitchicago.com/developers/
+2. Add to `settings.toml`: `CTA_API_KEY = "your-key-here"`
+3. Enable in `display_config.csv`: `show_transit=1`
+
+**How It Works:**
+- Fetches arrivals from all configured stations/stops
+- Combines trains and buses into single list
+- Sorts by arrival time (earliest first)
+- Shows top 3 arrivals with route colors
+- Respects commute hours (if enabled)
+- Caches for 60 seconds to reduce API usage
+- Integrates seamlessly with other displays
+
 ### Events
 - Date-based display (MM-DD format)
 - Two-line text with customizable colors
@@ -591,7 +686,67 @@ The entire codebase currently resides in a single `code.py` file. This is a comm
 
 ## Version History
 
-### 2.2.0 (Current - November 2025)
+### 2.4.0 (Current - November 2025)
+- **CTA Transit Display:**
+  - **Real-Time Arrival Tracking:**
+    - Shows 3 arrivals at a time (trains + buses combined)
+    - Sorts all arrivals by time (earliest first)
+    - Visual indicators: Colored circles for trains, white squares for buses
+    - Time format: "DUE", "1 min", or "X min"
+  - **Configured Stations:**
+    - Diversey Station (40530): Brown & Purple lines to Loop
+    - Fullerton Station (41220): Red line southbound
+    - Halsted & Wrightwood Stop (1446): 8 bus southbound
+  - **API Integration:**
+    - Train Tracker API for train arrivals with route colors
+    - Bus Tracker API for bus predictions
+    - Single `CTA_API_KEY` for both APIs
+    - 60-second caching to minimize API calls
+  - **Smart Display Control:**
+    - Commute hours filtering (9-11 AM only by default)
+    - `transit_respect_commute_hours` toggle (1=commute only, 0=all day)
+    - `transit_display_frequency` for rotation control (default: every 3rd cycle)
+    - Smart frequency: always shows if only display enabled
+  - **Technical Implementation:**
+    - `fetch_cta_train_arrivals()`: Train Tracker API integration
+    - `fetch_cta_bus_arrivals()`: Bus Tracker API integration
+    - `fetch_all_transit_arrivals()`: Combined fetcher with sorting
+    - `show_transit_display()`: Display function with Circle and Rect shapes
+    - Integrated into `_run_normal_cycle()` with frequency control
+  - **Configuration:**
+    - `show_transit` toggle (disabled by default)
+    - Works with both local and remote display_config.csv
+    - Respects commute hours for morning commute use case
+
+### 2.3.0 (November 2025)
+- **Built-in Button Control:**
+  - **Hardware Integration:**
+    - Uses MatrixPortal S3's built-in UP and DOWN buttons
+    - No additional hardware required
+    - Direct GPIO access via `digitalio` library
+    - Auto-detection at startup with graceful degradation
+  - **Button Functions:**
+    - **UP Button (Stop):** Press to immediately stop program (ctrl+c equivalent)
+    - **DOWN Button:** Reserved for future manual display advance feature
+  - **Technical Implementation:**
+    - `setup_buttons()`: Initialize GPIO pins with pull-up resistors
+    - `check_button_stop()`: Simple GPIO read in main loop
+    - Button check once per cycle (not in hot path)
+    - Raises `KeyboardInterrupt` for clean shutdown
+    - ~40 lines of code total
+  - **Integration Details:**
+    - Checked at start of each display cycle
+    - No nested function calls or try/except in hot path
+    - Zero pystack impact
+    - Graceful degradation if buttons unavailable
+    - No library dependencies (digitalio is built-in)
+  - **Advantages:**
+    - Simple, lightweight implementation
+    - Fast response time
+    - No I2C communication overhead
+    - Works immediately after deployment
+
+### 2.2.0 (November 2025)
 - **Single Stock Chart Display:** Full-screen intraday price chart view
   - **Visual Chart Display:**
     - Row 1: Display name + daily percentage change (color-coded green/red)
