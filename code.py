@@ -4200,10 +4200,6 @@ def show_stocks_display(duration, offset, rtc):
 	import time
 	has_any_cached = len(state.cached_stock_prices) > 0
 
-	# Use state-level should_fetch flag (already calculated in run_display_cycle)
-	# This optimizes API usage by fetching only once when market closes
-	should_fetch = state.should_fetch_stocks
-
 	# Respect market hours toggle (can be disabled for testing)
 	if display_config.stocks_respect_market_hours:
 		_, should_display, reason = is_market_hours_or_cache_valid(rtc.datetime, has_any_cached)
@@ -4217,6 +4213,22 @@ def show_stocks_display(duration, offset, rtc):
 		should_display = True
 		reason = "Market hours check disabled (testing mode)"
 		log_verbose(reason)
+
+	# Smart fetch logic: check if specific stocks we need are already cached
+	should_fetch = state.should_fetch_stocks
+
+	if not should_fetch:
+		# Market closed - check if the specific stocks we need are cached
+		symbols_needed = [s['symbol'] for s in stocks_to_fetch]
+		all_cached = all(symbol in state.cached_stock_prices for symbol in symbols_needed)
+
+		if not all_cached:
+			# Some stocks not cached yet - fetch this batch
+			should_fetch = True
+			missing = [s for s in symbols_needed if s not in state.cached_stock_prices]
+			log_info(f"Stocks not cached yet: {', '.join(missing[:2])}{'...' if len(missing) > 2 else ''} - fetching")
+		else:
+			log_verbose(f"All stocks cached ({len(symbols_needed)}/4), using cache")
 
 	# Initialize stock_prices - will be either fresh or from cache
 	stock_prices = {}
@@ -4497,14 +4509,21 @@ def show_single_stock_chart(ticker, duration, rtc):
 	should_fetch = state.should_fetch_stocks  # Use state-level flag for market state optimization
 	data_is_fresh = False
 
-	# Only check cache age if state allows fetching
-	if should_fetch and ticker in state.last_intraday_fetch_time:
+	# Smart fetch logic for market closed state
+	if not should_fetch:
+		# Market closed - check if this specific ticker is cached
+		if ticker not in state.cached_intraday_data:
+			# Not cached yet - fetch this ticker
+			should_fetch = True
+			log_info(f"Intraday data not cached for {ticker} - fetching")
+		else:
+			log_verbose("Market closed - using cached intraday data for " + ticker)
+	elif should_fetch and ticker in state.last_intraday_fetch_time:
+		# Market open - check cache age
 		time_since_fetch = current_time - state.last_intraday_fetch_time[ticker]
 		if time_since_fetch < INTRADAY_CACHE_MAX_AGE:
 			should_fetch = False
 			log_verbose("Using cached intraday data for " + ticker)
-	elif not state.should_fetch_stocks:
-		log_verbose("Market closed - using cached intraday data for " + ticker)
 
 	# Fetch time series if needed
 	if should_fetch:
@@ -4533,7 +4552,14 @@ def show_single_stock_chart(ticker, duration, rtc):
 	time_series = cached["data"]
 
 	# Fetch current quote for latest price and percentage (or use cached if market closed)
-	if state.should_fetch_stocks:
+	should_fetch_quote = state.should_fetch_stocks
+
+	# If market closed, check if quote is cached
+	if not should_fetch_quote and ticker not in state.cached_stock_prices:
+		should_fetch_quote = True
+		log_info(f"Quote not cached for {ticker} - fetching")
+
+	if should_fetch_quote:
 		quote_data = fetch_stock_prices([{"symbol": ticker, "name": ticker}])
 
 		if ticker not in quote_data:
@@ -4544,9 +4570,6 @@ def show_single_stock_chart(ticker, duration, rtc):
 		state.cached_stock_prices[ticker] = quote_data[ticker]
 	else:
 		# Market closed - use cached quote data
-		if ticker not in state.cached_stock_prices:
-			log_warning("No cached quote data for " + ticker)
-			return False
 		quote_data = {ticker: state.cached_stock_prices[ticker]}
 		log_verbose("Using cached quote for " + ticker)
 
@@ -6054,18 +6077,16 @@ def run_display_cycle(rtc, cycle_count):
 		# Detect market state transition to optimize API usage
 		current_state = "open" if state.market_hours_allowed else "closed"
 
-		# Only fetch if market is open OR just transitioned to closed (fetch once for after-hours)
+		# Set fetch flag based on market state (display function will check specific stocks)
 		if current_state == "open":
-			state.should_fetch_stocks = True
+			state.should_fetch_stocks = True  # Market open - always fetch fresh
 		elif state.last_market_state == "open" and current_state == "closed":
-			state.should_fetch_stocks = True  # Fetch once when market closes
+			state.should_fetch_stocks = True  # Just closed - fetch final prices
 			log_info("Market just closed - fetching final prices for after-hours display")
-		elif len(state.cached_stock_prices) == 0:
-			state.should_fetch_stocks = True  # No cache after restart - fetch once
-			log_info("No cached stock data (restart/first run) - fetching prices")
 		else:
-			state.should_fetch_stocks = False  # Skip fetching, use cached data
-			log_verbose("Market closed - using cached stock data")
+			# Market closed - allow conditional fetching (display function checks if stocks are cached)
+			state.should_fetch_stocks = False
+			log_verbose("Market closed - display will check if stocks are cached")
 
 		state.last_market_state = current_state
 	else:
