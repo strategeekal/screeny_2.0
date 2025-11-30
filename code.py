@@ -4801,16 +4801,30 @@ def show_transit_display(rtc, duration, current_data=None):
 			)
 			state.main_group.append(label_loop)
 
-			# Times separated by commas
-			times_text = ", ".join(brown_purple_times)
-			times_label = bitmap_label.Label(
-				font,
-				color=state.colors["WHITE"],
-				text=times_text,
-				x=37,
-				y=y_pos
-			)
-			state.main_group.append(times_label)
+			# Display times in two columns, right-aligned
+			if len(brown_purple_times) >= 1:
+				time1_text = brown_purple_times[0] + ("," if len(brown_purple_times) > 1 else "")
+				time1_width = get_text_width(time1_text, font)
+				time1_label = bitmap_label.Label(
+					font,
+					color=state.colors["WHITE"],
+					text=time1_text,
+					x=49 - time1_width,  # Right-align to column 1
+					y=y_pos
+				)
+				state.main_group.append(time1_label)
+
+			if len(brown_purple_times) >= 2:
+				time2_text = brown_purple_times[1]
+				time2_width = get_text_width(time2_text, font)
+				time2_label = bitmap_label.Label(
+					font,
+					color=state.colors["WHITE"],
+					text=time2_text,
+					x=63 - time2_width,  # Right-align to column 2
+					y=y_pos
+				)
+				state.main_group.append(time2_label)
 			y_pos += 8
 
 		# Display Red line SECOND with red square
@@ -4832,16 +4846,30 @@ def show_transit_display(rtc, duration, current_data=None):
 			)
 			state.main_group.append(label_95st)
 
-			# Times separated by commas
-			times_text = ", ".join(red_times)
-			times_label = bitmap_label.Label(
-				font,
-				color=state.colors["WHITE"],
-				text=times_text,
-				x=37,
-				y=y_pos
-			)
-			state.main_group.append(times_label)
+			# Display times in two columns, right-aligned
+			if len(red_times) >= 1:
+				time1_text = red_times[0] + ("," if len(red_times) > 1 else "")
+				time1_width = get_text_width(time1_text, font)
+				time1_label = bitmap_label.Label(
+					font,
+					color=state.colors["WHITE"],
+					text=time1_text,
+					x=49 - time1_width,  # Right-align to column 1
+					y=y_pos
+				)
+				state.main_group.append(time1_label)
+
+			if len(red_times) >= 2:
+				time2_text = red_times[1]
+				time2_width = get_text_width(time2_text, font)
+				time2_label = bitmap_label.Label(
+					font,
+					color=state.colors["WHITE"],
+					text=time2_text,
+					x=63 - time2_width,  # Right-align to column 2
+					y=y_pos
+				)
+				state.main_group.append(time2_label)
 			y_pos += 8
 
 		# Display Route 8 bus
@@ -4866,24 +4894,38 @@ def show_transit_display(rtc, duration, current_data=None):
 			state.main_group.append(icon_8)
 			state.main_group.append(label_8)
 
-			# Times separated by commas
-			times_text = ", ".join(bus_8_times)
-			times_label = bitmap_label.Label(
-				font,
-				color=state.colors["WHITE"],
-				text=times_text,
-				x=37,
-				y=y_pos
-			)
-			state.main_group.append(times_label)
-			
+			# Display times in two columns, right-aligned
+			if len(bus_8_times) >= 1:
+				time1_text = bus_8_times[0] + ("," if len(bus_8_times) > 1 else "")
+				time1_width = get_text_width(time1_text, font)
+				time1_label = bitmap_label.Label(
+					font,
+					color=state.colors["WHITE"],
+					text=time1_text,
+					x=49 - time1_width,  # Right-align to column 1
+					y=y_pos
+				)
+				state.main_group.append(time1_label)
+
+			if len(bus_8_times) >= 2:
+				time2_text = bus_8_times[1]
+				time2_width = get_text_width(time2_text, font)
+				time2_label = bitmap_label.Label(
+					font,
+					color=state.colors["WHITE"],
+					text=time2_text,
+					x=63 - time2_width,  # Right-align to column 2
+					y=y_pos
+				)
+				state.main_group.append(time2_label)
+
 			# Add day indicator
 			add_weekday_indicator_if_enabled(state.main_group, rtc, "Transit")
 
 		log_info(f"Transit: Brn/Ppl={len(brown_purple_times)}, Red={len(red_times)}, Bus8={len(bus_8_times)}")
 
-		# Hold display
-		time.sleep(duration)
+		# Hold display (interruptible)
+		interruptible_sleep(duration)
 		return True
 
 	except Exception as e:
@@ -5000,19 +5042,23 @@ def show_forecast_display(current_data, forecast_data, display_duration, is_fres
 		col2_hours_ahead = (col2_hour - current_hour) % System.HOURS_IN_DAY
 		col3_hours_ahead = (col3_hour - current_hour) % System.HOURS_IN_DAY
 
-		# Determine colors based on hour gaps (GREEN = non-consecutive visual indicator)
+		# Determine colors based on hour gaps (MINT = non-consecutive visual indicator)
 		# Col2: check if consecutive to current hour
 		if col2_hours_ahead <= 1:
 			col2_color = state.colors["DIMMEST_WHITE"]  # Consecutive
 		else:
 			col2_color = state.colors["MINT"]  # Non-consecutive
 
-		# Col3: check if consecutive to col2 (not to current hour)
-		col3_gap_from_col2 = (col3_hour - col2_hour) % System.HOURS_IN_DAY
-		if col3_gap_from_col2 <= 1:
-			col3_color = state.colors["DIMMEST_WHITE"]  # Consecutive
+		# Col3: if col2 is mint (non-consecutive), col3 should always be mint (future indicator)
+		# Otherwise check if consecutive to col2
+		if col2_color == state.colors["MINT"]:
+			col3_color = state.colors["MINT"]  # Col2 is future, so col3 is also future
 		else:
-			col3_color = state.colors["MINT"]  # Non-consecutive
+			col3_gap_from_col2 = (col3_hour - col2_hour) % System.HOURS_IN_DAY
+			if col3_gap_from_col2 <= 1:
+				col3_color = state.colors["DIMMEST_WHITE"]  # Consecutive to col2
+			else:
+				col3_color = state.colors["MINT"]  # Non-consecutive
 
 		# Generate static time labels for columns 2 and 3
 		col2_time = format_hour_12h(hour_plus_1)
