@@ -4327,7 +4327,7 @@ def show_stocks_display(duration, offset, rtc):
 		log_info(f"Stocks ({len(stocks_to_show)}/{len(stocks_to_fetch)}): {stock_details} {cache_status}")
 
 	clear_display()
-	gc.collect()
+	gc.collect()	
 
 	try:
 		# Display stocks/forex in vertical rows (2-3 items depending on buffer success)
@@ -4413,6 +4413,9 @@ def show_stocks_display(duration, offset, rtc):
 				y=y_pos
 			)
 			state.main_group.append(value_label)
+			
+		# Add day indicator
+		add_weekday_indicator_if_enabled(state.main_group, rtc, "Stocks")
 
 		# Display for specified duration
 		start_time = time.monotonic()
@@ -4577,6 +4580,9 @@ def show_single_stock_chart(ticker, duration, rtc):
 			y=1
 		)
 		state.main_group.append(pct_label)
+		
+		# Add day indicator
+		add_weekday_indicator_if_enabled(state.main_group, rtc, "Single Stock")	
 
 		# Row 2 (y=9): Current price (format with commas if >= $1000, no cents)
 		price_text = format_price_with_dollar(current_price)
@@ -4672,8 +4678,8 @@ def show_transit_display(rtc, duration, current_data=None):
 			# Month abbreviations
 			months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
 			month_abbr = months[now.tm_mon - 1] if 1 <= now.tm_mon <= 12 else "???"
-			header_text = f"{month_abbr} {now.tm_mday:02d} {time_str}"
-
+			header_text = f"{month_abbr} {now.tm_mday:02d} {time_str}"	
+		
 		# Display header
 		header_label = bitmap_label.Label(
 			font,
@@ -4754,7 +4760,7 @@ def show_transit_display(rtc, duration, current_data=None):
 				font,
 				color=state.colors["WHITE"],
 				text=times_text,
-				x=35,
+				x=37,
 				y=y_pos
 			)
 			state.main_group.append(times_label)
@@ -4785,7 +4791,7 @@ def show_transit_display(rtc, duration, current_data=None):
 				font,
 				color=state.colors["WHITE"],
 				text=times_text,
-				x=35,
+				x=37,
 				y=y_pos
 			)
 			state.main_group.append(times_label)
@@ -4796,7 +4802,7 @@ def show_transit_display(rtc, duration, current_data=None):
 			# "8 So" label (8 South)
 			icon_8 = bitmap_label.Label(
 				font,
-				color=state.colors["BLUE"],
+				color=state.colors["AQUA"],
 				text="8",
 				x=3,
 				y=y_pos
@@ -4819,10 +4825,13 @@ def show_transit_display(rtc, duration, current_data=None):
 				font,
 				color=state.colors["WHITE"],
 				text=times_text,
-				x=35,
+				x=37,
 				y=y_pos
 			)
 			state.main_group.append(times_label)
+			
+			# Add day indicator
+			add_weekday_indicator_if_enabled(state.main_group, rtc, "Transit")
 
 		log_info(f"Transit: Brn/Ppl={len(brown_purple_times)}, Red={len(red_times)}, Bus8={len(bus_8_times)}")
 
