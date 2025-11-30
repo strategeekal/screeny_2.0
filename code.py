@@ -6040,6 +6040,9 @@ def run_display_cycle(rtc, cycle_count):
 		elif state.last_market_state == "open" and current_state == "closed":
 			state.should_fetch_stocks = True  # Fetch once when market closes
 			log_info("Market just closed - fetching final prices for after-hours display")
+		elif len(state.cached_stock_prices) == 0:
+			state.should_fetch_stocks = True  # No cache after restart - fetch once
+			log_info("No cached stock data (restart/first run) - fetching prices")
 		else:
 			state.should_fetch_stocks = False  # Skip fetching, use cached data
 			log_verbose("Market closed - using cached stock data")
