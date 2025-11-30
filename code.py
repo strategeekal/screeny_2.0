@@ -4881,29 +4881,45 @@ def show_forecast_display(current_data, forecast_data, display_duration, is_fres
 	# Precipitation analysis - simple sequential logic
 	current_has_precip = current_data.get('has_precipitation', False)
 	forecast_indices = [0, 1]  # Default
-	
-	# Pre-extract precipitation flags (avoid nested access)
-	precip_flags = [h.get('has_precipitation', False) for h in forecast_data[:6]]
-	
+
+	# Pre-extract precipitation flags for 12 hours (avoid nested access)
+	precip_flags = [h.get('has_precipitation', False) for h in forecast_data[:12]]
+
 	if current_has_precip:
 		# Currently raining - find when it stops
+		rain_stop = -1
 		for i in range(len(precip_flags)):
 			if not precip_flags[i]:
-				forecast_indices = [i, min(i + 1, len(forecast_data) - 1)]
-				log_debug(f"Rain stops at hour {i+1}")
+				rain_stop = i
 				break
+
+		if rain_stop != -1:
+			# Rain stops within 12 hours
+			if rain_stop > 3:
+				# Rain lasts > 3 hours - show next hour + when it stops
+				forecast_indices = [0, rain_stop]
+				log_debug(f"Rain > 3h, stops at hour {rain_stop+1}")
+			else:
+				# Rain ≤ 3 hours - show when it stops + hour after
+				forecast_indices = [rain_stop, min(rain_stop + 1, len(forecast_data) - 1)]
+				log_debug(f"Rain ≤ 3h, stops at hour {rain_stop+1}")
+		else:
+			# Rain never stops in 12 hours - show next hour + last available
+			last_hour = min(11, len(forecast_data) - 1)
+			forecast_indices = [0, last_hour]
+			log_debug(f"Rain continues beyond 12h, showing hour 1 and {last_hour+1}")
 	else:
 		# Not raining - find when it starts
 		rain_start = -1
 		rain_stop = -1
-		
+
 		for i in range(len(precip_flags)):
 			if precip_flags[i] and rain_start == -1:
 				rain_start = i
 			elif not precip_flags[i] and rain_start != -1 and rain_stop == -1:
 				rain_stop = i
 				break
-		
+
 		if rain_start != -1:
 			if rain_stop != -1:
 				forecast_indices = [rain_start, rain_stop]
@@ -4911,11 +4927,11 @@ def show_forecast_display(current_data, forecast_data, display_duration, is_fres
 			else:
 				forecast_indices = [rain_start, min(rain_start + 1, len(forecast_data) - 1)]
 				log_debug(f"Rain starts at hour {rain_start+1}")
-	
+
 	# Simple duplicate hour check
 	current_hour = state.rtc_instance.datetime.tm_hour
 	first_forecast_hour = int(forecast_data[forecast_indices[0]]['datetime'][11:13]) % 24
-	
+
 	if first_forecast_hour == current_hour and forecast_indices[0] == 0 and len(forecast_data) >= 3:
 		forecast_indices = [1, 2]
 		log_debug(f"Adjusted to skip duplicate hour {current_hour}, Will show hours: {forecast_indices[0]+1} and {forecast_indices[1]+1}")
@@ -4955,16 +4971,20 @@ def show_forecast_display(current_data, forecast_data, display_duration, is_fres
 		# Calculate hours ahead from current time (handle midnight wraparound)
 		col2_hours_ahead = (col2_hour - current_hour) % System.HOURS_IN_DAY
 		col3_hours_ahead = (col3_hour - current_hour) % System.HOURS_IN_DAY
-		
-		# Determine colors based on hour gaps
-		# Default: both jumped ahead
-		col2_color = state.colors["MINT"]
-		col3_color = state.colors["MINT"]
 
-		# Override if col2 is immediate
+		# Determine colors based on hour gaps (GREEN = non-consecutive visual indicator)
+		# Col2: check if consecutive to current hour
 		if col2_hours_ahead <= 1:
-			col2_color = state.colors["DIMMEST_WHITE"]
-			col3_color = state.colors["DIMMEST_WHITE"]
+			col2_color = state.colors["DIMMEST_WHITE"]  # Consecutive
+		else:
+			col2_color = state.colors["MINT"]  # Non-consecutive
+
+		# Col3: check if consecutive to col2 (not to current hour)
+		col3_gap_from_col2 = (col3_hour - col2_hour) % System.HOURS_IN_DAY
+		if col3_gap_from_col2 <= 1:
+			col3_color = state.colors["DIMMEST_WHITE"]  # Consecutive
+		else:
+			col3_color = state.colors["MINT"]  # Non-consecutive
 
 		# Generate static time labels for columns 2 and 3
 		col2_time = format_hour_12h(hour_plus_1)
