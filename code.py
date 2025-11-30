@@ -6074,14 +6074,22 @@ def run_display_cycle(rtc, cycle_count):
 		return  # Schedule handled everything
 
 	# Check market hours BEFORE normal cycle (outside display stack to avoid exhaustion)
-	if display_config.show_stocks and display_config.stocks_respect_market_hours:
+	if display_config.show_stocks:
 		has_cached_stocks = len(state.cached_stock_prices) > 0
-		_, state.market_hours_allowed, _ = is_market_hours_or_cache_valid(rtc.datetime, has_cached_stocks)
 
-		# Detect market state transition to optimize API usage
-		current_state = "open" if state.market_hours_allowed else "closed"
+		# Always detect actual market hours for smart fetching (even in testing mode)
+		market_is_open_fetch, market_is_open_display, _ = is_market_hours_or_cache_valid(rtc.datetime, has_cached_stocks)
 
-		# Set fetch flag based on market state (display function will check specific stocks)
+		# For display: respect config setting
+		if display_config.stocks_respect_market_hours:
+			state.market_hours_allowed = market_is_open_display  # Respect market hours
+		else:
+			state.market_hours_allowed = True  # Testing mode - always display
+
+		# For fetching: ALWAYS use actual market hours to avoid redundant API calls
+		current_state = "open" if market_is_open_fetch else "closed"
+
+		# Set fetch flag based on actual market state (not config)
 		if current_state == "open":
 			state.should_fetch_stocks = True  # Market open - always fetch fresh
 		elif state.last_market_state == "open" and current_state == "closed":
@@ -6093,9 +6101,6 @@ def run_display_cycle(rtc, cycle_count):
 			log_verbose("Market closed - display will check if stocks are cached")
 
 		state.last_market_state = current_state
-	else:
-		state.market_hours_allowed = True  # Always allow if check is disabled
-		state.should_fetch_stocks = True  # Always fetch if market hours check disabled
 
 	# Normal cycle
 	_run_normal_cycle(rtc, cycle_count, cycle_start_time)
