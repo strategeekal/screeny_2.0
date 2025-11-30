@@ -3676,10 +3676,10 @@ def show_weather_display(rtc, duration, weather_data=None):
 			
 			# Update ONLY the time text content
 			time_text.text = current_time
-			
+
 			# Position time text based on other elements
 			if feels_shade_text:
-				time_text.x = center_text(current_time, font, 0, Display.WIDTH)
+				time_text.x = 0 + (Display.WIDTH - state.text_cache.get_text_width(current_time, font)) // 2
 			else:
 				time_text.x = right_align_text(current_time, font, Layout.RIGHT_EDGE)
 			
@@ -4327,7 +4327,7 @@ def show_stocks_display(duration, offset, rtc):
 		log_info(f"Stocks ({len(stocks_to_show)}/{len(stocks_to_fetch)}): {stock_details} {cache_status}")
 
 	clear_display()
-	gc.collect()
+	gc.collect()	
 
 	try:
 		# Display stocks/forex in vertical rows (2-3 items depending on buffer success)
@@ -4413,6 +4413,9 @@ def show_stocks_display(duration, offset, rtc):
 				y=y_pos
 			)
 			state.main_group.append(value_label)
+			
+		# Add day indicator
+		add_weekday_indicator_if_enabled(state.main_group, rtc, "Stocks")
 
 		# Display for specified duration
 		start_time = time.monotonic()
@@ -4577,6 +4580,9 @@ def show_single_stock_chart(ticker, duration, rtc):
 			y=1
 		)
 		state.main_group.append(pct_label)
+		
+		# Add day indicator
+		add_weekday_indicator_if_enabled(state.main_group, rtc, "Single Stock")	
 
 		# Row 2 (y=9): Current price (format with commas if >= $1000, no cents)
 		price_text = format_price_with_dollar(current_price)
@@ -4672,8 +4678,8 @@ def show_transit_display(rtc, duration, current_data=None):
 			# Month abbreviations
 			months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
 			month_abbr = months[now.tm_mon - 1] if 1 <= now.tm_mon <= 12 else "???"
-			header_text = f"{month_abbr} {now.tm_mday:02d} {time_str}"
-
+			header_text = f"{month_abbr} {now.tm_mday:02d} {time_str}"	
+		
 		# Display header
 		header_label = bitmap_label.Label(
 			font,
@@ -4754,7 +4760,7 @@ def show_transit_display(rtc, duration, current_data=None):
 				font,
 				color=state.colors["WHITE"],
 				text=times_text,
-				x=35,
+				x=37,
 				y=y_pos
 			)
 			state.main_group.append(times_label)
@@ -4785,7 +4791,7 @@ def show_transit_display(rtc, duration, current_data=None):
 				font,
 				color=state.colors["WHITE"],
 				text=times_text,
-				x=35,
+				x=37,
 				y=y_pos
 			)
 			state.main_group.append(times_label)
@@ -4796,7 +4802,7 @@ def show_transit_display(rtc, duration, current_data=None):
 			# "8 So" label (8 South)
 			icon_8 = bitmap_label.Label(
 				font,
-				color=state.colors["BLUE"],
+				color=state.colors["AQUA"],
 				text="8",
 				x=3,
 				y=y_pos
@@ -4819,10 +4825,13 @@ def show_transit_display(rtc, duration, current_data=None):
 				font,
 				color=state.colors["WHITE"],
 				text=times_text,
-				x=35,
+				x=37,
 				y=y_pos
 			)
 			state.main_group.append(times_label)
+			
+			# Add day indicator
+			add_weekday_indicator_if_enabled(state.main_group, rtc, "Transit")
 
 		log_info(f"Transit: Brn/Ppl={len(brown_purple_times)}, Red={len(red_times)}, Bus8={len(bus_8_times)}")
 
@@ -4982,24 +4991,24 @@ def show_forecast_display(current_data, forecast_data, display_duration, is_fres
 		col1_time_label = bitmap_label.Label(
 			font,
 			color=state.colors["DIMMEST_WHITE"],
-			x=max(center_text("00:00", font, Layout.FORECAST_COL1_X, column_width), 1),  # Initial placeholder
+			x=max(Layout.FORECAST_COL1_X + (column_width - state.text_cache.get_text_width("00:00", font)) // 2, 1),
 			y=time_y
 		)
-		
+
 		# Use these colors in the labels
 		col2_time_label = bitmap_label.Label(
 			font,
 			color=col2_color,
 			text=col2_time,
-			x=max(center_text(col2_time, font, Layout.FORECAST_COL2_X, column_width), 1),
+			x=max(Layout.FORECAST_COL2_X + (column_width - state.text_cache.get_text_width(col2_time, font)) // 2, 1),
 			y=time_y
 		)
-		
+
 		col3_time_label = bitmap_label.Label(
 			font,
 			color=col3_color,
 			text=col3_time,
-			x=max(center_text(col3_time, font, Layout.FORECAST_COL3_X, column_width), 1),
+			x=max(Layout.FORECAST_COL3_X + (column_width - state.text_cache.get_text_width(col3_time, font)) // 2, 1),
 			y=time_y
 		)
 		
@@ -5010,8 +5019,8 @@ def show_forecast_display(current_data, forecast_data, display_duration, is_fres
 		
 		# Create temperature labels (all static)
 		for col in columns_data:
-			centered_x = center_text(col["temp"], font, col["x"], column_width) + 1
-			
+			centered_x = col["x"] + (column_width - state.text_cache.get_text_width(col["temp"], font)) // 2 + 1
+
 			temp_label = bitmap_label.Label(
 				font,
 				color=state.colors["DIMMEST_WHITE"],
@@ -5052,7 +5061,7 @@ def show_forecast_display(current_data, forecast_data, display_duration, is_fres
 				# Update ONLY the first column time text
 				col1_time_label.text = new_time
 				# Recenter the text
-				col1_time_label.x = max(center_text(new_time, font, Layout.FORECAST_COL1_X, column_width), 1)
+				col1_time_label.x = max(Layout.FORECAST_COL1_X + (column_width - state.text_cache.get_text_width(new_time, font)) // 2, 1)
 
 				last_minute = current_minute
 
