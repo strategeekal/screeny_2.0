@@ -4258,6 +4258,7 @@ def show_stocks_display(duration, offset, rtc):
 					"price": data["price"],
 					"change_percent": data["change_percent"],
 					"direction": data["direction"],
+					"open_price": data["open_price"],
 					"timestamp": time.monotonic()
 				}
 				# Check if market is closed (holiday detection)
