@@ -58,10 +58,11 @@ class Display:
 ## Layout & Positioning
 
 class Layout:
-	RIGHT_EDGE = 63
+	DISPLAY_WIDTH = 64         # Total display width for right-alignment calculations
+	DISPLAY_HEIGHT = 32        # Total display height
 	UV_BAR_Y = 27
 	HUMIDITY_BAR_Y = 29
-	
+
 	# Current Layout
 	WEATHER_TEMP_X = 2
 	WEATHER_TEMP_Y = 20
@@ -106,6 +107,20 @@ class Layout:
 	SCHEDULE_UV_Y = 30
 	SCHEDULE_X_OFFSET = -1
 	
+	# Transit display positioning
+	TRANSIT_ICON_X = 2           # X position for route icons/rectangles
+	TRANSIT_LABEL_X = 10         # X position for route labels
+	TRANSIT_START_Y = 9          # Starting Y position (below header)
+	TRANSIT_ROW_HEIGHT = 8       # Height of each route row
+	TRANSIT_TIME_COL1_END = 49   # Right edge of first time column
+	TRANSIT_TIME_COL2_END = 63   # Right edge of second time column
+
+	# Stock chart positioning
+	STOCK_ROW1_Y = 1             # Ticker and percentage row
+	STOCK_ROW2_Y = 9             # Price row
+	STOCK_CHART_Y_START = 17     # Chart area start
+	STOCK_CHART_HEIGHT = 15      # Chart height in pixels
+
 	# Progress bar positioning (below day indicator)
 	PROGRESS_BAR_HORIZONTAL_X = 23 # 23 (aligned with image)
 	PROGRESS_BAR_HORIZONTAL_Y = 29  # Below 28px tall image + 1px gap = y=31
@@ -4603,13 +4618,13 @@ def show_single_stock_chart(ticker, duration, rtc):
 	gc.collect()
 
 	try:
-		# Row 1 (y=1): Ticker + percentage
+		# Row 1: Ticker + percentage
 		ticker_label = bitmap_label.Label(
 			font,
 			text=display_name,
 			color=state.colors["DIMMEST_WHITE"],
 			x=1,
-			y=1
+			y=Layout.STOCK_ROW1_Y
 		)
 		state.main_group.append(ticker_label)
 
@@ -4623,30 +4638,29 @@ def show_single_stock_chart(ticker, duration, rtc):
 			font,
 			text=pct_text,
 			color=pct_color,
-			x=64 - get_text_width(pct_text, font),  # Right-aligned
-			y=1
+			x=Layout.DISPLAY_WIDTH - get_text_width(pct_text, font),
+			y=Layout.STOCK_ROW1_Y
 		)
 		state.main_group.append(pct_label)
-		
-		# Add day indicator
-		add_weekday_indicator_if_enabled(state.main_group, rtc, "Single Stock")	
 
-		# Row 2 (y=9): Current price (format with commas if >= $1000, no cents)
+		# Add day indicator
+		add_weekday_indicator_if_enabled(state.main_group, rtc, "Single Stock")
+
+		# Row 2: Current price
 		price_text = format_price_with_dollar(current_price)
 		price_label = bitmap_label.Label(
 			font,
 			text=price_text,
 			color=state.colors["WHITE"],
-			# x=1,
-			x=64 - get_text_width(price_text, font),  # Right-aligned
-			y=9
+			x=Layout.DISPLAY_WIDTH - get_text_width(price_text, font),
+			y=Layout.STOCK_ROW2_Y
 		)
 		state.main_group.append(price_label)
 
-		# Chart area: y=16 to y=31 (16 pixels tall)
-		CHART_HEIGHT = 15
-		CHART_Y_START = 17
-		CHART_WIDTH = 64
+		# Chart area constants
+		CHART_HEIGHT = Layout.STOCK_CHART_HEIGHT
+		CHART_Y_START = Layout.STOCK_CHART_Y_START
+		CHART_WIDTH = Layout.DISPLAY_WIDTH
 
 		# Find min and max prices for scaling
 		prices = [point["close_price"] for point in time_series]
@@ -4694,6 +4708,32 @@ def show_single_stock_chart(ticker, duration, rtc):
 
 	finally:
 		gc.collect()
+
+def add_transit_times(times_list, y_pos):
+	"""Helper to display up to 2 arrival times in two columns, right-aligned"""
+	if len(times_list) >= 1:
+		time1_text = times_list[0]
+		time1_width = get_text_width(time1_text, font)
+		time1_label = bitmap_label.Label(
+			font,
+			color=state.colors["WHITE"],
+			text=time1_text,
+			x=Layout.TRANSIT_TIME_COL1_END - time1_width,
+			y=y_pos
+		)
+		state.main_group.append(time1_label)
+
+	if len(times_list) >= 2:
+		time2_text = times_list[1]
+		time2_width = get_text_width(time2_text, font)
+		time2_label = bitmap_label.Label(
+			font,
+			color=state.colors["WHITE"],
+			text=time2_text,
+			x=Layout.TRANSIT_TIME_COL2_END - time2_width,
+			y=y_pos
+		)
+		state.main_group.append(time2_label)
 
 def show_transit_display(rtc, duration, current_data=None):
 	"""
@@ -4769,155 +4809,79 @@ def show_transit_display(rtc, duration, current_data=None):
 		brown_purple_times = brown_purple_times[:2]
 		bus_8_times = bus_8_times[:2]
 
-		y_pos = 9  # Start below header
+		y_pos = Layout.TRANSIT_START_Y
 
 		# Display Brown+Purple line FIRST (diagonal split) with "Loop" suffix
 		if brown_purple_times:
 			# Create 5x6 bitmap for brown/purple split
 			bp_rect = displayio.Bitmap(5, 6, 2)  # 2 colors
 			bp_palette = displayio.Palette(2)
-			bp_palette[0] = state.colors["BROWN"]  # Brown color
-			bp_palette[1] = state.colors["PURPLE"]  # Purple color
+			bp_palette[0] = state.colors["BROWN"]
+			bp_palette[1] = state.colors["PURPLE"]
 
 			# Fill diagonal split: top-left brown, bottom-right purple
 			for y in range(6):
 				for x in range(5):
-					# Diagonal split: if x+y < threshold, use brown, else purple
 					if x + y < 5:
 						bp_rect[x, y] = 0  # Brown
 					else:
 						bp_rect[x, y] = 1  # Purple
 
-			bp_tile = displayio.TileGrid(bp_rect, pixel_shader=bp_palette, x=2, y=y_pos)
+			bp_tile = displayio.TileGrid(bp_rect, pixel_shader=bp_palette, x=Layout.TRANSIT_ICON_X, y=y_pos)
 			state.main_group.append(bp_tile)
 
-			# "Loop" label after rectangle
 			label_loop = bitmap_label.Label(
 				font,
 				color=state.colors["WHITE"],
 				text="Loop",
-				x=10,
+				x=Layout.TRANSIT_LABEL_X,
 				y=y_pos
 			)
 			state.main_group.append(label_loop)
 
-			# Display times in two columns, right-aligned
-			if len(brown_purple_times) >= 1:
-				time1_text = brown_purple_times[0] + ("," if len(brown_purple_times) > 1 else "")
-				time1_width = get_text_width(time1_text, font)
-				time1_label = bitmap_label.Label(
-					font,
-					color=state.colors["WHITE"],
-					text=time1_text,
-					x=49 - time1_width,  # Right-align to column 1
-					y=y_pos
-				)
-				state.main_group.append(time1_label)
-
-			if len(brown_purple_times) >= 2:
-				time2_text = brown_purple_times[1]
-				time2_width = get_text_width(time2_text, font)
-				time2_label = bitmap_label.Label(
-					font,
-					color=state.colors["WHITE"],
-					text=time2_text,
-					x=63 - time2_width,  # Right-align to column 2
-					y=y_pos
-				)
-				state.main_group.append(time2_label)
-			y_pos += 8
+			add_transit_times(brown_purple_times, y_pos)
+			y_pos += Layout.TRANSIT_ROW_HEIGHT
 
 		# Display Red line SECOND with red square
 		if red_times:
-			# Red rectangle
 			red_rect = displayio.Bitmap(5, 6, 1)
 			red_palette = displayio.Palette(1)
 			red_palette[0] = state.colors["RED"]
-			red_tile = displayio.TileGrid(red_rect, pixel_shader=red_palette, x=2, y=y_pos)
+			red_tile = displayio.TileGrid(red_rect, pixel_shader=red_palette, x=Layout.TRANSIT_ICON_X, y=y_pos)
 			state.main_group.append(red_tile)
 
-			# "95st" label after rectangle
 			label_95st = bitmap_label.Label(
 				font,
 				color=state.colors["WHITE"],
 				text="95st",
-				x=10,
+				x=Layout.TRANSIT_LABEL_X,
 				y=y_pos
 			)
 			state.main_group.append(label_95st)
 
-			# Display times in two columns, right-aligned
-			if len(red_times) >= 1:
-				time1_text = red_times[0] + ("," if len(red_times) > 1 else "")
-				time1_width = get_text_width(time1_text, font)
-				time1_label = bitmap_label.Label(
-					font,
-					color=state.colors["WHITE"],
-					text=time1_text,
-					x=49 - time1_width,  # Right-align to column 1
-					y=y_pos
-				)
-				state.main_group.append(time1_label)
-
-			if len(red_times) >= 2:
-				time2_text = red_times[1]
-				time2_width = get_text_width(time2_text, font)
-				time2_label = bitmap_label.Label(
-					font,
-					color=state.colors["WHITE"],
-					text=time2_text,
-					x=63 - time2_width,  # Right-align to column 2
-					y=y_pos
-				)
-				state.main_group.append(time2_label)
-			y_pos += 8
+			add_transit_times(red_times, y_pos)
+			y_pos += Layout.TRANSIT_ROW_HEIGHT
 
 		# Display Route 8 bus
 		if bus_8_times:
-			# "8 So" label (8 South)
 			icon_8 = bitmap_label.Label(
 				font,
 				color=state.colors["AQUA"],
 				text="8",
-				x=3,
+				x=3,  # Slightly offset from TRANSIT_ICON_X for text alignment
 				y=y_pos
 			)
-
-			# "8 So" label (8 South)
 			label_8 = bitmap_label.Label(
 				font,
 				color=state.colors["WHITE"],
 				text="South",
-				x=10,
+				x=Layout.TRANSIT_LABEL_X,
 				y=y_pos
 			)
 			state.main_group.append(icon_8)
 			state.main_group.append(label_8)
 
-			# Display times in two columns, right-aligned
-			if len(bus_8_times) >= 1:
-				time1_text = bus_8_times[0] + ("," if len(bus_8_times) > 1 else "")
-				time1_width = get_text_width(time1_text, font)
-				time1_label = bitmap_label.Label(
-					font,
-					color=state.colors["WHITE"],
-					text=time1_text,
-					x=49 - time1_width,  # Right-align to column 1
-					y=y_pos
-				)
-				state.main_group.append(time1_label)
-
-			if len(bus_8_times) >= 2:
-				time2_text = bus_8_times[1]
-				time2_width = get_text_width(time2_text, font)
-				time2_label = bitmap_label.Label(
-					font,
-					color=state.colors["WHITE"],
-					text=time2_text,
-					x=63 - time2_width,  # Right-align to column 2
-					y=y_pos
-				)
-				state.main_group.append(time2_label)
+			add_transit_times(bus_8_times, y_pos)
 
 			# Add day indicator
 			add_weekday_indicator_if_enabled(state.main_group, rtc, "Transit")
