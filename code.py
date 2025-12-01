@@ -6089,7 +6089,7 @@ def run_display_cycle(rtc, cycle_count):
 		has_cached_stocks = len(state.cached_stock_prices) > 0
 
 		# Always detect actual market hours for smart fetching (even in testing mode)
-		market_is_open_fetch, market_is_open_display, _ = is_market_hours_or_cache_valid(rtc.datetime, has_cached_stocks)
+		market_is_open_fetch, market_is_open_display, reason = is_market_hours_or_cache_valid(rtc.datetime, has_cached_stocks)
 
 		# For display: respect config setting
 		if display_config.stocks_respect_market_hours:
@@ -6100,9 +6100,13 @@ def run_display_cycle(rtc, cycle_count):
 		# For fetching: ALWAYS use actual market hours to avoid redundant API calls
 		current_state = "open" if market_is_open_fetch else "closed"
 
+		# DEBUG: Log market state detection
+		log_info(f"Market state: {current_state} (fetch={market_is_open_fetch}, display={market_is_open_display}) | {reason}")
+
 		# Set fetch flag based on actual market state (not config)
 		if current_state == "open":
 			state.should_fetch_stocks = True  # Market open - always fetch fresh
+			log_info("Market OPEN - will fetch fresh stock data")
 		elif state.last_market_state == "open" and current_state == "closed":
 			state.should_fetch_stocks = True  # Just closed - fetch final prices
 			log_info("Market just closed - fetching final prices for after-hours display")
