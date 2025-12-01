@@ -3622,7 +3622,7 @@ def show_weather_display(rtc, duration, weather_data=None):
 			padding_bottom=-2,
 			padding_left=1
 		)
-		feels_like_text.x = right_align_text(feels_like_text.text, font, Layout.RIGHT_EDGE)
+		feels_like_text.x = right_align_text(feels_like_text.text, font, Layout.DISPLAY_WIDTH)
 	
 	if feels_shade_rounded != feels_like_rounded:
 		feels_shade_text = bitmap_label.Label(
@@ -3635,7 +3635,7 @@ def show_weather_display(rtc, duration, weather_data=None):
 			padding_bottom=-2,
 			padding_left=1
 		)
-		feels_shade_text.x = right_align_text(feels_shade_text.text, font, Layout.RIGHT_EDGE)
+		feels_shade_text.x = right_align_text(feels_shade_text.text, font, Layout.DISPLAY_WIDTH)
 	
 	# Load weather icon ONCE - fallback to blank
 	bitmap, palette = state.image_cache.get_image(f"{Paths.WEATHER_ICONS}/{weather_data['weather_icon']}.bmp")
@@ -3698,7 +3698,7 @@ def show_weather_display(rtc, duration, weather_data=None):
 			if feels_shade_text:
 				time_text.x = 0 + (Display.WIDTH - state.text_cache.get_text_width(current_time, font)) // 2
 			else:
-				time_text.x = right_align_text(current_time, font, Layout.RIGHT_EDGE)
+				time_text.x = right_align_text(current_time, font, Layout.DISPLAY_WIDTH)
 			
 			last_minute = minute
 		
