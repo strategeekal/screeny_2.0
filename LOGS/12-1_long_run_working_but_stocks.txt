@@ -1,0 +1,1125 @@
+[2025-11-30 20:35:27] INFO: === STARTUP ===
+[2025-11-30 20:35:27] INFO: Debug level: INFO (3)
+[2025-11-30 20:35:27] INFO: MatrixPortal buttons initialized - UP=stop, DOWN=advance
+[2025-11-30 20:35:29] INFO: GitHub stocks: 16 symbols
+[2025-11-30 20:35:29] INFO: GitHub config loaded for matrix type1: 13 settings
+[2025-11-30 20:35:29] INFO: Hardware ready | 13 schedules (default) | 16 stocks (imported) (markets closed - weekend) | 67 events (26 imported) | Today: No events
+[2025-11-30 20:35:41] INFO: Time synced to America/Chicago (UTC-6)
+[2025-11-30 20:35:41] INFO: Fetching time and weather for: Sheffield And Depaul, IL
+[2025-11-30 20:35:41] INFO: Active displays: weather, forecast, events, stocks, transit, weekday indicator
+[2025-11-30 20:35:41] INFO: == STARTING MAIN DISPLAY LOOP == 
+
+[2025-11-30 20:35:41] INFO: ## CYCLE 1 ##
+[2025-11-30 20:35:41] INFO: Weather: Clear, -2.7°C
+[2025-11-30 20:35:42] INFO: Forecast: 12 hours (fresh) | Next: -11.1°C
+[2025-11-30 20:35:44] INFO: Displaying Forecast: Current -3°C → Next: -11°C, -11°C (1 min) [Fresh]
+[2025-11-30 20:37:06] INFO: Displaying Weather: Clear, -3°C (4 min)
+[2025-11-30 20:41:13] INFO: Intraday data not cached for CRM - fetching
+[2025-11-30 20:41:13] INFO: Fetching intraday data for CRM
+[2025-11-30 20:41:15] INFO: Quote not cached for CRM - fetching
+[2025-11-30 20:41:27] INFO: Chart: CRM +1.05% ($230.54) with 26 data points (fresh)
+[2025-11-30 20:42:15] INFO: Transit: Brn/Ppl=2, Red=2, Bus8=2
+[2025-11-30 20:42:46] INFO: Cycle #1 complete in 7.09 min | UT: 00:07:19 | Mem: 13.1% | API: Total=4/350, Current=1, Forecast=1, Stocks=2/800
+
+[2025-11-30 20:42:46] INFO: ## CYCLE 2 ##
+[2025-11-30 20:42:46] INFO: Weather: Clear, -3.1°C
+[2025-11-30 20:42:48] INFO: Displaying Forecast: Current -3°C → Next: -11°C, -11°C (1 min) [Cached]
+[2025-11-30 20:43:49] INFO: Displaying Weather: Clear, -3°C (4 min)
+[2025-11-30 20:47:50] INFO: Stocks not cached yet: SPY, SOXQ... - fetching
+[2025-11-30 20:47:51] INFO: Market holiday detected and cached: 2025-11-30
+[2025-11-30 20:47:51] INFO: Stocks (3/4): SPY +0.55%, SOXQ +1.69%, IBIT +1.02% (fresh)
+[2025-11-30 20:48:32] INFO: Transit: Brn/Ppl=2, Red=2, Bus8=2
+[2025-11-30 20:49:03] INFO: Cycle #2 complete in 6.28 min | UT: 00:13:36 | Mem: 13.2% | API: Total=9/350, Current=2, Forecast=1, Stocks=6/800
+
+[2025-11-30 20:49:03] INFO: ## CYCLE 3 ##
+[2025-11-30 20:49:04] INFO: Weather: Clear, -3.1°C
+[2025-11-30 20:49:05] INFO: Displaying Forecast: Current -3°C → Next: -11°C, -11°C (1 min) [Cached]
+[2025-11-30 20:50:06] INFO: Displaying Weather: Clear, -3°C (4 min)
+[2025-11-30 20:54:07] INFO: Intraday data not cached for FDIG - fetching
+[2025-11-30 20:54:07] INFO: Fetching intraday data for FDIG
+[2025-11-30 20:54:12] INFO: Chart: FDIG +4.10% ($44.95) with 26 data points (fresh)
+[2025-11-30 20:54:44] INFO: Transit: Brn/Ppl=2, Red=2, Bus8=2
+[2025-11-30 20:55:14] INFO: Cycle #3 complete in 6.19 min | UT: 00:19:48 | Mem: 13.4% | API: Total=11/350, Current=3, Forecast=1, Stocks=7/800
+
+[2025-11-30 20:55:14] INFO: ## CYCLE 4 ##
+[2025-11-30 20:55:15] INFO: Weather: Clear, -2.7°C
+[2025-11-30 20:55:16] INFO: Forecast: 12 hours (fresh) | Next: -11.1°C
+[2025-11-30 20:55:18] INFO: Displaying Forecast: Current -3°C → Next: -11°C, -11°C (1 min) [Fresh]
+[2025-11-30 20:56:20] INFO: Displaying Weather: Clear, -3°C (4 min)
+[2025-11-30 21:00:21] INFO: Stocks not cached yet: USD/MXN, EUR/MXN... - fetching
+[2025-11-30 21:00:22] INFO: Market holiday detected and cached: 2025-11-30
+[2025-11-30 21:00:22] INFO: Stocks (3/4): MXN 18.30, EUR 21.22, CAD 13.09 (fresh)
+[2025-11-30 21:01:00] INFO: Transit: Brn/Ppl=2, Red=2, Bus8=2
+[2025-11-30 21:01:31] INFO: Cycle #4 complete in 6.27 min | UT: 00:26:04 | Mem: 13.5% | API: Total=17/350, Current=4, Forecast=2, Stocks=11/800
+
+[2025-11-30 21:01:31] INFO: ## CYCLE 5 ##
+[2025-11-30 21:01:31] INFO: Weather: Clear, -2.7°C
+[2025-11-30 21:01:32] INFO: Displaying Forecast: Current -3°C → Next: -11°C, -11°C (1 min) [Cached]
+[2025-11-30 21:02:34] INFO: Displaying Weather: Clear, -3°C (4 min)
+[2025-11-30 21:06:34] INFO: Intraday data not cached for LUMN - fetching
+[2025-11-30 21:06:34] INFO: Fetching intraday data for LUMN
+[2025-11-30 21:06:36] INFO: Chart: LUMN +0.25% ($8.11) with 26 data points (fresh)
+[2025-11-30 21:07:08] INFO: Transit: Brn/Ppl=1, Red=2, Bus8=2
+[2025-11-30 21:07:39] INFO: Cycle #5 complete in 6.13 min | UT: 00:32:12 | Mem: 13.6% | API: Total=19/350, Current=5, Forecast=2, Stocks=12/800
+
+[2025-11-30 21:07:39] INFO: ## CYCLE 6 ##
+[2025-11-30 21:07:39] INFO: Weather: Clear, -2.7°C
+[2025-11-30 21:07:40] INFO: Displaying Forecast: Current -3°C → Next: -11°C, -11°C (1 min) [Cached]
+[2025-11-30 21:08:42] INFO: Displaying Weather: Clear, -3°C (4 min)
+[2025-11-30 21:12:43] INFO: Stocks not cached yet: ETH/USD, XAU/USD... - fetching
+[2025-11-30 21:12:44] INFO: Stocks (3/4): ETH 2,824, XAU 4,240, GBP 24.22 (fresh)
+[2025-11-30 21:13:20] INFO: Transit: Brn/Ppl=2, Red=2, Bus8=1
+[2025-11-30 21:13:51] INFO: Cycle #6 complete in 6.20 min | UT: 00:38:24 | Mem: 13.6% | API: Total=24/350, Current=6, Forecast=2, Stocks=16/800
+
+[2025-11-30 21:13:51] INFO: ## CYCLE 7 ##
+[2025-11-30 21:13:51] INFO: Weather: Clear, -2.6°C
+[2025-11-30 21:13:52] INFO: Forecast: 12 hours (fresh) | Next: -11.0°C
+[2025-11-30 21:13:54] INFO: Displaying Forecast: Current -3°C → Next: -11°C, -11°C (1 min) [Fresh]
+[2025-11-30 21:14:57] INFO: Displaying Weather: Clear, -3°C (4 min)
+[2025-11-30 21:19:00] INFO: Intraday data not cached for BTC/USD - fetching
+[2025-11-30 21:19:00] INFO: Fetching intraday data for BTC/USD
+[2025-11-30 21:19:01] INFO: Chart: BTC -4.29% ($86,491) with 26 data points (fresh)
+[2025-11-30 21:19:33] INFO: Transit: Brn/Ppl=2, Red=2, Bus8=2
+[2025-11-30 21:20:04] INFO: Cycle #7 complete in 6.22 min | UT: 00:44:37 | Mem: 13.8% | API: Total=27/350, Current=7, Forecast=3, Stocks=17/800
+
+[2025-11-30 21:20:04] INFO: ## CYCLE 8 ##
+[2025-11-30 21:20:05] INFO: Weather: Clear, -2.6°C
+[2025-11-30 21:20:06] INFO: Displaying Forecast: Current -3°C → Next: -11°C, -11°C (1 min) [Cached]
+[2025-11-30 21:21:07] INFO: Displaying Weather: Clear, -3°C (4 min)
+[2025-11-30 21:25:08] INFO: Stocks not cached yet: AAPL, GOOGL... - fetching
+[2025-11-30 21:25:09] INFO: Market holiday detected and cached: 2025-11-30
+[2025-11-30 21:25:09] INFO: Stocks (3/4): AAPL +0.47%, GOOGL +0.07%, NVDA -1.81% (fresh)
+[2025-11-30 21:25:44] INFO: Transit: Brn/Ppl=2, Red=2, Bus8=2
+[2025-11-30 21:26:15] INFO: Cycle #8 complete in 6.18 min | UT: 00:50:48 | Mem: 13.8% | API: Total=32/350, Current=8, Forecast=3, Stocks=21/800
+
+[2025-11-30 21:26:15] INFO: ## CYCLE 9 ##
+[2025-11-30 21:26:15] INFO: Weather: Clear, -2.8°C
+[2025-11-30 21:26:17] INFO: Displaying Forecast: Current -3°C → Next: -11°C, -11°C (1 min) [Cached]
+[2025-11-30 21:27:18] INFO: Displaying Weather: Clear, -3°C (4 min)
+[2025-11-30 21:31:19] INFO: Chart: CRM +1.05% ($230.54) with 26 data points (cached)
+[2025-11-30 21:31:51] INFO: Transit: Brn/Ppl=2, Red=2, Bus8=1
+[2025-11-30 21:32:22] INFO: Cycle #9 complete in 6.12 min | UT: 00:56:55 | Mem: 13.7% | API: Total=33/350, Current=9, Forecast=3, Stocks=21/800
+
+[2025-11-30 21:32:22] INFO: ## CYCLE 10 ##
+[2025-11-30 21:32:23] INFO: Weather: Clear, -5.5°C
+[2025-11-30 21:32:23] INFO: Forecast: 12 hours (fresh) | Next: -11.0°C
+[2025-11-30 21:32:26] INFO: Displaying Forecast: Current -6°C → Next: -11°C, -11°C (1 min) [Fresh]
+[2025-11-30 21:33:28] INFO: Displaying Weather: Clear, -6°C (4 min)
+[2025-11-30 21:37:31] INFO: Stocks (3/4): SPY +0.55%, SOXQ +1.69%, IBIT +1.02% (cached)
+[2025-11-30 21:38:06] INFO: Transit: Brn/Ppl=1, Red=2, Bus8=2
+[2025-11-30 21:38:37] INFO: Cycle #10 complete in 6.25 min | UT: 01:03:10 | Mem: 13.8% | API: Total=35/350, Current=10, Forecast=4, Stocks=21/800
+
+[2025-11-30 21:38:37] INFO: ## CYCLE 11 ##
+[2025-11-30 21:38:37] INFO: Weather: Clear, -5.5°C
+[2025-11-30 21:38:39] INFO: Displaying Forecast: Current -6°C → Next: -11°C, -11°C (1 min) [Cached]
+[2025-11-30 21:39:40] INFO: Displaying Weather: Clear, -6°C (4 min)
+[2025-11-30 21:43:42] INFO: Chart: FDIG +4.10% ($44.95) with 26 data points (cached)
+[2025-11-30 21:44:14] INFO: Transit: Brn/Ppl=2, Red=2, Bus8=2
+[2025-11-30 21:44:45] INFO: Cycle #11 complete in 6.13 min | UT: 01:09:18 | Mem: 13.8% | API: Total=36/350, Current=11, Forecast=4, Stocks=21/800
+
+[2025-11-30 21:44:45] INFO: ## CYCLE 12 ##
+[2025-11-30 21:44:45] INFO: Weather: Clear, -5.7°C
+[2025-11-30 21:44:47] INFO: Displaying Forecast: Current -6°C → Next: -11°C, -11°C (1 min) [Cached]
+[2025-11-30 21:45:48] INFO: Displaying Weather: Clear, -6°C (4 min)
+[2025-11-30 21:49:49] INFO: Stocks (3/4): MXN 18.30, EUR 21.22, CAD 13.09 (cached)
+[2025-11-30 21:50:22] INFO: Transit: Brn/Ppl=2, Red=2, Bus8=1
+[2025-11-30 21:50:53] INFO: Cycle #12 complete in 6.14 min | UT: 01:15:26 | Mem: 13.7% | API: Total=37/350, Current=12, Forecast=4, Stocks=21/800
+
+[2025-11-30 21:50:53] INFO: ## CYCLE 13 ##
+[2025-11-30 21:50:53] INFO: Weather: Clear, -5.7°C
+[2025-11-30 21:50:54] INFO: Forecast: 12 hours (fresh) | Next: -11.0°C
+[2025-11-30 21:50:57] INFO: Displaying Forecast: Current -6°C → Next: -11°C, -11°C (1 min) [Fresh]
+[2025-11-30 21:51:58] INFO: Displaying Weather: Clear, -6°C (4 min)
+[2025-11-30 21:56:00] INFO: Chart: LUMN +0.25% ($8.11) with 26 data points (cached)
+[2025-11-30 21:56:34] INFO: Transit: Brn/Ppl=2, Red=2, Bus8=2
+[2025-11-30 21:57:05] INFO: Cycle #13 complete in 6.20 min | UT: 01:21:38 | Mem: 14.0% | API: Total=39/350, Current=13, Forecast=5, Stocks=21/800
+
+[2025-11-30 21:57:05] INFO: ## CYCLE 14 ##
+[2025-11-30 21:57:05] INFO: Weather: Clear, -5.7°C
+[2025-11-30 21:57:07] INFO: Displaying Forecast: Current -6°C → Next: -11°C, -11°C (1 min) [Cached]
+[2025-11-30 21:58:08] INFO: Displaying Weather: Clear, -6°C (4 min)
+[2025-11-30 22:02:09] INFO: Stocks (3/4): ETH 2,824, XAU 4,240, GBP 24.22 (cached)
+[2025-11-30 22:02:42] INFO: Transit: Brn/Ppl=2, Red=2, Bus8=2
+[2025-11-30 22:03:13] INFO: Cycle #14 complete in 6.14 min | UT: 01:27:46 | Mem: 14.0% | API: Total=40/350, Current=14, Forecast=5, Stocks=21/800
+
+[2025-11-30 22:03:13] INFO: ## CYCLE 15 ##
+[2025-11-30 22:03:14] INFO: Weather: Clear, -5.2°C
+[2025-11-30 22:03:15] INFO: Displaying Forecast: Current -5°C → Next: -11°C, -11°C (1 min) [Cached]
+[2025-11-30 22:04:17] INFO: Displaying Weather: Clear, -5°C (4 min)
+[2025-11-30 22:08:19] INFO: Chart: BTC -4.29% ($86,491) with 26 data points (cached)
+[2025-11-30 22:08:51] INFO: Transit: Brn/Ppl=2, Red=2, Bus8=1
+[2025-11-30 22:09:22] INFO: Cycle #15 complete in 6.15 min | UT: 01:33:55 | Mem: 14.0% | API: Total=41/350, Current=15, Forecast=5, Stocks=21/800
+
+[2025-11-30 22:09:22] INFO: ## CYCLE 16 ##
+[2025-11-30 22:09:22] INFO: Weather: Clear, -5.2°C
+[2025-11-30 22:09:23] INFO: Forecast: 12 hours (fresh) | Next: -11.6°C
+[2025-11-30 22:09:26] INFO: Displaying Forecast: Current -5°C → Next: -12°C, -13°C (1 min) [Fresh]
+[2025-11-30 22:10:28] INFO: Displaying Weather: Clear, -5°C (4 min)
+[2025-11-30 22:14:29] INFO: Stocks (3/4): AAPL +0.47%, GOOGL +0.07%, NVDA -1.81% (cached)
+[2025-11-30 22:15:04] INFO: Transit: Brn/Ppl=1, Red=2, Bus8=2
+[2025-11-30 22:15:35] INFO: Cycle #16 complete in 6.22 min | UT: 01:40:08 | Mem: 14.0% | API: Total=43/350, Current=16, Forecast=6, Stocks=21/800
+
+[2025-11-30 22:15:35] INFO: ## CYCLE 17 ##
+[2025-11-30 22:15:36] INFO: Weather: Clear, -5.6°C
+[2025-11-30 22:15:37] INFO: Displaying Forecast: Current -6°C → Next: -12°C, -13°C (1 min) [Cached]
+[2025-11-30 22:16:39] INFO: Displaying Weather: Clear, -6°C (4 min)
+[2025-11-30 22:20:41] INFO: Chart: CRM +1.05% ($230.54) with 26 data points (cached)
+[2025-11-30 22:21:13] INFO: Transit: Brn/Ppl=2, Red=2, Bus8=2
+[2025-11-30 22:21:44] INFO: Cycle #17 complete in 6.14 min | UT: 01:46:17 | Mem: 14.0% | API: Total=44/350, Current=17, Forecast=6, Stocks=21/800
+
+[2025-11-30 22:21:44] INFO: ## CYCLE 18 ##
+[2025-11-30 22:21:44] INFO: Weather: Clear, -5.5°C
+[2025-11-30 22:21:46] INFO: Displaying Forecast: Current -6°C → Next: -12°C, -13°C (1 min) [Cached]
+[2025-11-30 22:22:47] INFO: Displaying Weather: Clear, -6°C (4 min)
+[2025-11-30 22:26:47] INFO: Stocks (3/4): SPY +0.55%, SOXQ +1.69%, IBIT +1.02% (cached)
+[2025-11-30 22:27:21] INFO: Transit: Brn/Ppl=2, Red=2, Bus8=1
+[2025-11-30 22:27:52] INFO: Cycle #18 complete in 6.14 min | UT: 01:52:25 | Mem: 14.0% | API: Total=45/350, Current=18, Forecast=6, Stocks=21/800
+
+[2025-11-30 22:27:52] INFO: ## CYCLE 19 ##
+[2025-11-30 22:27:52] INFO: Weather: Clear, -6.0°C
+[2025-11-30 22:27:53] INFO: Forecast: 12 hours (fresh) | Next: -13.3°C
+[2025-11-30 22:27:56] INFO: Displaying Forecast: Current -6°C → Next: -13°C, -13°C (1 min) [Fresh]
+[2025-11-30 22:28:57] INFO: Displaying Weather: Clear, -6°C (4 min)
+[2025-11-30 22:32:59] INFO: Chart: FDIG +4.10% ($44.95) with 26 data points (cached)
+[2025-11-30 22:33:33] INFO: Transit: Brn/Ppl=2, Red=2, Bus8=2
+[2025-11-30 22:34:04] INFO: Cycle #19 complete in 6.20 min | UT: 01:58:37 | Mem: 14.0% | API: Total=47/350, Current=19, Forecast=7, Stocks=21/800
+
+[2025-11-30 22:34:04] INFO: ## CYCLE 20 ##
+[2025-11-30 22:34:04] INFO: Weather: Clear, -13.7°C
+[2025-11-30 22:34:06] INFO: Displaying Forecast: Current -14°C → Next: -13°C, -13°C (1 min) [Cached]
+[2025-11-30 22:35:07] INFO: Displaying Weather: Clear, -14°C (4 min)
+[2025-11-30 22:39:10] INFO: Stocks (3/4): MXN 18.30, EUR 21.22, CAD 13.09 (cached)
+[2025-11-30 22:39:44] INFO: Transit: Brn/Ppl=2, Red=2, Bus8=2
+[2025-11-30 22:40:15] INFO: Cycle #20 complete in 6.19 min | UT: 02:04:48 | Mem: 14.0% | API: Total=48/350, Current=20, Forecast=7, Stocks=21/800
+
+[2025-11-30 22:40:15] INFO: ## CYCLE 21 ##
+[2025-11-30 22:40:15] INFO: Weather: Clear, -13.7°C
+[2025-11-30 22:40:17] INFO: Displaying Forecast: Current -14°C → Next: -13°C, -13°C (1 min) [Cached]
+[2025-11-30 22:41:19] INFO: Displaying Weather: Clear, -14°C (4 min)
+[2025-11-30 22:45:20] INFO: Chart: LUMN +0.25% ($8.11) with 26 data points (cached)
+[2025-11-30 22:45:52] INFO: Transit: Brn/Ppl=2, Red=2, Bus8=1
+[2025-11-30 22:46:23] INFO: Cycle #21 complete in 6.13 min | UT: 02:10:56 | Mem: 14.0% | API: Total=49/350, Current=21, Forecast=7, Stocks=21/800
+
+[2025-11-30 22:46:23] INFO: ## CYCLE 22 ##
+[2025-11-30 22:46:23] INFO: Weather: Clear, -14.2°C
+[2025-11-30 22:46:24] INFO: Forecast: 12 hours (fresh) | Next: -13.3°C
+[2025-11-30 22:46:27] INFO: Displaying Forecast: Current -14°C → Next: -13°C, -13°C (1 min) [Fresh]
+[2025-11-30 22:47:29] INFO: Displaying Weather: Clear, -14°C (4 min)
+[2025-11-30 22:51:29] INFO: Stocks (3/4): ETH 2,824, XAU 4,240, GBP 24.22 (cached)
+[2025-11-30 22:52:04] INFO: Transit: Brn/Ppl=2, Red=2, Bus8=1
+[2025-11-30 22:52:35] INFO: Cycle #22 complete in 6.21 min | UT: 02:17:08 | Mem: 14.0% | API: Total=51/350, Current=22, Forecast=8, Stocks=21/800
+
+[2025-11-30 22:52:35] INFO: ## CYCLE 23 ##
+[2025-11-30 22:52:35] INFO: Weather: Clear, -14.2°C
+[2025-11-30 22:52:37] INFO: Displaying Forecast: Current -14°C → Next: -13°C, -13°C (1 min) [Cached]
+[2025-11-30 22:53:38] INFO: Displaying Weather: Clear, -14°C (4 min)
+[2025-11-30 22:57:39] INFO: Chart: BTC -4.29% ($86,491) with 26 data points (cached)
+[2025-11-30 22:58:12] INFO: Transit: Brn/Ppl=2, Red=2, Bus8=1
+[2025-11-30 22:58:42] INFO: Cycle #23 complete in 6.12 min | UT: 02:23:15 | Mem: 14.0% | API: Total=52/350, Current=23, Forecast=8, Stocks=21/800
+
+[2025-11-30 22:58:42] INFO: ## CYCLE 24 ##
+[2025-11-30 22:58:43] INFO: Weather: Clear, -14.7°C
+[2025-11-30 22:58:44] INFO: Displaying Forecast: Current -15°C → Next: -13°C, -13°C (1 min) [Cached]
+[2025-11-30 22:59:46] INFO: Displaying Weather: Clear, -15°C (4 min)
+[2025-11-30 23:03:47] INFO: Stocks (3/4): AAPL +0.47%, GOOGL +0.07%, NVDA -1.81% (cached)
+[2025-11-30 23:04:21] INFO: Transit: Brn/Ppl=2, Red=2, Bus8=1
+[2025-11-30 23:04:51] INFO: Cycle #24 complete in 6.15 min | UT: 02:29:24 | Mem: 14.0% | API: Total=53/350, Current=24, Forecast=8, Stocks=21/800
+
+[2025-11-30 23:04:51] INFO: ## CYCLE 25 ##
+[2025-11-30 23:04:52] INFO: Weather: Clear, -14.7°C
+[2025-11-30 23:04:53] INFO: Forecast: 12 hours (fresh) | Next: -13.3°C
+[2025-11-30 23:04:55] INFO: Displaying Forecast: Current -15°C → Next: -13°C, -13°C (1 min) [Fresh]
+[2025-11-30 23:05:57] INFO: Displaying Weather: Clear, -15°C (4 min)
+[2025-11-30 23:09:59] INFO: Chart: CRM +1.05% ($230.54) with 26 data points (cached)
+[2025-11-30 23:10:33] INFO: Transit: Brn/Ppl=2, Red=2, Bus8=1
+[2025-11-30 23:11:03] INFO: Cycle #25 complete in 6.20 min | UT: 02:35:36 | Mem: 14.0% | API: Total=55/350, Current=25, Forecast=9, Stocks=21/800
+
+[2025-11-30 23:11:03] INFO: ## CYCLE 26 ##
+[2025-11-30 23:11:04] INFO: Weather: Clear, -14.9°C
+[2025-11-30 23:11:05] INFO: Displaying Forecast: Current -15°C → Next: -13°C, -13°C (1 min) [Cached]
+[2025-11-30 23:12:07] INFO: Displaying Weather: Clear, -15°C (4 min)
+[2025-11-30 23:16:09] INFO: Stocks (3/4): SPY +0.55%, SOXQ +1.69%, IBIT +1.02% (cached)
+[2025-11-30 23:16:43] INFO: Transit: Brn/Ppl=2, Red=2, Bus8=1
+[2025-11-30 23:17:14] INFO: Cycle #26 complete in 6.17 min | UT: 02:41:47 | Mem: 14.0% | API: Total=56/350, Current=26, Forecast=9, Stocks=21/800
+
+[2025-11-30 23:17:14] INFO: ## CYCLE 27 ##
+[2025-11-30 23:17:14] INFO: Weather: Clear, -14.9°C
+[2025-11-30 23:17:16] INFO: Displaying Forecast: Current -15°C → Next: -13°C, -13°C (1 min) [Cached]
+[2025-11-30 23:18:17] INFO: Displaying Weather: Clear, -15°C (4 min)
+[2025-11-30 23:22:19] INFO: Chart: FDIG +4.10% ($44.95) with 26 data points (cached)
+[2025-11-30 23:22:51] INFO: Transit: Brn/Ppl=2, Red=2, Bus8=1
+[2025-11-30 23:23:22] INFO: Cycle #27 complete in 6.13 min | UT: 02:47:55 | Mem: 14.0% | API: Total=57/350, Current=27, Forecast=9, Stocks=21/800
+
+[2025-11-30 23:23:22] INFO: ## CYCLE 28 ##
+[2025-11-30 23:23:22] INFO: Weather: Clear, -5.6°C
+[2025-11-30 23:23:23] INFO: Forecast: 12 hours (fresh) | Next: -15.9°C
+[2025-11-30 23:23:26] INFO: Displaying Forecast: Current -6°C → Next: -16°C, -13°C (1 min) [Fresh]
+[2025-11-30 23:24:28] INFO: Displaying Weather: Clear, -6°C (4 min)
+[2025-11-30 23:28:28] INFO: Stocks (3/4): MXN 18.30, EUR 21.22, CAD 13.09 (cached)
+[2025-11-30 23:29:04] INFO: Transit: Brn/Ppl=2, Red=2, Bus8=2
+[2025-11-30 23:29:34] INFO: Cycle #28 complete in 6.21 min | UT: 02:54:08 | Mem: 14.1% | API: Total=59/350, Current=28, Forecast=10, Stocks=21/800
+
+[2025-11-30 23:29:34] INFO: ## CYCLE 29 ##
+[2025-11-30 23:29:35] INFO: Weather: Clear, -5.6°C
+[2025-11-30 23:29:36] INFO: Displaying Forecast: Current -6°C → Next: -16°C, -13°C (1 min) [Cached]
+[2025-11-30 23:30:38] INFO: Displaying Weather: Clear, -6°C (4 min)
+[2025-11-30 23:34:39] INFO: Chart: LUMN +0.25% ($8.11) with 26 data points (cached)
+[2025-11-30 23:35:12] INFO: Transit: Brn/Ppl=2, Red=2, Bus8=2
+[2025-11-30 23:35:43] INFO: Cycle #29 complete in 6.13 min | UT: 03:00:16 | Mem: 14.0% | API: Total=60/350, Current=29, Forecast=10, Stocks=21/800
+
+[2025-11-30 23:35:43] INFO: ## CYCLE 30 ##
+[2025-11-30 23:35:43] INFO: Weather: Clear, -5.6°C
+[2025-11-30 23:35:44] INFO: Displaying Forecast: Current -6°C → Next: -16°C, -13°C (1 min) [Cached]
+[2025-11-30 23:36:46] INFO: Displaying Weather: Clear, -6°C (4 min)
+[2025-11-30 23:40:48] INFO: Stocks (3/4): ETH 2,824, XAU 4,240, GBP 24.22 (cached)
+[2025-11-30 23:41:21] INFO: Transit: Brn/Ppl=0, Red=2, Bus8=1
+[2025-11-30 23:41:52] INFO: Cycle #30 complete in 6.15 min | UT: 03:06:25 | Mem: 13.9% | API: Total=61/350, Current=30, Forecast=10, Stocks=21/800
+
+[2025-11-30 23:41:52] INFO: ## CYCLE 31 ##
+[2025-11-30 23:41:52] INFO: Weather: Clear, -5.6°C
+[2025-11-30 23:41:53] INFO: Forecast: 12 hours (fresh) | Next: -15.9°C
+[2025-11-30 23:41:56] INFO: Displaying Forecast: Current -6°C → Next: -16°C, -13°C (1 min) [Fresh]
+[2025-11-30 23:42:57] INFO: Displaying Weather: Clear, -6°C (4 min)
+[2025-11-30 23:47:00] INFO: Chart: BTC -4.29% ($86,491) with 26 data points (cached)
+[2025-11-30 23:47:33] INFO: Transit: Brn/Ppl=2, Red=2, Bus8=1
+[2025-11-30 23:48:04] INFO: Cycle #31 complete in 6.20 min | UT: 03:12:37 | Mem: 14.0% | API: Total=63/350, Current=31, Forecast=11, Stocks=21/800
+
+[2025-11-30 23:48:04] INFO: ## CYCLE 32 ##
+[2025-11-30 23:48:04] INFO: Weather: Clear, -5.6°C
+[2025-11-30 23:48:06] INFO: Displaying Forecast: Current -6°C → Next: -16°C, -13°C (1 min) [Cached]
+[2025-11-30 23:49:07] INFO: Displaying Weather: Clear, -6°C (4 min)
+[2025-11-30 23:53:07] INFO: Stocks (3/4): AAPL +0.47%, GOOGL +0.07%, NVDA -1.81% (cached)
+[2025-11-30 23:53:41] INFO: Transit: Brn/Ppl=2, Red=2, Bus8=2
+[2025-11-30 23:54:12] INFO: Cycle #32 complete in 6.13 min | UT: 03:18:45 | Mem: 14.1% | API: Total=64/350, Current=32, Forecast=11, Stocks=21/800
+
+[2025-11-30 23:54:12] INFO: ## CYCLE 33 ##
+[2025-11-30 23:54:12] INFO: Weather: Clear, -5.6°C
+[2025-11-30 23:54:14] INFO: Displaying Forecast: Current -6°C → Next: -16°C, -13°C (1 min) [Cached]
+[2025-11-30 23:55:15] INFO: Displaying Weather: Clear, -6°C (4 min)
+[2025-11-30 23:59:17] INFO: Chart: CRM +1.05% ($230.54) with 26 data points (cached)
+[2025-11-30 23:59:49] INFO: Transit: Brn/Ppl=2, Red=2, Bus8=1
+[2025-12-01 00:00:20] INFO: Cycle #33 complete in 6.14 min | UT: 03:24:53 | Mem: 14.0% | API: Total=65/350, Current=33, Forecast=11, Stocks=21/800
+
+[2025-12-01 00:00:20] INFO: ## CYCLE 34 ##
+[2025-12-01 00:00:21] INFO: Weather: Clear, -6.1°C
+[2025-12-01 00:00:22] INFO: Forecast: 12 hours (fresh) | Next: -17.7°C
+[2025-12-01 00:00:24] INFO: Displaying Forecast: Current -6°C → Next: -18°C, -15°C (1 min) [Fresh]
+[2025-12-01 00:01:26] INFO: Displaying Weather: Clear, -6°C (4 min)
+[2025-12-01 00:05:29] INFO: Stocks (3/4): SPY +0.55%, SOXQ +1.69%, IBIT +1.02% (cached)
+[2025-12-01 00:06:05] INFO: Transit: Brn/Ppl=2, Red=2, Bus8=1
+[2025-12-01 00:06:36] INFO: Cycle #34 complete in 6.25 min | UT: 03:31:09 | Mem: 14.0% | API: Total=67/350, Current=34, Forecast=12, Stocks=21/800
+
+[2025-12-01 00:06:36] INFO: ## CYCLE 35 ##
+[2025-12-01 00:06:36] INFO: Weather: Clear, -6.1°C
+[2025-12-01 00:06:37] INFO: Displaying Forecast: Current -6°C → Next: -18°C, -15°C (1 min) [Cached]
+[2025-12-01 00:07:39] INFO: Displaying Weather: Clear, -6°C (4 min)
+[2025-12-01 00:11:40] INFO: Chart: FDIG +4.10% ($44.95) with 26 data points (cached)
+[2025-12-01 00:12:12] INFO: Transit: Brn/Ppl=2, Red=2, Bus8=1
+[2025-12-01 00:12:43] INFO: Cycle #35 complete in 6.13 min | UT: 03:37:16 | Mem: 14.0% | API: Total=68/350, Current=35, Forecast=12, Stocks=21/800
+
+[2025-12-01 00:12:43] INFO: ## CYCLE 36 ##
+[2025-12-01 00:12:43] INFO: Weather: Mostly clear, -5.6°C
+[2025-12-01 00:12:45] INFO: Displaying Forecast: Current -6°C → Next: -18°C, -15°C (1 min) [Cached]
+[2025-12-01 00:13:46] INFO: Displaying Weather: Mostly clear, -6°C (4 min)
+[2025-12-01 00:17:46] INFO: Stocks (3/4): MXN 18.30, EUR 21.22, CAD 13.09 (cached)
+[2025-12-01 00:18:21] INFO: Transit: Brn/Ppl=2, Red=2, Bus8=2
+[2025-12-01 00:18:51] INFO: Cycle #36 complete in 6.14 min | UT: 03:43:24 | Mem: 14.4% | API: Total=69/350, Current=36, Forecast=12, Stocks=21/800
+
+[2025-12-01 00:18:51] INFO: ## CYCLE 37 ##
+[2025-12-01 00:18:52] INFO: Weather: Mostly clear, -5.6°C
+[2025-12-01 00:18:53] INFO: Forecast: 12 hours (fresh) | Next: -13.4°C
+[2025-12-01 00:18:55] INFO: Displaying Forecast: Current -6°C → Next: -13°C, -12°C (1 min) [Fresh]
+[2025-12-01 00:19:58] INFO: Displaying Weather: Mostly clear, -6°C (4 min)
+[2025-12-01 00:24:00] INFO: Chart: LUMN +0.25% ($8.11) with 26 data points (cached)
+[2025-12-01 00:24:34] INFO: Transit: Brn/Ppl=2, Red=2, Bus8=1
+[2025-12-01 00:25:05] INFO: Cycle #37 complete in 6.22 min | UT: 03:49:38 | Mem: 14.3% | API: Total=71/350, Current=37, Forecast=13, Stocks=21/800
+
+[2025-12-01 00:25:05] INFO: ## CYCLE 38 ##
+[2025-12-01 00:25:05] INFO: Weather: Mostly clear, -6.1°C
+[2025-12-01 00:25:07] INFO: Displaying Forecast: Current -6°C → Next: -13°C, -12°C (1 min) [Cached]
+[2025-12-01 00:26:08] INFO: Displaying Weather: Mostly clear, -6°C (4 min)
+[2025-12-01 00:30:08] INFO: Stocks (3/4): ETH 2,824, XAU 4,240, GBP 24.22 (cached)
+[2025-12-01 00:30:43] INFO: Transit: Brn/Ppl=2, Red=2, Bus8=1
+[2025-12-01 00:31:13] INFO: Cycle #38 complete in 6.15 min | UT: 03:55:46 | Mem: 14.3% | API: Total=72/350, Current=38, Forecast=13, Stocks=21/800
+
+[2025-12-01 00:31:13] INFO: ## CYCLE 39 ##
+[2025-12-01 00:31:14] INFO: Weather: Mostly clear, -6.1°C
+[2025-12-01 00:31:15] INFO: Displaying Forecast: Current -6°C → Next: -13°C, -12°C (1 min) [Cached]
+[2025-12-01 00:32:17] INFO: Displaying Weather: Mostly clear, -6°C (4 min)
+[2025-12-01 00:36:19] INFO: Chart: BTC -4.29% ($86,491) with 26 data points (cached)
+[2025-12-01 00:36:51] INFO: Transit: Brn/Ppl=2, Red=2, Bus8=1
+[2025-12-01 00:37:22] INFO: Cycle #39 complete in 6.14 min | UT: 04:01:55 | Mem: 14.3% | API: Total=73/350, Current=39, Forecast=13, Stocks=21/800
+
+[2025-12-01 00:37:22] INFO: ## CYCLE 40 ##
+[2025-12-01 00:37:22] INFO: Weather: Mostly clear, -4.7°C
+[2025-12-01 00:37:23] INFO: Forecast: 12 hours (fresh) | Next: -12.5°C
+[2025-12-01 00:37:26] INFO: Displaying Forecast: Current -5°C → Next: -12°C, -11°C (1 min) [Fresh]
+[2025-12-01 00:38:28] INFO: Displaying Weather: Mostly clear, -5°C (4 min)
+[2025-12-01 00:42:29] INFO: Stocks (3/4): AAPL +0.47%, GOOGL +0.07%, NVDA -1.81% (cached)
+[2025-12-01 00:43:05] WARNING: CTA Bus API error: No arrival times
+[2025-12-01 00:43:05] INFO: Transit: Brn/Ppl=2, Red=2, Bus8=0
+[2025-12-01 00:43:36] INFO: Cycle #40 complete in 6.24 min | UT: 04:08:09 | Mem: 14.2% | API: Total=75/350, Current=40, Forecast=14, Stocks=21/800
+
+[2025-12-01 00:43:36] INFO: ## CYCLE 41 ##
+[2025-12-01 00:43:36] INFO: Weather: Mostly clear, -4.7°C
+[2025-12-01 00:43:38] INFO: Displaying Forecast: Current -5°C → Next: -12°C, -11°C (1 min) [Cached]
+[2025-12-01 00:44:39] INFO: Displaying Weather: Mostly clear, -5°C (4 min)
+[2025-12-01 00:48:41] INFO: Chart: CRM +1.05% ($230.54) with 26 data points (cached)
+[2025-12-01 00:49:13] WARNING: CTA Bus API error: No arrival times
+[2025-12-01 00:49:13] INFO: Transit: Brn/Ppl=2, Red=2, Bus8=0
+[2025-12-01 00:49:44] INFO: Cycle #41 complete in 6.14 min | UT: 04:14:17 | Mem: 14.2% | API: Total=76/350, Current=41, Forecast=14, Stocks=21/800
+
+[2025-12-01 00:49:44] INFO: ## CYCLE 42 ##
+[2025-12-01 00:49:45] INFO: Weather: Partly cloudy, -6.1°C
+[2025-12-01 00:49:46] INFO: Displaying Forecast: Current -6°C → Next: -12°C, -11°C (1 min) [Cached]
+[2025-12-01 00:50:47] INFO: Displaying Weather: Partly cloudy, -6°C (4 min)
+[2025-12-01 00:54:48] INFO: Stocks (3/4): SPY +0.55%, SOXQ +1.69%, IBIT +1.02% (cached)
+[2025-12-01 00:55:22] WARNING: CTA Bus API error: No service scheduled
+[2025-12-01 00:55:22] INFO: Transit: Brn/Ppl=2, Red=2, Bus8=0
+[2025-12-01 00:55:53] INFO: Cycle #42 complete in 6.15 min | UT: 04:20:26 | Mem: 14.5% | API: Total=77/350, Current=42, Forecast=14, Stocks=21/800
+
+[2025-12-01 00:55:53] INFO: ## CYCLE 43 ##
+[2025-12-01 00:55:53] INFO: Weather: Partly cloudy, -6.1°C
+[2025-12-01 00:55:54] INFO: Forecast: 12 hours (fresh) | Next: -12.5°C
+[2025-12-01 00:55:57] INFO: Displaying Forecast: Current -6°C → Next: -12°C, -11°C (1 min) [Fresh]
+[2025-12-01 00:57:00] INFO: Displaying Weather: Partly cloudy, -6°C (4 min)
+[2025-12-01 01:01:02] INFO: Chart: FDIG +4.10% ($44.95) with 26 data points (cached)
+[2025-12-01 01:01:35] WARNING: CTA Bus API error: No service scheduled
+[2025-12-01 01:01:35] INFO: Transit: Brn/Ppl=2, Red=2, Bus8=0
+[2025-12-01 01:02:06] INFO: Cycle #43 complete in 6.22 min | UT: 04:26:39 | Mem: 14.5% | API: Total=79/350, Current=43, Forecast=15, Stocks=21/800
+
+[2025-12-01 01:02:06] INFO: ## CYCLE 44 ##
+[2025-12-01 01:02:07] INFO: Weather: Partly cloudy, -5.2°C
+[2025-12-01 01:02:08] INFO: Displaying Forecast: Current -5°C → Next: -12°C, -11°C (1 min) [Cached]
+[2025-12-01 01:03:10] INFO: Displaying Weather: Partly cloudy, -5°C (4 min)
+[2025-12-01 01:07:10] INFO: Stocks (3/4): MXN 18.30, EUR 21.22, CAD 13.09 (cached)
+[2025-12-01 01:07:44] WARNING: CTA Bus API error: No service scheduled
+[2025-12-01 01:07:45] INFO: Transit: Brn/Ppl=2, Red=2, Bus8=0
+[2025-12-01 01:08:15] INFO: Cycle #44 complete in 6.15 min | UT: 04:32:48 | Mem: 14.7% | API: Total=80/350, Current=44, Forecast=15, Stocks=21/800
+
+[2025-12-01 01:08:15] INFO: ## CYCLE 45 ##
+[2025-12-01 01:08:16] INFO: Weather: Partly cloudy, -5.2°C
+[2025-12-01 01:08:17] INFO: Displaying Forecast: Current -5°C → Next: -12°C, -11°C (1 min) [Cached]
+[2025-12-01 01:09:19] INFO: Displaying Weather: Partly cloudy, -5°C (4 min)
+[2025-12-01 01:13:21] INFO: Chart: LUMN +0.25% ($8.11) with 26 data points (cached)
+[2025-12-01 01:13:53] WARNING: CTA Bus API error: No service scheduled
+[2025-12-01 01:13:53] INFO: Transit: Brn/Ppl=0, Red=2, Bus8=0
+[2025-12-01 01:14:24] INFO: Cycle #45 complete in 6.14 min | UT: 04:38:57 | Mem: 14.6% | API: Total=81/350, Current=45, Forecast=15, Stocks=21/800
+
+[2025-12-01 01:14:24] INFO: ## CYCLE 46 ##
+[2025-12-01 01:14:24] INFO: Weather: Partly cloudy, -6.6°C
+[2025-12-01 01:14:25] INFO: Forecast: 12 hours (fresh) | Next: -10.0°C
+[2025-12-01 01:14:28] INFO: Displaying Forecast: Current -7°C → Next: -10°C, -11°C (1 min) [Fresh]
+[2025-12-01 01:15:30] INFO: Displaying Weather: Partly cloudy, -7°C (4 min)
+[2025-12-01 01:19:31] INFO: Stocks (3/4): ETH 2,824, XAU 4,240, GBP 24.22 (cached)
+[2025-12-01 01:20:07] WARNING: CTA Bus API error: No service scheduled
+[2025-12-01 01:20:07] INFO: Transit: Brn/Ppl=0, Red=2, Bus8=0
+[2025-12-01 01:20:38] INFO: Cycle #46 complete in 6.24 min | UT: 04:45:11 | Mem: 14.6% | API: Total=83/350, Current=46, Forecast=16, Stocks=21/800
+
+[2025-12-01 01:20:38] INFO: ## CYCLE 47 ##
+[2025-12-01 01:20:38] INFO: Weather: Partly cloudy, -6.6°C
+[2025-12-01 01:20:40] INFO: Displaying Forecast: Current -7°C → Next: -10°C, -11°C (1 min) [Cached]
+[2025-12-01 01:21:41] INFO: Displaying Weather: Partly cloudy, -7°C (4 min)
+[2025-12-01 01:25:42] INFO: Chart: BTC -4.29% ($86,491) with 26 data points (cached)
+[2025-12-01 01:26:14] WARNING: CTA Bus API error: No service scheduled
+[2025-12-01 01:26:15] INFO: Transit: Brn/Ppl=0, Red=2, Bus8=0
+[2025-12-01 01:26:45] INFO: Cycle #47 complete in 6.12 min | UT: 04:51:18 | Mem: 14.6% | API: Total=84/350, Current=47, Forecast=16, Stocks=21/800
+
+[2025-12-01 01:26:45] INFO: ## CYCLE 48 ##
+[2025-12-01 01:26:46] INFO: Weather: Mostly cloudy, -13.0°C
+[2025-12-01 01:26:48] INFO: Displaying Forecast: Current -13°C → Next: -10°C, -11°C (1 min) [Cached]
+[2025-12-01 01:27:50] INFO: Displaying Weather: Mostly cloudy, -13°C (4 min)
+[2025-12-01 01:31:50] INFO: Stocks (3/4): AAPL +0.47%, GOOGL +0.07%, NVDA -1.81% (cached)
+[2025-12-01 01:32:24] WARNING: CTA Bus API error: No service scheduled
+[2025-12-01 01:32:24] INFO: Transit: Brn/Ppl=0, Red=2, Bus8=0
+[2025-12-01 01:32:55] INFO: Cycle #48 complete in 6.16 min | UT: 04:57:28 | Mem: 15.1% | API: Total=85/350, Current=48, Forecast=16, Stocks=21/800
+
+[2025-12-01 01:32:55] INFO: ## CYCLE 49 ##
+[2025-12-01 01:32:55] INFO: Weather: Mostly cloudy, -13.0°C
+[2025-12-01 01:32:56] INFO: Forecast: 12 hours (fresh) | Next: -11.4°C
+[2025-12-01 01:32:59] INFO: Displaying Forecast: Current -13°C → Next: -11°C, -11°C (1 min) [Fresh]
+[2025-12-01 01:34:01] INFO: Displaying Weather: Mostly cloudy, -13°C (4 min)
+[2025-12-01 01:38:04] INFO: Chart: CRM +1.05% ($230.54) with 26 data points (cached)
+[2025-12-01 01:38:38] WARNING: CTA Bus API error: No service scheduled
+[2025-12-01 01:38:38] INFO: Transit: Brn/Ppl=0, Red=2, Bus8=0
+[2025-12-01 01:39:09] INFO: Cycle #49 complete in 6.23 min | UT: 05:03:42 | Mem: 15.1% | API: Total=87/350, Current=49, Forecast=17, Stocks=21/800
+
+[2025-12-01 01:39:09] INFO: ## CYCLE 50 ##
+[2025-12-01 01:39:09] INFO: Weather: Mostly cloudy, -5.7°C
+[2025-12-01 01:39:11] INFO: Displaying Forecast: Current -6°C → Next: -11°C, -11°C (1 min) [Cached]
+[2025-12-01 01:40:13] INFO: Displaying Weather: Mostly cloudy, -6°C (4 min)
+[2025-12-01 01:44:13] INFO: Stocks (3/4): SPY +0.55%, SOXQ +1.69%, IBIT +1.02% (cached)
+[2025-12-01 01:44:48] WARNING: CTA Bus API error: No service scheduled
+[2025-12-01 01:44:48] INFO: Transit: Brn/Ppl=0, Red=2, Bus8=0
+[2025-12-01 01:45:19] INFO: Cycle #50 complete in 6.17 min | UT: 05:09:51 | Mem: 15.1% | API: Total=88/350, Current=50, Forecast=17, Stocks=21/800
+
+[2025-12-01 01:45:19] INFO: ## CYCLE 51 ##
+[2025-12-01 01:45:19] INFO: Weather: Mostly cloudy, -5.7°C
+[2025-12-01 01:45:21] INFO: Displaying Forecast: Current -6°C → Next: -11°C, -11°C (1 min) [Cached]
+[2025-12-01 01:46:22] INFO: Displaying Weather: Mostly cloudy, -6°C (4 min)
+[2025-12-01 01:50:24] INFO: Chart: FDIG +4.10% ($44.95) with 26 data points (cached)
+[2025-12-01 01:50:56] WARNING: CTA Bus API error: No service scheduled
+[2025-12-01 01:50:56] INFO: Transit: Brn/Ppl=0, Red=2, Bus8=0
+[2025-12-01 01:51:27] INFO: Cycle #51 complete in 6.14 min | UT: 05:16:00 | Mem: 15.1% | API: Total=89/350, Current=51, Forecast=17, Stocks=21/800
+
+[2025-12-01 01:51:27] INFO: ## CYCLE 52 ##
+[2025-12-01 01:51:28] INFO: Weather: Mostly cloudy, -6.6°C
+[2025-12-01 01:51:28] INFO: Forecast: 12 hours (fresh) | Next: -11.4°C
+[2025-12-01 01:51:31] INFO: Displaying Forecast: Current -7°C → Next: -11°C, -11°C (1 min) [Fresh]
+[2025-12-01 01:52:33] INFO: Displaying Weather: Mostly cloudy, -7°C (4 min)
+[2025-12-01 01:56:33] INFO: Stocks (3/4): MXN 18.30, EUR 21.22, CAD 13.09 (cached)
+[2025-12-01 01:57:08] WARNING: CTA Bus API error: No service scheduled
+[2025-12-01 01:57:09] INFO: Transit: Brn/Ppl=0, Red=2, Bus8=0
+[2025-12-01 01:57:39] INFO: Cycle #52 complete in 6.21 min | UT: 05:22:12 | Mem: 15.1% | API: Total=91/350, Current=52, Forecast=18, Stocks=21/800
+
+[2025-12-01 01:57:39] INFO: ## CYCLE 53 ##
+[2025-12-01 01:57:40] INFO: Weather: Mostly cloudy, -6.6°C
+[2025-12-01 01:57:42] INFO: Displaying Forecast: Current -7°C → Next: -11°C, -11°C (1 min) [Cached]
+[2025-12-01 01:58:43] INFO: Displaying Weather: Mostly cloudy, -7°C (4 min)
+[2025-12-01 02:02:45] INFO: Chart: LUMN +0.25% ($8.11) with 26 data points (cached)
+[2025-12-01 02:03:17] WARNING: CTA Bus API error: No service scheduled
+[2025-12-01 02:03:17] INFO: Transit: Brn/Ppl=0, Red=2, Bus8=0
+[2025-12-01 02:03:48] INFO: Cycle #53 complete in 6.14 min | UT: 05:28:21 | Mem: 15.1% | API: Total=92/350, Current=53, Forecast=18, Stocks=21/800
+
+[2025-12-01 02:03:48] INFO: ## CYCLE 54 ##
+[2025-12-01 02:03:48] INFO: Weather: Mostly cloudy, -5.7°C
+[2025-12-01 02:03:50] INFO: Displaying Forecast: Current -6°C → Next: -11°C, -11°C (1 min) [Cached]
+[2025-12-01 02:04:51] INFO: Displaying Weather: Mostly cloudy, -6°C (4 min)
+[2025-12-01 02:08:52] INFO: Stocks (3/4): ETH 2,824, XAU 4,240, GBP 24.22 (cached)
+[2025-12-01 02:09:26] WARNING: CTA Bus API error: No service scheduled
+[2025-12-01 02:09:26] INFO: Transit: Brn/Ppl=0, Red=2, Bus8=0
+[2025-12-01 02:09:57] INFO: Cycle #54 complete in 6.15 min | UT: 05:34:30 | Mem: 15.1% | API: Total=93/350, Current=54, Forecast=18, Stocks=21/800
+
+[2025-12-01 02:09:57] INFO: ## CYCLE 55 ##
+[2025-12-01 02:09:57] INFO: Weather: Mostly cloudy, -5.7°C
+[2025-12-01 02:09:58] INFO: Forecast: 12 hours (fresh) | Next: -13.3°C
+[2025-12-01 02:10:01] INFO: Displaying Forecast: Current -6°C → Next: -13°C, -12°C (1 min) [Fresh]
+[2025-12-01 02:11:03] INFO: Displaying Weather: Mostly cloudy, -6°C (4 min)
+[2025-12-01 02:15:05] INFO: Chart: BTC -4.29% ($86,491) with 26 data points (cached)
+[2025-12-01 02:15:39] WARNING: CTA Bus API error: No service scheduled
+[2025-12-01 02:15:39] INFO: Transit: Brn/Ppl=0, Red=2, Bus8=0
+[2025-12-01 02:16:10] INFO: Cycle #55 complete in 6.22 min | UT: 05:40:43 | Mem: 15.1% | API: Total=95/350, Current=55, Forecast=19, Stocks=21/800
+
+[2025-12-01 02:16:10] INFO: ## CYCLE 56 ##
+[2025-12-01 02:16:10] INFO: Weather: Mostly cloudy, -6.6°C
+[2025-12-01 02:16:12] INFO: Displaying Forecast: Current -7°C → Next: -13°C, -12°C (1 min) [Cached]
+[2025-12-01 02:17:14] INFO: Displaying Weather: Mostly cloudy, -7°C (4 min)
+[2025-12-01 02:21:14] INFO: Stocks (3/4): AAPL +0.47%, GOOGL +0.07%, NVDA -1.81% (cached)
+[2025-12-01 02:21:48] WARNING: CTA Bus API error: No service scheduled
+[2025-12-01 02:21:49] INFO: Transit: Brn/Ppl=0, Red=2, Bus8=0
+[2025-12-01 02:22:19] INFO: Cycle #56 complete in 6.16 min | UT: 05:46:52 | Mem: 15.1% | API: Total=96/350, Current=56, Forecast=19, Stocks=21/800
+
+[2025-12-01 02:22:19] INFO: ## CYCLE 57 ##
+[2025-12-01 02:22:20] INFO: Weather: Mostly cloudy, -7.1°C
+[2025-12-01 02:22:22] INFO: Displaying Forecast: Current -7°C → Next: -13°C, -12°C (1 min) [Cached]
+[2025-12-01 02:23:24] INFO: Displaying Weather: Mostly cloudy, -7°C (4 min)
+[2025-12-01 02:27:25] INFO: Chart: CRM +1.05% ($230.54) with 26 data points (cached)
+[2025-12-01 02:27:58] WARNING: CTA Bus API error: No service scheduled
+[2025-12-01 02:27:58] INFO: Transit: Brn/Ppl=0, Red=2, Bus8=0
+[2025-12-01 02:28:28] INFO: Cycle #57 complete in 6.15 min | UT: 05:53:01 | Mem: 15.1% | API: Total=97/350, Current=57, Forecast=19, Stocks=21/800
+
+[2025-12-01 02:28:28] INFO: ## CYCLE 58 ##
+[2025-12-01 02:28:29] INFO: Weather: Mostly cloudy, -7.1°C
+[2025-12-01 02:28:29] INFO: Forecast: 12 hours (fresh) | Next: -10.5°C
+[2025-12-01 02:28:33] INFO: Displaying Forecast: Current -7°C → Next: -10°C, -10°C (1 min) [Fresh]
+[2025-12-01 02:29:35] INFO: Displaying Weather: Mostly cloudy, -7°C (4 min)
+[2025-12-01 02:33:35] INFO: Stocks (3/4): SPY +0.55%, SOXQ +1.69%, IBIT +1.02% (cached)
+[2025-12-01 02:34:11] WARNING: CTA Bus API error: No service scheduled
+[2025-12-01 02:34:11] INFO: Transit: Brn/Ppl=0, Red=2, Bus8=0
+[2025-12-01 02:34:42] INFO: Cycle #58 complete in 6.22 min | UT: 05:59:15 | Mem: 15.1% | API: Total=99/350, Current=58, Forecast=20, Stocks=21/800
+
+[2025-12-01 02:34:42] INFO: ## CYCLE 59 ##
+[2025-12-01 02:34:42] INFO: Weather: Mostly cloudy, -7.1°C
+[2025-12-01 02:34:44] INFO: Displaying Forecast: Current -7°C → Next: -10°C, -10°C (1 min) [Cached]
+[2025-12-01 02:35:45] INFO: Displaying Weather: Mostly cloudy, -7°C (4 min)
+[2025-12-01 02:39:47] INFO: Chart: FDIG +4.10% ($44.95) with 26 data points (cached)
+[2025-12-01 02:40:19] WARNING: CTA Bus API error: No service scheduled
+[2025-12-01 02:40:19] INFO: Transit: Brn/Ppl=0, Red=2, Bus8=0
+[2025-12-01 02:40:50] INFO: Cycle #59 complete in 6.14 min | UT: 06:05:23 | Mem: 15.1% | API: Total=100/350, Current=59, Forecast=20, Stocks=21/800
+
+[2025-12-01 02:40:50] INFO: ## CYCLE 60 ##
+[2025-12-01 02:40:51] INFO: Weather: Mostly cloudy, -7.1°C
+[2025-12-01 02:40:53] INFO: Displaying Forecast: Current -7°C → Next: -10°C, -10°C (1 min) [Cached]
+[2025-12-01 02:41:54] INFO: Displaying Weather: Mostly cloudy, -7°C (4 min)
+[2025-12-01 02:45:54] INFO: Stocks (3/4): MXN 18.30, EUR 21.22, CAD 13.09 (cached)
+[2025-12-01 02:46:28] WARNING: CTA Bus API error: No service scheduled
+[2025-12-01 02:46:28] INFO: Transit: Brn/Ppl=0, Red=2, Bus8=0
+[2025-12-01 02:46:59] INFO: Cycle #60 complete in 6.15 min | UT: 06:11:32 | Mem: 15.1% | API: Total=101/350, Current=60, Forecast=20, Stocks=21/800
+
+[2025-12-01 02:46:59] INFO: ## CYCLE 61 ##
+[2025-12-01 02:46:59] INFO: Weather: Cloudy, -13.5°C
+[2025-12-01 02:47:00] INFO: Forecast: 12 hours (fresh) | Next: -10.5°C
+[2025-12-01 02:47:03] INFO: Displaying Forecast: Current -14°C → Next: -10°C, -10°C (1 min) [Fresh]
+[2025-12-01 02:48:06] INFO: Displaying Weather: Cloudy, -14°C (4 min)
+[2025-12-01 02:52:08] INFO: Chart: LUMN +0.25% ($8.11) with 26 data points (cached)
+[2025-12-01 02:52:42] WARNING: CTA Bus API error: No service scheduled
+[2025-12-01 02:52:42] INFO: Transit: Brn/Ppl=0, Red=2, Bus8=0
+[2025-12-01 02:53:13] INFO: Cycle #61 complete in 6.23 min | UT: 06:17:46 | Mem: 15.6% | API: Total=103/350, Current=61, Forecast=21, Stocks=21/800
+
+[2025-12-01 02:53:13] INFO: ## CYCLE 62 ##
+[2025-12-01 02:53:13] INFO: Weather: Cloudy, -13.5°C
+[2025-12-01 02:53:15] INFO: Displaying Forecast: Current -14°C → Next: -10°C, -10°C (1 min) [Cached]
+[2025-12-01 02:54:17] INFO: Displaying Weather: Cloudy, -14°C (4 min)
+[2025-12-01 02:58:17] INFO: Stocks (3/4): ETH 2,824, XAU 4,240, GBP 24.22 (cached)
+[2025-12-01 02:58:51] WARNING: CTA Bus API error: No service scheduled
+[2025-12-01 02:58:51] INFO: Transit: Brn/Ppl=0, Red=2, Bus8=0
+[2025-12-01 02:59:22] INFO: Cycle #62 complete in 6.15 min | UT: 06:23:55 | Mem: 15.6% | API: Total=104/350, Current=62, Forecast=21, Stocks=21/800
+
+[2025-12-01 02:59:22] INFO: ## CYCLE 63 ##
+[2025-12-01 02:59:22] INFO: Weather: Cloudy, -4.7°C
+[2025-12-01 02:59:24] INFO: Displaying Forecast: Current -5°C → Next: -10°C, -10°C (1 min) [Cached]
+[2025-12-01 03:00:26] INFO: Displaying Weather: Cloudy, -5°C (4 min)
+[2025-12-01 03:04:28] INFO: Chart: BTC -4.29% ($86,491) with 26 data points (cached)
+[2025-12-01 03:05:00] WARNING: CTA Bus API error: No service scheduled
+[2025-12-01 03:05:00] INFO: Transit: Brn/Ppl=0, Red=1, Bus8=0
+[2025-12-01 03:05:31] INFO: Cycle #63 complete in 6.15 min | UT: 06:30:04 | Mem: 15.6% | API: Total=105/350, Current=63, Forecast=21, Stocks=21/800
+
+[2025-12-01 03:05:31] INFO: ## CYCLE 64 ##
+[2025-12-01 03:05:31] INFO: Daily restart triggered (6.5h runtime)
+
+Code done running.
+soft reboot
+
+Auto-reload is on. Simply save files over USB to run them or enter REPL to disable.
+code.py output:
+[2025-12-01 03:05:46] INFO: === STARTUP ===
+[2025-12-01 03:05:46] INFO: Debug level: INFO (3)
+[2025-12-01 03:05:46] INFO: MatrixPortal buttons initialized - UP=stop, DOWN=advance
+[2025-12-01 03:05:47] INFO: GitHub stocks: 16 symbols
+[2025-12-01 03:05:48] INFO: GitHub config loaded for matrix type1: 13 settings
+[2025-12-01 03:05:48] INFO: Hardware ready | 13 schedules (default) | 16 stocks (imported) (markets open 9:30 AM ET) | 67 events (26 imported) | Today: No events
+[2025-12-01 03:05:59] INFO: Time synced to America/Chicago (UTC-6)
+[2025-12-01 03:05:59] INFO: Fetching time and weather for: Sheffield And Depaul, IL
+[2025-12-01 03:05:59] INFO: Active displays: weather, forecast, events, stocks, transit, weekday indicator
+[2025-12-01 03:05:59] INFO: == STARTING MAIN DISPLAY LOOP == 
+
+[2025-12-01 03:05:59] INFO: ## CYCLE 1 ##
+[2025-12-01 03:05:59] INFO: Weather: Cloudy, -4.7°C
+[2025-12-01 03:06:00] INFO: Forecast: 12 hours (fresh) | Next: -10.5°C
+[2025-12-01 03:06:01] INFO: Displaying Forecast: Current -5°C → Next: -10°C, -10°C (1 min) [Fresh]
+[2025-12-01 03:07:25] INFO: Displaying Weather: Cloudy, -5°C (4 min)
+[2025-12-01 03:11:33] INFO: Intraday data not cached for CRM - fetching
+[2025-12-01 03:11:33] INFO: Fetching intraday data for CRM
+[2025-12-01 03:11:35] INFO: Quote not cached for CRM - fetching
+[2025-12-01 03:11:45] INFO: Chart: CRM +1.05% ($230.54) with 26 data points (fresh)
+[2025-12-01 03:12:16] INFO: Cycle #1 complete in 6.29 min | UT: 00:06:31 | Mem: 13.0% | API: Total=4/350, Current=1, Forecast=1, Stocks=2/800
+
+[2025-12-01 03:12:16] INFO: ## CYCLE 2 ##
+[2025-12-01 03:12:17] INFO: Weather: Cloudy, -5.6°C
+[2025-12-01 03:12:18] INFO: Displaying Forecast: Current -6°C → Next: -10°C, -10°C (1 min) [Cached]
+[2025-12-01 03:13:20] INFO: Displaying Weather: Cloudy, -6°C (4 min)
+[2025-12-01 03:17:21] INFO: Stocks not cached yet: SPY, SOXQ... - fetching
+[2025-12-01 03:17:21] INFO: Market holiday detected and cached: 2025-12-01
+[2025-12-01 03:17:21] INFO: Stocks (3/4): SPY +0.55%, SOXQ +1.69%, IBIT +1.02% (fresh)
+[2025-12-01 03:18:05] INFO: Cycle #2 complete in 5.81 min | UT: 00:12:20 | Mem: 13.0% | API: Total=9/350, Current=2, Forecast=1, Stocks=6/800
+
+[2025-12-01 03:18:05] INFO: ## CYCLE 3 ##
+[2025-12-01 03:18:05] INFO: Weather: Cloudy, -5.6°C
+[2025-12-01 03:18:07] INFO: Displaying Forecast: Current -6°C → Next: -10°C, -10°C (1 min) [Cached]
+[2025-12-01 03:19:08] INFO: Displaying Weather: Cloudy, -6°C (4 min)
+[2025-12-01 03:23:08] INFO: Intraday data not cached for FDIG - fetching
+[2025-12-01 03:23:08] INFO: Fetching intraday data for FDIG
+[2025-12-01 03:23:13] INFO: Chart: FDIG +4.10% ($44.95) with 26 data points (fresh)
+[2025-12-01 03:23:44] INFO: Cycle #3 complete in 5.65 min | UT: 00:17:59 | Mem: 13.4% | API: Total=11/350, Current=3, Forecast=1, Stocks=7/800
+
+[2025-12-01 03:23:44] INFO: ## CYCLE 4 ##
+[2025-12-01 03:23:44] INFO: Weather: Cloudy, -5.1°C
+[2025-12-01 03:23:45] INFO: Forecast: 12 hours (fresh) | Next: -12.5°C
+[2025-12-01 03:23:47] INFO: Displaying Forecast: Current -5°C → Next: -12°C, -11°C (1 min) [Fresh]
+[2025-12-01 03:24:49] INFO: Displaying Weather: Cloudy, -5°C (4 min)
+[2025-12-01 03:28:49] INFO: Stocks not cached yet: USD/MXN, EUR/MXN... - fetching
+[2025-12-01 03:28:50] INFO: Market holiday detected and cached: 2025-12-01
+[2025-12-01 03:28:50] INFO: Stocks (3/4): MXN 18.28, EUR 21.24, CAD 13.07 (fresh)
+[2025-12-01 03:29:26] INFO: Cycle #4 complete in 5.70 min | UT: 00:23:41 | Mem: 13.3% | API: Total=17/350, Current=4, Forecast=2, Stocks=11/800
+
+[2025-12-01 03:29:26] INFO: ## CYCLE 5 ##
+[2025-12-01 03:29:26] INFO: Weather: Cloudy, -5.1°C
+[2025-12-01 03:29:28] INFO: Displaying Forecast: Current -5°C → Next: -12°C, -11°C (1 min) [Cached]
+[2025-12-01 03:30:30] INFO: Displaying Weather: Cloudy, -5°C (4 min)
+[2025-12-01 03:34:31] INFO: Intraday data not cached for LUMN - fetching
+[2025-12-01 03:34:31] INFO: Fetching intraday data for LUMN
+[2025-12-01 03:34:33] INFO: Chart: LUMN +0.25% ($8.11) with 26 data points (fresh)
+[2025-12-01 03:35:04] INFO: Cycle #5 complete in 5.63 min | UT: 00:29:18 | Mem: 13.7% | API: Total=19/350, Current=5, Forecast=2, Stocks=12/800
+
+[2025-12-01 03:35:04] INFO: ## CYCLE 6 ##
+[2025-12-01 03:35:04] INFO: Weather: Cloudy, -5.6°C
+[2025-12-01 03:35:05] INFO: Displaying Forecast: Current -6°C → Next: -12°C, -11°C (1 min) [Cached]
+[2025-12-01 03:36:07] INFO: Displaying Weather: Cloudy, -6°C (4 min)
+[2025-12-01 03:40:09] INFO: Stocks not cached yet: ETH/USD, XAU/USD... - fetching
+[2025-12-01 03:40:10] INFO: Stocks (3/4): ETH 2,837, XAU 4,249, GBP 24.18 (fresh)
+[2025-12-01 03:40:44] INFO: Cycle #6 complete in 5.68 min | UT: 00:34:59 | Mem: 13.5% | API: Total=24/350, Current=6, Forecast=2, Stocks=16/800
+
+[2025-12-01 03:40:44] INFO: ## CYCLE 7 ##
+[2025-12-01 03:40:45] INFO: Weather: Cloudy, -5.6°C
+[2025-12-01 03:40:46] INFO: Forecast: 12 hours (fresh) | Next: -11.0°C
+[2025-12-01 03:40:48] INFO: Displaying Forecast: Current -6°C → Next: -11°C, -11°C (1 min) [Fresh]
+[2025-12-01 03:41:50] INFO: Displaying Weather: Cloudy, -6°C (4 min)
+[2025-12-01 03:45:50] INFO: Intraday data not cached for BTC/USD - fetching
+[2025-12-01 03:45:50] INFO: Fetching intraday data for BTC/USD
+[2025-12-01 03:45:51] INFO: Chart: BTC -4.11% ($86,659) with 26 data points (fresh)
+[2025-12-01 03:46:22] INFO: Cycle #7 complete in 5.63 min | UT: 00:40:37 | Mem: 13.8% | API: Total=27/350, Current=7, Forecast=3, Stocks=17/800
+
+[2025-12-01 03:46:22] INFO: ## CYCLE 8 ##
+[2025-12-01 03:46:22] INFO: Weather: Cloudy, -5.6°C
+[2025-12-01 03:46:24] INFO: Displaying Forecast: Current -6°C → Next: -11°C, -11°C (1 min) [Cached]
+[2025-12-01 03:47:25] INFO: Displaying Weather: Cloudy, -6°C (4 min)
+[2025-12-01 03:51:25] INFO: Stocks not cached yet: AAPL, GOOGL... - fetching
+[2025-12-01 03:51:26] INFO: Market holiday detected and cached: 2025-12-01
+[2025-12-01 03:51:26] INFO: Stocks (3/4): AAPL +0.47%, GOOGL +0.07%, NVDA -1.81% (fresh)
+[2025-12-01 03:52:00] INFO: Cycle #8 complete in 5.62 min | UT: 00:46:14 | Mem: 13.6% | API: Total=32/350, Current=8, Forecast=3, Stocks=21/800
+
+[2025-12-01 03:52:00] INFO: ## CYCLE 9 ##
+[2025-12-01 03:52:00] INFO: Weather: Cloudy, -5.6°C
+[2025-12-01 03:52:01] INFO: Displaying Forecast: Current -6°C → Next: -11°C, -11°C (1 min) [Cached]
+[2025-12-01 03:53:03] INFO: Displaying Weather: Cloudy, -6°C (4 min)
+[2025-12-01 03:57:04] INFO: Chart: CRM +1.05% ($230.54) with 26 data points (cached)
+[2025-12-01 03:57:35] INFO: Cycle #9 complete in 5.59 min | UT: 00:51:50 | Mem: 14.3% | API: Total=33/350, Current=9, Forecast=3, Stocks=21/800
+
+[2025-12-01 03:57:35] INFO: ## CYCLE 10 ##
+[2025-12-01 03:57:36] INFO: Weather: Cloudy, -6.5°C
+[2025-12-01 03:57:36] INFO: Forecast: 12 hours (fresh) | Next: -11.0°C
+[2025-12-01 03:57:39] INFO: Displaying Forecast: Current -6°C → Next: -11°C, -11°C (1 min) [Fresh]
+[2025-12-01 03:58:40] INFO: Displaying Weather: Cloudy, -6°C (4 min)
+[2025-12-01 04:02:41] INFO: Stocks (3/4): SPY +0.55%, SOXQ +1.69%, IBIT +1.02% (cached)
+[2025-12-01 04:03:14] INFO: Cycle #10 complete in 5.65 min | UT: 00:57:29 | Mem: 16.1% | API: Total=35/350, Current=10, Forecast=4, Stocks=21/800
+
+[2025-12-01 04:03:14] INFO: ## CYCLE 11 ##
+[2025-12-01 04:03:15] INFO: Weather: Cloudy, -6.5°C
+[2025-12-01 04:03:16] INFO: Displaying Forecast: Current -6°C → Next: -11°C, -11°C (1 min) [Cached]
+[2025-12-01 04:04:17] INFO: Displaying Weather: Cloudy, -6°C (4 min)
+[2025-12-01 04:08:19] INFO: Chart: FDIG +4.10% ($44.95) with 26 data points (cached)
+[2025-12-01 04:08:49] INFO: Cycle #11 complete in 5.58 min | UT: 01:03:04 | Mem: 14.3% | API: Total=36/350, Current=11, Forecast=4, Stocks=21/800
+
+[2025-12-01 04:08:49] INFO: ## CYCLE 12 ##
+[2025-12-01 04:08:50] INFO: Weather: Cloudy, -7.0°C
+[2025-12-01 04:08:51] INFO: Displaying Forecast: Current -7°C → Next: -11°C, -11°C (1 min) [Cached]
+[2025-12-01 04:09:52] INFO: Displaying Weather: Cloudy, -7°C (4 min)
+[2025-12-01 04:13:53] INFO: Stocks (3/4): MXN 18.28, EUR 21.24, CAD 13.07 (cached)
+[2025-12-01 04:14:25] INFO: Cycle #12 complete in 5.60 min | UT: 01:08:40 | Mem: 14.2% | API: Total=37/350, Current=12, Forecast=4, Stocks=21/800
+
+[2025-12-01 04:14:25] INFO: ## CYCLE 13 ##
+[2025-12-01 04:14:26] INFO: Weather: Cloudy, -7.0°C
+[2025-12-01 04:14:26] INFO: Forecast: 12 hours (fresh) | Next: -10.8°C
+[2025-12-01 04:14:29] INFO: Displaying Forecast: Current -7°C → Next: -11°C, -10°C (1 min) [Fresh]
+[2025-12-01 04:15:31] INFO: Displaying Weather: Cloudy, -7°C (4 min)
+[2025-12-01 04:19:33] INFO: Chart: LUMN +0.25% ($8.11) with 26 data points (cached)
+[2025-12-01 04:20:05] INFO: Cycle #13 complete in 5.66 min | UT: 01:14:19 | Mem: 16.6% | API: Total=39/350, Current=13, Forecast=5, Stocks=21/800
+
+[2025-12-01 04:20:05] INFO: ## CYCLE 14 ##
+[2025-12-01 04:20:05] INFO: Weather: Mostly cloudy, -5.6°C
+[2025-12-01 04:20:07] INFO: Displaying Forecast: Current -6°C → Next: -11°C, -10°C (1 min) [Cached]
+[2025-12-01 04:21:08] INFO: Displaying Weather: Mostly cloudy, -6°C (4 min)
+[2025-12-01 04:25:08] INFO: Stocks (3/4): ETH 2,837, XAU 4,249, GBP 24.18 (cached)
+[2025-12-01 04:25:41] INFO: Cycle #14 complete in 5.60 min | UT: 01:19:55 | Mem: 14.9% | API: Total=40/350, Current=14, Forecast=5, Stocks=21/800
+
+[2025-12-01 04:25:41] INFO: ## CYCLE 15 ##
+[2025-12-01 04:25:41] INFO: Weather: Mostly cloudy, -5.6°C
+[2025-12-01 04:25:43] INFO: Displaying Forecast: Current -6°C → Next: -11°C, -10°C (1 min) [Cached]
+[2025-12-01 04:26:44] INFO: Displaying Weather: Mostly cloudy, -6°C (4 min)
+[2025-12-01 04:30:45] INFO: Chart: BTC -4.11% ($86,659) with 26 data points (cached)
+[2025-12-01 04:31:16] INFO: Cycle #15 complete in 5.58 min | UT: 01:25:31 | Mem: 15.1% | API: Total=41/350, Current=15, Forecast=5, Stocks=21/800
+
+[2025-12-01 04:31:16] INFO: ## CYCLE 16 ##
+[2025-12-01 04:31:16] INFO: Weather: Mostly cloudy, -6.1°C
+[2025-12-01 04:31:17] INFO: Forecast: 12 hours (fresh) | Next: -10.8°C
+[2025-12-01 04:31:20] INFO: Displaying Forecast: Current -6°C → Next: -11°C, -10°C (1 min) [Fresh]
+[2025-12-01 04:32:22] INFO: Displaying Weather: Mostly cloudy, -6°C (4 min)
+[2025-12-01 04:36:22] INFO: Stocks (3/4): AAPL +0.47%, GOOGL +0.07%, NVDA -1.81% (cached)
+[2025-12-01 04:36:56] INFO: Cycle #16 complete in 5.67 min | UT: 01:31:11 | Mem: 16.9% | API: Total=43/350, Current=16, Forecast=6, Stocks=21/800
+
+[2025-12-01 04:36:56] INFO: ## CYCLE 17 ##
+[2025-12-01 04:36:56] INFO: Weather: Mostly cloudy, -6.1°C
+[2025-12-01 04:36:58] INFO: Displaying Forecast: Current -6°C → Next: -11°C, -10°C (1 min) [Cached]
+[2025-12-01 04:38:00] INFO: Displaying Weather: Mostly cloudy, -6°C (4 min)
+[2025-12-01 04:42:01] INFO: Chart: CRM +1.05% ($230.54) with 26 data points (cached)
+[2025-12-01 04:42:32] INFO: Cycle #17 complete in 5.60 min | UT: 01:36:47 | Mem: 15.1% | API: Total=44/350, Current=17, Forecast=6, Stocks=21/800
+
+[2025-12-01 04:42:32] INFO: ## CYCLE 18 ##
+[2025-12-01 04:42:32] INFO: Weather: Mostly cloudy, -4.1°C
+[2025-12-01 04:42:34] INFO: Displaying Forecast: Current -4°C → Next: -11°C, -10°C (1 min) [Cached]
+[2025-12-01 04:43:35] INFO: Displaying Weather: Mostly cloudy, -4°C (4 min)
+[2025-12-01 04:47:36] INFO: Stocks (3/4): SPY +0.55%, SOXQ +1.69%, IBIT +1.02% (cached)
+[2025-12-01 04:48:08] INFO: Cycle #18 complete in 5.60 min | UT: 01:42:23 | Mem: 14.9% | API: Total=45/350, Current=18, Forecast=6, Stocks=21/800
+
+[2025-12-01 04:48:08] INFO: ## CYCLE 19 ##
+[2025-12-01 04:48:08] INFO: Weather: Mostly cloudy, -4.1°C
+[2025-12-01 04:48:09] INFO: Forecast: 12 hours (fresh) | Next: -9.4°C
+[2025-12-01 04:48:12] INFO: Displaying Forecast: Current -4°C → Next: -9°C, -9°C (1 min) [Fresh]
+[2025-12-01 04:49:13] INFO: Displaying Weather: Mostly cloudy, -4°C (4 min)
+[2025-12-01 04:53:16] INFO: Chart: FDIG +4.10% ($44.95) with 26 data points (cached)
+[2025-12-01 04:53:47] INFO: Cycle #19 complete in 5.65 min | UT: 01:48:02 | Mem: 17.1% | API: Total=47/350, Current=19, Forecast=7, Stocks=21/800
+
+[2025-12-01 04:53:47] INFO: ## CYCLE 20 ##
+[2025-12-01 04:53:47] INFO: Weather: Mostly cloudy, -4.2°C
+[2025-12-01 04:53:49] INFO: Displaying Forecast: Current -4°C → Next: -9°C, -9°C (1 min) [Cached]
+[2025-12-01 04:54:50] INFO: Displaying Weather: Mostly cloudy, -4°C (4 min)
+[2025-12-01 04:58:51] INFO: Stocks (3/4): MXN 18.28, EUR 21.24, CAD 13.07 (cached)
+[2025-12-01 04:59:23] INFO: Cycle #20 complete in 5.60 min | UT: 01:53:38 | Mem: 14.9% | API: Total=48/350, Current=20, Forecast=7, Stocks=21/800
+
+[2025-12-01 04:59:23] INFO: ## CYCLE 21 ##
+[2025-12-01 04:59:24] INFO: Weather: Mostly cloudy, -4.2°C
+[2025-12-01 04:59:25] INFO: Displaying Forecast: Current -4°C → Next: -9°C, -9°C (1 min) [Cached]
+[2025-12-01 05:00:26] INFO: Displaying Weather: Mostly cloudy, -4°C (4 min)
+[2025-12-01 05:04:28] INFO: Chart: LUMN +0.25% ($8.11) with 26 data points (cached)
+[2025-12-01 05:04:58] INFO: Cycle #21 complete in 5.58 min | UT: 01:59:13 | Mem: 15.1% | API: Total=49/350, Current=21, Forecast=7, Stocks=21/800
+
+[2025-12-01 05:04:58] INFO: ## CYCLE 22 ##
+[2025-12-01 05:04:59] INFO: Weather: Cloudy, -15.3°C
+[2025-12-01 05:04:59] INFO: Forecast: 12 hours (fresh) | Next: -9.4°C
+[2025-12-01 05:05:02] INFO: Displaying Forecast: Current -15°C → Next: -9°C, -9°C (1 min) [Fresh]
+[2025-12-01 05:06:04] INFO: Displaying Weather: Cloudy, -15°C (4 min)
+[2025-12-01 05:10:11] INFO: Stocks (3/4): ETH 2,837, XAU 4,249, GBP 24.18 (cached)
+[2025-12-01 05:10:45] INFO: Cycle #22 complete in 5.77 min | UT: 02:04:59 | Mem: 17.0% | API: Total=51/350, Current=22, Forecast=8, Stocks=21/800
+
+[2025-12-01 05:10:45] INFO: ## CYCLE 23 ##
+[2025-12-01 05:10:45] INFO: Weather: Cloudy, -15.3°C
+[2025-12-01 05:10:46] INFO: Displaying Forecast: Current -15°C → Next: -9°C, -9°C (1 min) [Cached]
+[2025-12-01 05:11:48] INFO: Displaying Weather: Cloudy, -15°C (4 min)
+[2025-12-01 05:15:49] INFO: Chart: BTC -4.11% ($86,659) with 26 data points (cached)
+[2025-12-01 05:16:20] INFO: Cycle #23 complete in 5.59 min | UT: 02:10:35 | Mem: 15.1% | API: Total=52/350, Current=23, Forecast=8, Stocks=21/800
+
+[2025-12-01 05:16:20] INFO: ## CYCLE 24 ##
+[2025-12-01 05:16:20] INFO: Weather: Cloudy, -12.1°C
+[2025-12-01 05:16:22] INFO: Displaying Forecast: Current -12°C → Next: -9°C, -9°C (1 min) [Cached]
+[2025-12-01 05:17:24] INFO: Displaying Weather: Cloudy, -12°C (4 min)
+[2025-12-01 05:21:26] INFO: Stocks (3/4): AAPL +0.47%, GOOGL +0.07%, NVDA -1.81% (cached)
+[2025-12-01 05:21:59] INFO: Cycle #24 complete in 5.65 min | UT: 02:16:14 | Mem: 14.9% | API: Total=53/350, Current=24, Forecast=8, Stocks=21/800
+
+[2025-12-01 05:21:59] INFO: ## CYCLE 25 ##
+[2025-12-01 05:21:59] INFO: Weather: Cloudy, -12.1°C
+[2025-12-01 05:22:00] INFO: Forecast: 12 hours (fresh) | Next: -9.6°C
+[2025-12-01 05:22:03] INFO: Displaying Forecast: Current -12°C → Next: -10°C, -8°C (1 min) [Fresh]
+[2025-12-01 05:23:05] INFO: Displaying Weather: Cloudy, -12°C (4 min)
+[2025-12-01 05:27:08] INFO: Chart: CRM +1.05% ($230.54) with 26 data points (cached)
+[2025-12-01 05:27:39] INFO: Cycle #25 complete in 5.67 min | UT: 02:21:54 | Mem: 17.1% | API: Total=55/350, Current=25, Forecast=9, Stocks=21/800
+
+[2025-12-01 05:27:39] INFO: ## CYCLE 26 ##
+[2025-12-01 05:27:40] INFO: Weather: Mostly cloudy, -6.6°C
+[2025-12-01 05:27:41] INFO: Displaying Forecast: Current -7°C → Next: -10°C, -8°C (1 min) [Cached]
+[2025-12-01 05:28:43] INFO: Displaying Weather: Mostly cloudy, -7°C (4 min)
+[2025-12-01 05:32:44] INFO: Stocks (3/4): SPY +0.55%, SOXQ +1.69%, IBIT +1.02% (cached)
+[2025-12-01 05:33:17] INFO: Cycle #26 complete in 5.62 min | UT: 02:27:31 | Mem: 14.9% | API: Total=56/350, Current=26, Forecast=9, Stocks=21/800
+
+[2025-12-01 05:33:17] INFO: ## CYCLE 27 ##
+[2025-12-01 05:33:17] INFO: Weather: Mostly cloudy, -6.6°C
+[2025-12-01 05:33:18] INFO: Displaying Forecast: Current -7°C → Next: -10°C, -8°C (1 min) [Cached]
+[2025-12-01 05:34:20] INFO: Displaying Weather: Mostly cloudy, -7°C (4 min)
+[2025-12-01 05:38:21] INFO: Chart: FDIG +4.10% ($44.95) with 26 data points (cached)
+[2025-12-01 05:38:52] INFO: Cycle #27 complete in 5.59 min | UT: 02:33:07 | Mem: 15.1% | API: Total=57/350, Current=27, Forecast=9, Stocks=21/800
+
+[2025-12-01 05:38:52] INFO: ## CYCLE 28 ##
+[2025-12-01 05:38:52] INFO: Weather: Mostly cloudy, -7.1°C
+[2025-12-01 05:38:53] INFO: Forecast: 12 hours (fresh) | Next: -9.6°C
+[2025-12-01 05:38:56] INFO: Displaying Forecast: Current -7°C → Next: -10°C, -8°C (1 min) [Fresh]
+[2025-12-01 05:39:57] INFO: Displaying Weather: Mostly cloudy, -7°C (4 min)
+[2025-12-01 05:43:58] INFO: Stocks (3/4): MXN 18.28, EUR 21.24, CAD 13.07 (cached)
+[2025-12-01 05:44:31] INFO: Cycle #28 complete in 5.66 min | UT: 02:38:46 | Mem: 17.0% | API: Total=59/350, Current=28, Forecast=10, Stocks=21/800
+
+[2025-12-01 05:44:31] INFO: ## CYCLE 29 ##
+[2025-12-01 05:44:32] INFO: Weather: Mostly cloudy, -7.1°C
+[2025-12-01 05:44:33] INFO: Displaying Forecast: Current -7°C → Next: -10°C, -8°C (1 min) [Cached]
+[2025-12-01 05:45:34] INFO: Displaying Weather: Mostly cloudy, -7°C (4 min)
+[2025-12-01 05:49:36] INFO: Chart: LUMN +0.25% ($8.11) with 26 data points (cached)
+[2025-12-01 05:50:07] INFO: Cycle #29 complete in 5.59 min | UT: 02:44:21 | Mem: 15.1% | API: Total=60/350, Current=29, Forecast=10, Stocks=21/800
+
+[2025-12-01 05:50:07] INFO: ## CYCLE 30 ##
+[2025-12-01 05:50:07] INFO: Weather: Mostly cloudy, -5.7°C
+[2025-12-01 05:50:09] INFO: Displaying Forecast: Current -6°C → Next: -10°C, -8°C (1 min) [Cached]
+[2025-12-01 05:51:10] INFO: Displaying Weather: Mostly cloudy, -6°C (4 min)
+[2025-12-01 05:55:12] INFO: Stocks (3/4): ETH 2,837, XAU 4,249, GBP 24.18 (cached)
+[2025-12-01 05:55:45] INFO: Cycle #30 complete in 5.63 min | UT: 02:50:00 | Mem: 15.0% | API: Total=61/350, Current=30, Forecast=10, Stocks=21/800
+
+[2025-12-01 05:55:45] INFO: ## CYCLE 31 ##
+[2025-12-01 05:55:45] INFO: Weather: Mostly cloudy, -5.7°C
+[2025-12-01 05:55:46] INFO: Forecast: 12 hours (fresh) | Next: -15.0°C
+[2025-12-01 05:55:49] INFO: Displaying Forecast: Current -6°C → Next: -15°C, -13°C (1 min) [Fresh]
+[2025-12-01 05:56:51] INFO: Displaying Weather: Mostly cloudy, -6°C (4 min)
+[2025-12-01 06:00:53] INFO: Chart: BTC -4.11% ($86,659) with 26 data points (cached)
+[2025-12-01 06:01:25] INFO: Cycle #31 complete in 5.67 min | UT: 02:55:40 | Mem: 17.2% | API: Total=63/350, Current=31, Forecast=11, Stocks=21/800
+
+[2025-12-01 06:01:25] INFO: ## CYCLE 32 ##
+[2025-12-01 06:01:25] INFO: Weather: Mostly cloudy, -6.2°C
+[2025-12-01 06:01:27] INFO: Displaying Forecast: Current -6°C → Next: -15°C, -13°C (1 min) [Cached]
+[2025-12-01 06:02:28] INFO: Displaying Weather: Mostly cloudy, -6°C (4 min)
+[2025-12-01 06:06:29] INFO: Stocks (3/4): AAPL +0.47%, GOOGL +0.07%, NVDA -1.81% (cached)
+[2025-12-01 06:07:01] INFO: Cycle #32 complete in 5.60 min | UT: 03:01:16 | Mem: 14.9% | API: Total=64/350, Current=32, Forecast=11, Stocks=21/800
+
+[2025-12-01 06:07:01] INFO: ## CYCLE 33 ##
+[2025-12-01 06:07:01] INFO: Weather: Mostly cloudy, -6.2°C
+[2025-12-01 06:07:03] INFO: Displaying Forecast: Current -6°C → Next: -15°C, -13°C (1 min) [Cached]
+[2025-12-01 06:08:04] INFO: Displaying Weather: Mostly cloudy, -6°C (4 min)
+[2025-12-01 06:12:06] INFO: Chart: CRM +1.05% ($230.54) with 26 data points (cached)
+[2025-12-01 06:12:37] INFO: Cycle #33 complete in 5.60 min | UT: 03:06:51 | Mem: 15.1% | API: Total=65/350, Current=33, Forecast=11, Stocks=21/800
+
+[2025-12-01 06:12:37] INFO: ## CYCLE 34 ##
+[2025-12-01 06:12:37] INFO: Weather: Freezing fog, -6.2°C
+[2025-12-01 06:12:38] INFO: Forecast: 12 hours (fresh) | Next: -9.8°C
+[2025-12-01 06:12:41] INFO: Displaying Forecast: Current -6°C → Next: -10°C, -9°C (1 min) [Fresh]
+[2025-12-01 06:13:43] INFO: Displaying Weather: Freezing fog, -6°C (4 min)
+[2025-12-01 06:17:44] INFO: Stocks (3/4): SPY +0.55%, SOXQ +1.69%, IBIT +1.02% (cached)
+[2025-12-01 06:18:18] INFO: Cycle #34 complete in 5.68 min | UT: 03:12:32 | Mem: 17.5% | API: Total=67/350, Current=34, Forecast=12, Stocks=21/800
+
+[2025-12-01 06:18:18] INFO: ## CYCLE 35 ##
+[2025-12-01 06:18:18] INFO: Weather: Freezing fog, -6.2°C
+[2025-12-01 06:18:20] INFO: Displaying Forecast: Current -6°C → Next: -10°C, -9°C (1 min) [Cached]
+[2025-12-01 06:19:21] INFO: Displaying Weather: Freezing fog, -6°C (4 min)
+[2025-12-01 06:23:23] INFO: Chart: FDIG +4.10% ($44.95) with 26 data points (cached)
+[2025-12-01 06:23:54] INFO: Cycle #35 complete in 5.61 min | UT: 03:18:09 | Mem: 15.6% | API: Total=68/350, Current=35, Forecast=12, Stocks=21/800
+
+[2025-12-01 06:23:54] INFO: ## CYCLE 36 ##
+[2025-12-01 06:23:55] INFO: Weather: Mostly cloudy, -5.7°C
+[2025-12-01 06:23:56] INFO: Displaying Forecast: Current -6°C → Next: -10°C, -9°C (1 min) [Cached]
+[2025-12-01 06:24:57] INFO: Displaying Weather: Mostly cloudy, -6°C (4 min)
+[2025-12-01 06:28:58] INFO: Stocks (3/4): MXN 18.28, EUR 21.24, CAD 13.07 (cached)
+[2025-12-01 06:29:31] INFO: Cycle #36 complete in 5.61 min | UT: 03:23:46 | Mem: 15.5% | API: Total=69/350, Current=36, Forecast=12, Stocks=21/800
+
+[2025-12-01 06:29:31] INFO: ## CYCLE 37 ##
+[2025-12-01 06:29:31] INFO: Weather: Mostly cloudy, -5.7°C
+[2025-12-01 06:29:32] INFO: Forecast: 12 hours (fresh) | Next: -9.8°C
+[2025-12-01 06:29:35] INFO: Displaying Forecast: Current -6°C → Next: -10°C, -9°C (1 min) [Fresh]
+[2025-12-01 06:30:37] INFO: Displaying Weather: Mostly cloudy, -6°C (4 min)
+[2025-12-01 06:34:39] INFO: Chart: LUMN +0.25% ($8.11) with 26 data points (cached)
+[2025-12-01 06:35:10] INFO: Cycle #37 complete in 5.66 min | UT: 03:29:25 | Mem: 17.7% | API: Total=71/350, Current=37, Forecast=13, Stocks=21/800
+
+[2025-12-01 06:35:10] INFO: ## CYCLE 38 ##
+[2025-12-01 06:35:11] INFO: Weather: Mostly cloudy, -5.7°C
+[2025-12-01 06:35:13] INFO: Displaying Forecast: Current -6°C → Next: -10°C, -9°C (1 min) [Cached]
+[2025-12-01 06:36:14] INFO: Displaying Weather: Mostly cloudy, -6°C (4 min)
+[2025-12-01 06:40:14] INFO: Stocks (3/4): ETH 2,837, XAU 4,249, GBP 24.18 (cached)
+[2025-12-01 06:40:47] INFO: Cycle #38 complete in 5.60 min | UT: 03:35:01 | Mem: 15.5% | API: Total=72/350, Current=38, Forecast=13, Stocks=21/800
+
+[2025-12-01 06:40:47] INFO: ## CYCLE 39 ##
+[2025-12-01 06:40:47] INFO: Weather: Mostly cloudy, -5.7°C
+[2025-12-01 06:40:49] INFO: Displaying Forecast: Current -6°C → Next: -10°C, -9°C (1 min) [Cached]
+[2025-12-01 06:41:50] INFO: Displaying Weather: Mostly cloudy, -6°C (4 min)
+[2025-12-01 06:45:52] INFO: Chart: BTC -4.11% ($86,659) with 26 data points (cached)
+[2025-12-01 06:46:23] INFO: Cycle #39 complete in 5.60 min | UT: 03:40:38 | Mem: 15.6% | API: Total=73/350, Current=39, Forecast=13, Stocks=21/800
+
+[2025-12-01 06:46:23] INFO: ## CYCLE 40 ##
+[2025-12-01 06:46:23] INFO: Weather: Mostly cloudy, -4.6°C
+[2025-12-01 06:46:24] INFO: Forecast: 12 hours (fresh) | Next: -9.8°C
+[2025-12-01 06:46:27] INFO: Displaying Forecast: Current -5°C → Next: -10°C, -9°C (1 min) [Fresh]
+[2025-12-01 06:47:30] INFO: Displaying Weather: Mostly cloudy, -5°C (4 min)
+[2025-12-01 06:51:30] INFO: Stocks (3/4): AAPL +0.47%, GOOGL +0.07%, NVDA -1.81% (cached)
+[2025-12-01 06:52:04] INFO: Cycle #40 complete in 5.69 min | UT: 03:46:19 | Mem: 17.5% | API: Total=75/350, Current=40, Forecast=14, Stocks=21/800
+
+[2025-12-01 06:52:04] INFO: ## CYCLE 41 ##
+[2025-12-01 06:52:05] INFO: Weather: Mostly cloudy, -4.6°C
+[2025-12-01 06:52:06] INFO: Displaying Forecast: Current -5°C → Next: -10°C, -9°C (1 min) [Cached]
+[2025-12-01 06:53:08] INFO: Displaying Weather: Mostly cloudy, -5°C (4 min)
+[2025-12-01 06:57:10] INFO: Chart: CRM +1.05% ($230.54) with 26 data points (cached)
+[2025-12-01 06:57:41] INFO: Cycle #41 complete in 5.61 min | UT: 03:51:56 | Mem: 15.6% | API: Total=76/350, Current=41, Forecast=14, Stocks=21/800
+
+[2025-12-01 06:57:41] INFO: ## CYCLE 42 ##
+[2025-12-01 06:57:41] INFO: Weather: Mostly cloudy, -4.5°C
+[2025-12-01 06:57:43] INFO: Displaying Forecast: Current -4°C → Next: -10°C, -9°C (1 min) [Cached]
+[2025-12-01 06:58:45] INFO: Displaying Weather: Mostly cloudy, -4°C (4 min)
+[2025-12-01 07:02:46] INFO: Stocks (3/4): SPY +0.55%, SOXQ +1.69%, IBIT +1.02% (cached)
+[2025-12-01 07:03:19] INFO: Cycle #42 complete in 5.63 min | UT: 03:57:33 | Mem: 15.4% | API: Total=77/350, Current=42, Forecast=14, Stocks=21/800
+
+[2025-12-01 07:03:19] INFO: ## CYCLE 43 ##
+[2025-12-01 07:03:19] INFO: Weather: Mostly cloudy, -4.1°C
+[2025-12-01 07:03:20] INFO: Forecast: 12 hours (fresh) | Next: -10.2°C
+[2025-12-01 07:03:23] INFO: Displaying Forecast: Current -4°C → Next: -10°C, -9°C (1 min) [Fresh]
+[2025-12-01 07:04:25] INFO: Displaying Weather: Mostly cloudy, -4°C (4 min)
+[2025-12-01 07:08:30] INFO: Chart: FDIG +4.10% ($44.95) with 26 data points (cached)
+[2025-12-01 07:09:01] INFO: Cycle #43 complete in 5.71 min | UT: 04:03:16 | Mem: 17.7% | API: Total=79/350, Current=43, Forecast=15, Stocks=21/800
+
+[2025-12-01 07:09:01] INFO: ## CYCLE 44 ##
+[2025-12-01 07:09:02] INFO: Weather: Mostly cloudy, -4.1°C
+[2025-12-01 07:09:03] INFO: Displaying Forecast: Current -4°C → Next: -10°C, -9°C (1 min) [Cached]
+[2025-12-01 07:10:05] INFO: Displaying Weather: Mostly cloudy, -4°C (4 min)
+[2025-12-01 07:14:06] INFO: Stocks (3/4): MXN 18.28, EUR 21.24, CAD 13.07 (cached)
+[2025-12-01 07:14:39] INFO: Cycle #44 complete in 5.63 min | UT: 04:08:54 | Mem: 15.5% | API: Total=80/350, Current=44, Forecast=15, Stocks=21/800
+
+[2025-12-01 07:14:39] INFO: ## CYCLE 45 ##
+[2025-12-01 07:14:39] INFO: Weather: Mostly cloudy, -6.5°C
+[2025-12-01 07:14:41] INFO: Displaying Forecast: Current -6°C → Next: -10°C, -9°C (1 min) [Cached]
+[2025-12-01 07:15:43] INFO: Displaying Weather: Mostly cloudy, -6°C (4 min)
+[2025-12-01 07:19:45] INFO: Chart: LUMN +0.25% ($8.11) with 26 data points (cached)
+[2025-12-01 07:20:16] INFO: Cycle #45 complete in 5.61 min | UT: 04:14:30 | Mem: 16.2% | API: Total=81/350, Current=45, Forecast=15, Stocks=21/800
+
+[2025-12-01 07:20:16] INFO: ## CYCLE 46 ##
+[2025-12-01 07:20:16] INFO: Weather: Mostly cloudy, -6.5°C
+[2025-12-01 07:20:17] INFO: Forecast: 12 hours (fresh) | Next: -10.2°C
+[2025-12-01 07:20:20] INFO: Displaying Forecast: Current -6°C → Next: -10°C, -9°C (1 min) [Fresh]
+[2025-12-01 07:21:22] INFO: Displaying Weather: Mostly cloudy, -6°C (4 min)
+[2025-12-01 07:25:23] INFO: Stocks (3/4): ETH 2,837, XAU 4,249, GBP 24.18 (cached)
+[2025-12-01 07:25:57] INFO: Cycle #46 complete in 5.69 min | UT: 04:20:12 | Mem: 18.1% | API: Total=83/350, Current=46, Forecast=16, Stocks=21/800
+
+[2025-12-01 07:25:57] INFO: ## CYCLE 47 ##
+[2025-12-01 07:25:58] INFO: Weather: Cloudy, -6.8°C
+[2025-12-01 07:25:59] INFO: Displaying Forecast: Current -7°C → Next: -10°C, -9°C (1 min) [Cached]
+[2025-12-01 07:27:01] INFO: Displaying Weather: Cloudy, -7°C (4 min)
+[2025-12-01 07:31:03] INFO: Chart: BTC -4.11% ($86,659) with 26 data points (cached)
+[2025-12-01 07:31:34] INFO: Cycle #47 complete in 5.61 min | UT: 04:25:49 | Mem: 16.2% | API: Total=84/350, Current=47, Forecast=16, Stocks=21/800
+
+[2025-12-01 07:31:34] INFO: ## CYCLE 48 ##
+[2025-12-01 07:31:34] INFO: Weather: Cloudy, -6.8°C
+[2025-12-01 07:31:36] INFO: Displaying Forecast: Current -7°C → Next: -10°C, -9°C (1 min) [Cached]
+[2025-12-01 07:32:37] INFO: Displaying Weather: Cloudy, -7°C (4 min)
+[2025-12-01 07:36:38] INFO: Stocks (3/4): AAPL +0.47%, GOOGL +0.07%, NVDA -1.81% (cached)
+[2025-12-01 07:37:10] INFO: Cycle #48 complete in 5.61 min | UT: 04:31:25 | Mem: 16.0% | API: Total=85/350, Current=48, Forecast=16, Stocks=21/800
+
+[2025-12-01 07:37:10] INFO: ## CYCLE 49 ##
+[2025-12-01 07:37:11] INFO: Weather: Cloudy, -4.0°C
+[2025-12-01 07:37:12] INFO: Forecast: 12 hours (fresh) | Next: -9.4°C
+[2025-12-01 07:37:15] INFO: Displaying Forecast: Current -4°C → Next: -9°C, -9°C (1 min) [Fresh]
+[2025-12-01 07:38:17] INFO: Displaying Weather: Cloudy, -4°C (4 min)
+[2025-12-01 07:42:20] INFO: Chart: CRM +1.05% ($230.54) with 26 data points (cached)
+[2025-12-01 07:42:51] INFO: Cycle #49 complete in 5.68 min | UT: 04:37:06 | Mem: 18.3% | API: Total=87/350, Current=49, Forecast=17, Stocks=21/800
+
+[2025-12-01 07:42:51] INFO: ## CYCLE 50 ##
+[2025-12-01 07:42:52] INFO: Weather: Cloudy, -4.0°C
+[2025-12-01 07:42:53] INFO: Displaying Forecast: Current -4°C → Next: -9°C, -9°C (1 min) [Cached]
+[2025-12-01 07:43:55] INFO: Displaying Weather: Cloudy, -4°C (4 min)
+[2025-12-01 07:47:56] INFO: Stocks (3/4): SPY +0.55%, SOXQ +1.69%, IBIT +1.02% (cached)
+[2025-12-01 07:48:29] INFO: Cycle #50 complete in 5.62 min | UT: 04:42:43 | Mem: 16.0% | API: Total=88/350, Current=50, Forecast=17, Stocks=21/800
+
+[2025-12-01 07:48:29] INFO: ## CYCLE 51 ##
+[2025-12-01 07:48:29] INFO: Weather: Mostly cloudy, -4.4°C
+[2025-12-01 07:48:31] INFO: Displaying Forecast: Current -4°C → Next: -9°C, -9°C (1 min) [Cached]
+[2025-12-01 07:49:32] INFO: Displaying Weather: Mostly cloudy, -4°C (4 min)
+[2025-12-01 07:53:34] INFO: Chart: FDIG +4.10% ($44.95) with 26 data points (cached)
+[2025-12-01 07:54:05] INFO: Cycle #51 complete in 5.61 min | UT: 04:48:20 | Mem: 16.2% | API: Total=89/350, Current=51, Forecast=17, Stocks=21/800
+
+[2025-12-01 07:54:05] INFO: ## CYCLE 52 ##
+[2025-12-01 07:54:05] INFO: Weather: Mostly cloudy, -4.4°C
+[2025-12-01 07:54:06] INFO: Forecast: 12 hours (fresh) | Next: -9.4°C
+[2025-12-01 07:54:09] INFO: Displaying Forecast: Current -4°C → Next: -9°C, -9°C (1 min) [Fresh]
+[2025-12-01 07:55:11] INFO: Displaying Weather: Mostly cloudy, -4°C (4 min)
+[2025-12-01 07:59:12] INFO: Stocks (3/4): MXN 18.28, EUR 21.24, CAD 13.07 (cached)
+[2025-12-01 07:59:46] INFO: Cycle #52 complete in 5.68 min | UT: 04:54:01 | Mem: 18.1% | API: Total=91/350, Current=52, Forecast=18, Stocks=21/800
+
+[2025-12-01 07:59:46] INFO: ## CYCLE 53 ##
+[2025-12-01 07:59:46] INFO: Weather: Mostly cloudy, -7.3°C
+[2025-12-01 07:59:48] INFO: Displaying Forecast: Current -7°C → Next: -9°C, -9°C (1 min) [Cached]
+[2025-12-01 08:00:50] INFO: Displaying Weather: Mostly cloudy, -7°C (4 min)
+[2025-12-01 08:04:52] INFO: Chart: LUMN +0.25% ($8.11) with 26 data points (cached)
+[2025-12-01 08:05:23] INFO: Cycle #53 complete in 5.62 min | UT: 04:59:38 | Mem: 16.2% | API: Total=92/350, Current=53, Forecast=18, Stocks=21/800
+
+[2025-12-01 08:05:23] INFO: ## CYCLE 54 ##
+[2025-12-01 08:05:23] INFO: Weather: Mostly cloudy, -7.3°C
+[2025-12-01 08:05:25] INFO: Displaying Forecast: Current -7°C → Next: -9°C, -9°C (1 min) [Cached]
+[2025-12-01 08:06:27] INFO: Displaying Weather: Mostly cloudy, -7°C (4 min)
+[2025-12-01 08:10:27] INFO: Stocks (3/4): ETH 2,837, XAU 4,249, GBP 24.18 (cached)
+[2025-12-01 08:11:00] INFO: Cycle #54 complete in 5.62 min | UT: 05:05:15 | Mem: 16.0% | API: Total=93/350, Current=54, Forecast=18, Stocks=21/800
+
+[2025-12-01 08:11:00] INFO: ## CYCLE 55 ##
+[2025-12-01 08:11:01] INFO: Weather: Mostly cloudy, -2.6°C
+[2025-12-01 08:11:02] INFO: Forecast: 12 hours (fresh) | Next: -8.7°C
+[2025-12-01 08:11:05] INFO: Displaying Forecast: Current -3°C → Next: -9°C, -8°C (1 min) [Fresh]
+[2025-12-01 08:12:07] INFO: Displaying Weather: Mostly cloudy, -3°C (4 min)
+[2025-12-01 08:16:09] INFO: Chart: BTC -4.11% ($86,659) with 26 data points (cached)
+[2025-12-01 08:16:41] INFO: Cycle #55 complete in 5.67 min | UT: 05:10:55 | Mem: 18.3% | API: Total=95/350, Current=55, Forecast=19, Stocks=21/800
+
+[2025-12-01 08:16:41] INFO: ## CYCLE 56 ##
+[2025-12-01 08:16:41] INFO: Weather: Mostly cloudy, -2.6°C
+[2025-12-01 08:16:43] INFO: Displaying Forecast: Current -3°C → Next: -9°C, -8°C (1 min) [Cached]
+[2025-12-01 08:17:44] INFO: Displaying Weather: Mostly cloudy, -3°C (4 min)
+[2025-12-01 08:21:45] INFO: Stocks (3/4): AAPL +0.47%, GOOGL +0.07%, NVDA -1.81% (cached)
+[2025-12-01 08:22:18] INFO: Cycle #56 complete in 5.62 min | UT: 05:16:32 | Mem: 16.0% | API: Total=96/350, Current=56, Forecast=19, Stocks=21/800
+
+[2025-12-01 08:22:18] INFO: ## CYCLE 57 ##
+[2025-12-01 08:22:18] INFO: Weather: Mostly sunny, -2.3°C
+[2025-12-01 08:22:20] INFO: Displaying Forecast: Current -2°C → Next: -9°C, -8°C (1 min) [Cached]
+[2025-12-01 08:23:22] INFO: Displaying Weather: Mostly sunny, -2°C (4 min)
+[2025-12-01 08:27:24] INFO: Chart: CRM +1.05% ($230.54) with 26 data points (cached)
+[2025-12-01 08:27:55] INFO: Cycle #57 complete in 5.63 min | UT: 05:22:10 | Mem: 16.7% | API: Total=97/350, Current=57, Forecast=19, Stocks=21/800
+
+[2025-12-01 08:27:55] INFO: ## CYCLE 58 ##
+[2025-12-01 08:27:56] INFO: Weather: Mostly sunny, -2.3°C
+[2025-12-01 08:27:57] INFO: Forecast: 12 hours (fresh) | Next: -8.7°C
+[2025-12-01 08:28:00] INFO: Displaying Forecast: Current -2°C → Next: -9°C, -8°C (1 min) [Fresh]
+[2025-12-01 08:29:02] INFO: Displaying Weather: Mostly sunny, -2°C (4 min)
+[2025-12-01 08:33:03] INFO: Stocks (3/4): SPY +0.55%, SOXQ +1.69%, IBIT +1.02% (cached)
+[2025-12-01 08:33:37] INFO: Cycle #58 complete in 5.70 min | UT: 05:27:52 | Mem: 18.6% | API: Total=99/350, Current=58, Forecast=20, Stocks=21/800
+
+[2025-12-01 08:33:37] INFO: ## CYCLE 59 ##
+[2025-12-01 08:33:39] INFO: Weather: Mostly sunny, -1.9°C
+[2025-12-01 08:33:41] INFO: Displaying Forecast: Current -2°C → Next: -9°C, -8°C (1 min) [Cached]
+[2025-12-01 08:34:42] INFO: Displaying Weather: Mostly sunny, -2°C (4 min)
+[2025-12-01 08:38:46] INFO: Chart: FDIG +4.10% ($44.95) with 26 data points (cached)
+[2025-12-01 08:39:17] INFO: Cycle #59 complete in 5.66 min | UT: 05:33:32 | Mem: 16.7% | API: Total=100/350, Current=59, Forecast=20, Stocks=21/800
+
+[2025-12-01 08:39:17] INFO: ## CYCLE 60 ##
+[2025-12-01 08:39:18] INFO: Weather: Mostly sunny, -1.9°C
+[2025-12-01 08:39:19] INFO: Displaying Forecast: Current -2°C → Next: -9°C, -8°C (1 min) [Cached]
+[2025-12-01 08:40:21] INFO: Displaying Weather: Mostly sunny, -2°C (4 min)
+[2025-12-01 08:44:22] INFO: Stocks (3/4): MXN 18.28, EUR 21.24, CAD 13.07 (cached)
+[2025-12-01 08:44:55] INFO: Cycle #60 complete in 5.62 min | UT: 05:39:09 | Mem: 16.6% | API: Total=101/350, Current=60, Forecast=20, Stocks=21/800
+
+[2025-12-01 08:44:55] INFO: ## CYCLE 61 ##
+[2025-12-01 08:44:55] INFO: Weather: Mostly cloudy, -1.0°C
+[2025-12-01 08:44:56] INFO: Forecast: 12 hours (fresh) | Next: -6.5°C
+[2025-12-01 08:44:59] INFO: Displaying Forecast: Current -1°C → Next: -6°C, -7°C (1 min) [Fresh]
+[2025-12-01 08:46:02] INFO: Displaying Weather: Mostly cloudy, -1°C (4 min)
+[2025-12-01 08:50:08] INFO: Chart: LUMN +0.25% ($8.11) with 26 data points (cached)
+[2025-12-01 08:50:40] INFO: Cycle #61 complete in 5.75 min | UT: 05:44:54 | Mem: 18.8% | API: Total=103/350, Current=61, Forecast=21, Stocks=21/800
+
+[2025-12-01 08:50:40] INFO: ## CYCLE 62 ##
+[2025-12-01 08:50:40] INFO: Weather: Mostly cloudy, -1.0°C
+[2025-12-01 08:50:42] INFO: Displaying Forecast: Current -1°C → Next: -6°C, -7°C (1 min) [Cached]
+[2025-12-01 08:51:43] INFO: Displaying Weather: Mostly cloudy, -1°C (4 min)
+[2025-12-01 08:55:44] INFO: Stocks (3/4): ETH 2,837, XAU 4,249, GBP 24.18 (cached)
+[2025-12-01 08:56:17] INFO: Cycle #62 complete in 5.62 min | UT: 05:50:32 | Mem: 16.6% | API: Total=104/350, Current=62, Forecast=21, Stocks=21/800
+
+[2025-12-01 08:56:17] INFO: ## CYCLE 63 ##
+[2025-12-01 08:56:17] INFO: Weather: Mostly cloudy, -1.2°C
+[2025-12-01 08:56:19] INFO: Displaying Forecast: Current -1°C → Next: -6°C, -7°C (1 min) [Cached]
+[2025-12-01 08:57:21] INFO: Displaying Weather: Mostly cloudy, -1°C (4 min)
+[2025-12-01 09:01:23] INFO: Chart: BTC -4.11% ($86,659) with 26 data points (cached)
+[2025-12-01 09:01:54] INFO: Cycle #63 complete in 5.61 min | UT: 05:56:09 | Mem: 16.7% | API: Total=105/350, Current=63, Forecast=21, Stocks=21/800
+
+[2025-12-01 09:01:54] INFO: ## CYCLE 64 ##
+[2025-12-01 09:01:54] INFO: Weather: Mostly cloudy, -1.2°C
+[2025-12-01 09:01:55] INFO: Forecast: 12 hours (fresh) | Next: -6.0°C
+[2025-12-01 09:01:59] INFO: Displaying Forecast: Current -1°C → Next: -6°C, -6°C (1 min) [Fresh]
+[2025-12-01 09:03:01] INFO: Displaying Weather: Mostly cloudy, -1°C (4 min)
+[2025-12-01 09:07:01] INFO: Stocks (3/4): AAPL +0.47%, GOOGL +0.07%, NVDA -1.81% (cached)
+[2025-12-01 09:07:36] INFO: Cycle #64 complete in 5.70 min | UT: 06:01:50 | Mem: 18.6% | API: Total=107/350, Current=64, Forecast=22, Stocks=21/800
+
+[2025-12-01 09:07:36] INFO: ## CYCLE 65 ##
+[2025-12-01 09:07:36] INFO: Weather: Mostly cloudy, -1.2°C
+[2025-12-01 09:07:38] INFO: Displaying Forecast: Current -1°C → Next: -6°C, -6°C (1 min) [Cached]
+[2025-12-01 09:08:39] INFO: Displaying Weather: Mostly cloudy, -1°C (4 min)
+[2025-12-01 09:12:41] INFO: Chart: CRM +1.05% ($230.54) with 26 data points (cached)
+[2025-12-01 09:13:12] INFO: Cycle #65 complete in 5.60 min | UT: 06:07:26 | Mem: 16.7% | API: Total=108/350, Current=65, Forecast=22, Stocks=21/800
+
+[2025-12-01 09:13:12] INFO: ## CYCLE 66 ##
+[2025-12-01 09:13:12] INFO: Weather: Mostly cloudy, 0.0°C
+[2025-12-01 09:13:14] INFO: Displaying Forecast: Current 0°C → Next: -6°C, -6°C (1 min) [Cached]
+[2025-12-01 09:14:15] INFO: Displaying Weather: Mostly cloudy, 0°C (4 min)
+[2025-12-01 09:18:16] INFO: Stocks (3/4): SPY +0.55%, SOXQ +1.69%, IBIT +1.02% (cached)
+[2025-12-01 09:18:49] INFO: Cycle #66 complete in 5.62 min | UT: 06:13:03 | Mem: 16.5% | API: Total=109/350, Current=66, Forecast=22, Stocks=21/800
+
+[2025-12-01 09:18:49] INFO: ## CYCLE 67 ##
+[2025-12-01 09:18:49] INFO: Weather: Mostly cloudy, 0.0°C
+[2025-12-01 09:18:50] INFO: Forecast: 12 hours (fresh) | Next: -6.0°C
+[2025-12-01 09:18:53] INFO: Displaying Forecast: Current 0°C → Next: -6°C, -6°C (1 min) [Fresh]
+[2025-12-01 09:19:56] INFO: Displaying Weather: Mostly cloudy, 0°C (4 min)
+[2025-12-01 09:23:58] INFO: Chart: FDIG +4.10% ($44.95) with 26 data points (cached)
+[2025-12-01 09:24:30] INFO: Cycle #67 complete in 5.68 min | UT: 06:18:44 | Mem: 18.8% | API: Total=111/350, Current=67, Forecast=23, Stocks=21/800
+
+[2025-12-01 09:24:30] INFO: ## CYCLE 68 ##
+[2025-12-01 09:24:30] INFO: Weather: Cloudy, -0.4°C
+[2025-12-01 09:24:32] INFO: Displaying Forecast: Current 0°C → Next: -6°C, -6°C (1 min) [Cached]
+[2025-12-01 09:25:33] INFO: Displaying Weather: Cloudy, 0°C (4 min)
+[2025-12-01 09:29:34] INFO: Stocks (3/4): MXN 18.28, EUR 21.24, CAD 13.07 (cached)
+[2025-12-01 09:30:26] INFO: Transit: Brn/Ppl=2, Red=2, Bus8=1
+[2025-12-01 09:30:57] INFO: Cycle #68 complete in 6.45 min | UT: 06:25:11 | Mem: 16.2% | API: Total=112/350, Current=68, Forecast=23, Stocks=21/800
+
+[2025-12-01 09:30:57] INFO: ## CYCLE 69 ##
+[2025-12-01 09:30:57] INFO: Weather: Cloudy, -0.4°C
+[2025-12-01 09:30:59] INFO: Displaying Forecast: Current 0°C → Next: -6°C, -6°C (1 min) [Cached]
+[2025-12-01 09:32:00] INFO: Displaying Weather: Cloudy, 0°C (4 min)
+[2025-12-01 09:36:02] INFO: Chart: LUMN +0.25% ($8.11) with 26 data points (cached)
+[2025-12-01 09:36:36] INFO: Transit: Brn/Ppl=2, Red=2, Bus8=1
+[2025-12-01 09:37:07] INFO: Cycle #69 complete in 6.18 min | UT: 06:31:22 | Mem: 16.2% | API: Total=113/350, Current=69, Forecast=23, Stocks=21/800
+
+[2025-12-01 09:37:07] INFO: ## CYCLE 70 ##
+[2025-12-01 09:37:08] INFO: Weather: Cloudy, -0.5°C
+[2025-12-01 09:37:09] INFO: Forecast: 12 hours (fresh) | Next: -5.9°C
+[2025-12-01 09:37:12] INFO: Displaying Forecast: Current 0°C → Next: -6°C, -6°C (1 min) [Fresh]
+[2025-12-01 09:38:14] INFO: Displaying Weather: Cloudy, 0°C (4 min)
+[2025-12-01 09:41:42] INFO: Program interrupted by user
