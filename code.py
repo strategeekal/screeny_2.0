@@ -4281,15 +4281,24 @@ def show_stocks_display(duration, offset, rtc):
 					market_closed_detected = True
 
 			# If market closed during business hours = holiday, cache for the day
+			# IMPORTANT: Only cache as holiday if we're actually IN market hours (9:30 AM - 4:00 PM ET)
+			# Otherwise this will false-trigger before market open or after close
 			if market_closed_detected:
-				today = f"{rtc.datetime.tm_year:04d}-{rtc.datetime.tm_mon:02d}-{rtc.datetime.tm_mday:02d}"
-				state.market_holiday_date = today
-				log_info(f"Market holiday detected and cached: {today}")
-				# Only skip display if respecting market hours
-				if display_config.stocks_respect_market_hours:
-					return (False, offset)
+				# Check if we're in market hours using actual market hours function
+				now_in_market_hours, _, _ = is_market_hours_or_cache_valid(rtc.datetime, False)
+				if now_in_market_hours:
+					# Market should be open but API says closed = actual holiday
+					today = f"{rtc.datetime.tm_year:04d}-{rtc.datetime.tm_mon:02d}-{rtc.datetime.tm_mday:02d}"
+					state.market_holiday_date = today
+					log_info(f"Market holiday detected and cached: {today}")
+					# Only skip display if respecting market hours
+					if display_config.stocks_respect_market_hours:
+						return (False, offset)
+					else:
+						log_verbose("Holiday detected but market hours check disabled - continuing display")
 				else:
-					log_verbose("Holiday detected but market hours check disabled - continuing display")
+					# Market closed but we're outside market hours anyway - not a holiday
+					log_verbose("Market closed by API but outside market hours - not caching as holiday")
 
 			log_verbose(f"Cached {len(stock_prices)} stock prices ({reason})")
 		else:
