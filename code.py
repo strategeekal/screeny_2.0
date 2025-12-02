@@ -979,10 +979,8 @@ class WeatherDisplayState:
 		self.cached_stocks = []
 		self.cached_stock_prices = {}  # {symbol: {price, change_percent, direction, timestamp}}
 		self.last_stock_fetch_time = 0
-		self.market_holiday_date = None  # Cache holiday status (YYYY-MM-DD format)
 		self.market_hours_allowed = True  # Cached market hours check (updated each cycle to avoid stack depth)
-		self.last_market_state = None  # Track "open" or "closed" for state transitions
-		self.should_fetch_stocks = True  # Whether to fetch stock data this cycle (avoids redundant fetches when market closed)
+		self.should_fetch_stocks = True  # Whether to fetch stock data this cycle (time-based logic)
 		self.cached_intraday_data = {}  # {symbol: {data: [...], timestamp: monotonic, open_price: float}}
 		self.last_intraday_fetch_time = {}  # {symbol: monotonic_timestamp}
 
@@ -1463,7 +1461,12 @@ def is_commute_hours(local_datetime):
 
 def is_market_hours_or_cache_valid(local_datetime, has_cached_data=False):
 	"""
-	Check if US stock markets are open or if cached data is still valid.
+	Simplified market hours check using time-based logic.
+
+	Logic:
+	- Weekend: Never open, don't fetch
+	- Before 8:30 AM ET weekday: Never open, use cache
+	- After 8:30 AM ET weekday: Might be open, let API decide
 
 	Args:
 		local_datetime: RTC datetime in user's local timezone
@@ -1471,9 +1474,6 @@ def is_market_hours_or_cache_valid(local_datetime, has_cached_data=False):
 
 	Returns:
 		tuple: (should_fetch: bool, should_display: bool, reason: str)
-		- should_fetch: True if we should fetch new prices from API
-		- should_display: True if we should show stocks (fresh or cached)
-		- reason: Human-readable reason (for logging)
 	"""
 	import time
 
@@ -1481,16 +1481,10 @@ def is_market_hours_or_cache_valid(local_datetime, has_cached_data=False):
 	user_timezone = os.getenv("TIMEZONE", Strings.TIMEZONE_DEFAULT)
 
 	# Convert local time to ET
-	# First, figure out user's offset from UTC
 	user_offset = get_timezone_offset(user_timezone, local_datetime)
-
-	# Get ET offset from UTC
 	et_offset = get_timezone_offset("America/New_York", local_datetime)
-
-	# Calculate difference: how many hours to add to local time to get ET
 	offset_diff = et_offset - user_offset
 
-	# Convert local time to ET
 	et_hour = local_datetime.tm_hour + offset_diff
 	et_min = local_datetime.tm_min
 
@@ -1504,39 +1498,27 @@ def is_market_hours_or_cache_valid(local_datetime, has_cached_data=False):
 	weekday = local_datetime.tm_wday
 	is_weekday = 0 <= weekday <= 4
 
+	# WEEKEND: Never open
 	if not is_weekday:
-		return (False, False, "Weekend - markets closed")
-
-	# Convert times to minutes for easier comparison
-	current_et_minutes = et_hour * 60 + et_min
-	market_open_minutes = Timing.MARKET_OPEN_HOUR * 60 + Timing.MARKET_OPEN_MINUTE  # 9:30 AM = 570
-	market_close_minutes = Timing.MARKET_CLOSE_HOUR * 60 + Timing.MARKET_CLOSE_MINUTE  # 4:00 PM = 960
-	grace_end_minutes = market_close_minutes + Timing.MARKET_CACHE_GRACE_MINUTES  # 5:30 PM = 1050
-
-	# Check time windows
-	if current_et_minutes < market_open_minutes:
-		# Before market open
-		return (False, False, f"Before market open (ET {et_hour:02d}:{et_min:02d})")
-
-	elif market_open_minutes <= current_et_minutes < market_close_minutes:
-		# During market hours - fetch and display
-		# Clear any incorrectly cached holiday (self-correction)
-		today = f"{local_datetime.tm_year:04d}-{local_datetime.tm_mon:02d}-{local_datetime.tm_mday:02d}"
-		if state.market_holiday_date == today:
-			log_info(f"Clearing incorrect holiday cache for {today} - market is actually open")
-			state.market_holiday_date = None
-		return (True, True, f"Market open (ET {et_hour:02d}:{et_min:02d})")
-
-	elif market_close_minutes <= current_et_minutes < grace_end_minutes:
-		# After close but within grace period - use cache if available
 		if has_cached_data:
-			return (False, True, f"Market CLOSED, using cache (ET {et_hour:02d}:{et_min:02d})")
+			return (False, True, f"Weekend (cached)")
 		else:
-			return (False, False, f"After hours, no cache (ET {et_hour:02d}:{et_min:02d})")
+			return (False, False, f"Weekend (no cache)")
 
-	else:
-		# After grace period
-		return (False, False, f"Markets closed (ET {et_hour:02d}:{et_min:02d})")
+	# WEEKDAY: Time-based logic
+	current_et_minutes = et_hour * 60 + et_min
+	pre_market_cutoff = 8 * 60 + 30  # 8:30 AM ET (safety margin before 9:30 open)
+
+	# Before 8:30 AM ET: Never open yet
+	if current_et_minutes < pre_market_cutoff:
+		if has_cached_data:
+			return (False, True, f"Pre-market {et_hour:02d}:{et_min:02d} ET (cached)")
+		else:
+			return (False, False, f"Pre-market {et_hour:02d}:{et_min:02d} ET (no cache)")
+
+	# After 8:30 AM ET: Might be open, let API decide
+	# Return True to allow fetch - the API will tell us if it's actually open/closed
+	return (True, True, f"Market hours {et_hour:02d}:{et_min:02d} ET (will check API)")
 
 def cleanup_sockets():
 	"""Aggressive socket cleanup to prevent memory issues"""
@@ -2698,14 +2680,10 @@ def fetch_stock_prices(symbols_to_fetch):
 					log_warning(f"Quote missing symbol field: {str(quote)[:100]}")
 					continue
 
-				# Check market status (for holiday detection)
+				# Check market status (informational only - no more holiday detection)
 				is_market_open = quote.get("is_market_open", True)
-				if not is_market_open and state.market_holiday_date is None:
-					# Market closed on a weekday during business hours = holiday!
-					# Cache this for the rest of the day to avoid repeated API calls
-					import time
-					# Get current date from RTC (we don't have direct access here, will handle in caller)
-					log_verbose(f"Market closed detected via API (holiday or early close)")
+				if not is_market_open:
+					log_verbose(f"Market closed per API (holiday, early close, or after hours)")
 
 				# Extract price and change data
 				try:
@@ -4264,9 +4242,8 @@ def show_stocks_display(duration, offset, rtc):
 		stock_prices = fetch_stock_prices(stocks_to_fetch)
 		state.last_stock_fetch_time = time.monotonic()
 
-		# Cache the fetched prices and check for holiday
+		# Cache the fetched prices (no more holiday detection!)
 		if stock_prices:
-			market_closed_detected = False
 			for symbol, data in stock_prices.items():
 				state.cached_stock_prices[symbol] = {
 					"price": data["price"],
@@ -4275,31 +4252,8 @@ def show_stocks_display(duration, offset, rtc):
 					"open_price": data["open_price"],
 					"timestamp": time.monotonic()
 				}
-				# Check if market is closed (holiday detection)
-				if not data.get("is_market_open", True):
-					market_closed_detected = True
 
-			# If market closed during business hours = holiday, cache for the day
-			# IMPORTANT: Only cache as holiday if we're actually IN market hours (9:30 AM - 4:00 PM ET)
-			# Otherwise this will false-trigger before market open or after close
-			if market_closed_detected:
-				# Check if we're in market hours using actual market hours function
-				now_in_market_hours, _, _ = is_market_hours_or_cache_valid(rtc.datetime, False)
-				if now_in_market_hours:
-					# Market should be open but API says closed = actual holiday
-					today = f"{rtc.datetime.tm_year:04d}-{rtc.datetime.tm_mon:02d}-{rtc.datetime.tm_mday:02d}"
-					state.market_holiday_date = today
-					log_info(f"Market holiday detected and cached: {today}")
-					# Only skip display if respecting market hours
-					if display_config.stocks_respect_market_hours:
-						return (False, offset)
-					else:
-						log_verbose("Holiday detected but market hours check disabled - continuing display")
-				else:
-					# Market closed but we're outside market hours anyway - not a holiday
-					log_verbose("Market closed by API but outside market hours - not caching as holiday")
-
-			log_verbose(f"Cached {len(stock_prices)} stock prices ({reason})")
+			log_verbose(f"Cached {len(stock_prices)} stock prices")
 		else:
 			log_info("Failed to fetch stock prices, skipping display")
 			return (False, offset)
@@ -4369,7 +4323,13 @@ def show_stocks_display(duration, offset, rtc):
 		log_info(f"Stocks ({len(stocks_to_show)}/{len(stocks_to_fetch)}): {stock_details} {cache_status}")
 
 	clear_display()
-	gc.collect()	
+	gc.collect()
+
+	# Add visual cache indicator if using cached data (4 lilac pixels at top center)
+	data_is_cached = not should_fetch
+	if data_is_cached:
+		for x in range(30, 34):  # x=30-33 (4 pixels centered on 64px width)
+			state.matrix.pixel(x, 0, state.colors["LILAC"])
 
 	try:
 		# Display stocks/forex in vertical rows (2-3 items depending on buffer success)
@@ -4624,6 +4584,12 @@ def show_single_stock_chart(ticker, duration, rtc):
 	# Clear display
 	clear_display()
 	gc.collect()
+
+	# Add visual cache indicator if using cached data (4 lilac pixels at top center)
+	data_is_cached = not data_is_fresh
+	if data_is_cached:
+		for x in range(30, 34):  # x=30-33 (4 pixels centered on 64px width)
+			state.matrix.pixel(x, 0, state.colors["LILAC"])
 
 	try:
 		# Row 1: Ticker + percentage
@@ -6096,34 +6062,20 @@ def run_display_cycle(rtc, cycle_count):
 	if display_config.show_stocks:
 		has_cached_stocks = len(state.cached_stock_prices) > 0
 
-		# Always detect actual market hours for smart fetching (even in testing mode)
-		market_is_open_fetch, market_is_open_display, reason = is_market_hours_or_cache_valid(rtc.datetime, has_cached_stocks)
+		# Simplified market hours check using time-based logic
+		should_fetch, should_display, reason = is_market_hours_or_cache_valid(rtc.datetime, has_cached_stocks)
 
 		# For display: respect config setting
 		if display_config.stocks_respect_market_hours:
-			state.market_hours_allowed = market_is_open_display  # Respect market hours
+			state.market_hours_allowed = should_display  # Respect market hours
 		else:
 			state.market_hours_allowed = True  # Testing mode - always display
 
-		# For fetching: ALWAYS use actual market hours to avoid redundant API calls
-		current_state = "open" if market_is_open_fetch else "closed"
+		# For fetching: use time-based logic (no more state transitions!)
+		state.should_fetch_stocks = should_fetch
 
-		# DEBUG: Log market state detection (simplified to reduce stack depth)
-		log_info("Market state: " + current_state + " | " + reason)
-
-		# Set fetch flag based on actual market state (not config)
-		if current_state == "open":
-			state.should_fetch_stocks = True  # Market open - always fetch fresh
-			log_info("Market OPEN - will fetch fresh stock data")
-		elif state.last_market_state == "open" and current_state == "closed":
-			state.should_fetch_stocks = True  # Just closed - fetch final prices
-			log_info("Market just closed - fetching final prices for after-hours display")
-		else:
-			# Market closed - allow conditional fetching (display function checks if stocks are cached)
-			state.should_fetch_stocks = False
-			log_verbose("Market closed - display will check if stocks are cached")
-
-		state.last_market_state = current_state
+		# Log market state
+		log_info("Market: " + reason)
 
 	# Normal cycle
 	_run_normal_cycle(rtc, cycle_count, cycle_start_time)
