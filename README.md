@@ -353,13 +353,18 @@ GC=F,Gold Futures,commodity,GLD,0
   - Logs warnings for failed tickers (e.g., typos like "IBT" instead of "IBIT")
   - Never crashes from bad ticker symbols
   - Proper rotation with buffer overlap (no skipped tickers)
-- **Market Hours Aware:**
-  - Only fetches during US market hours (9:30 AM - 4:00 PM ET, weekdays)
-  - Shows cached data for 1.5 hours after close (until 5:30 PM ET)
-  - **Automatic holiday detection** via API (Thanksgiving, Christmas, MLK Day, etc.)
-  - Logs market status (e.g., "markets closed, displaying cached data")
+- **Smart Market Hours Logic:**
+  - **Time-based rules** (no complex state transitions):
+    - Weekend: Never fetches (uses cache if available)
+    - Pre-market (before 8:30 AM ET): Never fetches (uses cache)
+    - Market hours (after 8:30 AM ET): Fetches, lets API decide if open/closed
+    - Holidays: No detection needed (API says closed, uses cache)
+  - **Visual cache indicator:** 4 lilac pixels at top center when using cached data
+  - Logs market status (e.g., "Market: Weekend (cached)")
   - **Configurable:** `stocks_respect_market_hours` toggle (1=prod, 0=testing)
-  - Skips display on weekends/holidays (default) or always-on for testing
+    - Setting only affects DISPLAY (not fetching logic)
+    - Testing mode (0): Shows stocks 24/7 but still optimizes API calls
+    - Production mode (1): Skips display on weekends/holidays
   - Automatically converts user's timezone to Eastern Time
   - Falls back to clock display when stocks unavailable
 - **Flexible Configuration:**
@@ -687,26 +692,36 @@ The entire codebase currently resides in a single `code.py` file. This is a comm
 ## Version History
 
 ### 2.5.0 (Current - December 2025)
-- **Stock Caching & Market Hours Improvements:**
-  - **Smart Caching Logic:**
-    - Market OPEN (9:30 AM - 4:00 PM ET): Fetches fresh data with 15-minute cache
-    - Market just CLOSED: Fetches final prices one last time
-    - Market CLOSED: Uses cached data indefinitely (no API calls)
-    - Transition detection prevents redundant fetches on weekends/after-hours
+- **Simplified Market State Logic (Major Refactor):**
+  - **Time-Based Logic (Replaces Complex State Transitions):**
+    - Weekend: Markets never open → use cache if available (no fetching)
+    - Pre-market (before 8:30 AM ET weekdays): Markets never open yet → use cache
+    - Market hours (after 8:30 AM ET weekdays): Might be open → let API decide
+    - Holidays: No detection logic → API says closed, we use cache
+  - **Removed Complex State Tracking:**
+    - Eliminated `last_market_state` variable (no more open→closed transitions)
+    - Eliminated `market_holiday_date` variable (no more false holiday detection)
+    - Eliminated catch-22 bugs where bad state blocked corrections
+    - Net reduction: -48 lines of code while adding new features
+  - **Visual Cache Indicator:**
+    - 4 lilac pixels at top center (x=30-33, y=0) when displaying cached data
+    - Shows in both stock rotation and single stock chart modes
+    - Clear visual feedback for debugging and testing
   - **Testing Mode Respects Market Hours:**
     - `stocks_respect_market_hours=0` now only affects DISPLAY (not fetching)
     - Testing mode displays stocks anytime but still optimizes API calls
-    - Weekend/after-hours: Uses cache instead of fetching every 15 minutes
+    - Weekend/pre-market: Uses cache instead of fetching every cycle
     - Reduces API usage while maintaining 24/7 display capability
   - **Cache Management:**
     - Per-stock cache checking (supports gradual rotation through 4+ stocks)
     - 15-minute intraday cache during market hours
-    - Indefinite cache when market closed
+    - Indefinite cache when market closed (weekend/pre-market/holidays)
     - Empty cache detection after restart (3am or weekends)
   - **Bug Fixes:**
     - Fixed missing `open_price` field in cached stock data
+    - Fixed false holiday detection (December 2 cached as holiday)
+    - Fixed pystack exhausted from complex diagnostic f-strings
     - Fixed stock chart color/percentage calculations
-    - Added diagnostic logging for market state transitions
 
 - **Transit Display Enhancements:**
   - **Interruptible Sleep:**
