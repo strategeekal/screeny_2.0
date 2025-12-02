@@ -1477,12 +1477,6 @@ def is_market_hours_or_cache_valid(local_datetime, has_cached_data=False):
 	"""
 	import time
 
-	# Check cached holiday status FIRST (avoid timezone calculations if holiday)
-	today = f"{local_datetime.tm_year:04d}-{local_datetime.tm_mon:02d}-{local_datetime.tm_mday:02d}"
-	if state.market_holiday_date == today:
-		# It's a cached holiday - skip display entirely
-		return (False, False, "Market holiday (cached)")
-
 	# Get user's timezone from settings
 	user_timezone = os.getenv("TIMEZONE", Strings.TIMEZONE_DEFAULT)
 
@@ -1526,6 +1520,11 @@ def is_market_hours_or_cache_valid(local_datetime, has_cached_data=False):
 
 	elif market_open_minutes <= current_et_minutes < market_close_minutes:
 		# During market hours - fetch and display
+		# Clear any incorrectly cached holiday (self-correction)
+		today = f"{local_datetime.tm_year:04d}-{local_datetime.tm_mon:02d}-{local_datetime.tm_mday:02d}"
+		if state.market_holiday_date == today:
+			log_info(f"Clearing incorrect holiday cache for {today} - market is actually open")
+			state.market_holiday_date = None
 		return (True, True, f"Market open (ET {et_hour:02d}:{et_min:02d})")
 
 	elif market_close_minutes <= current_et_minutes < grace_end_minutes:
