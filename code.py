@@ -6100,8 +6100,8 @@ def run_display_cycle(rtc, cycle_count):
 		# For fetching: ALWAYS use actual market hours to avoid redundant API calls
 		current_state = "open" if market_is_open_fetch else "closed"
 
-		# DEBUG: Log market state detection
-		log_info(f"Market state: {current_state} (fetch={market_is_open_fetch}, display={market_is_open_display}) | {reason}")
+		# DEBUG: Log market state detection (simplified to reduce stack depth)
+		log_info("Market state: " + current_state + " | " + reason)
 
 		# Set fetch flag based on actual market state (not config)
 		if current_state == "open":
