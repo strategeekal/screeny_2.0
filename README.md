@@ -1,4 +1,4 @@
-# Pantallita 2.4.0
+# Pantallita 2.5.0
 
 A dual RGB matrix weather display system running on MatrixPortal S3, showing real-time weather, forecasts, stock prices with intraday charts, CTA transit arrivals, events, and scheduled activities for family use. Features built-in button control for easy stop/exit.
 
@@ -37,7 +37,7 @@ Pantallita displays weather information, 12-hour forecasts, stock market data, C
 
 ```
 screeny_2.0/
-├── code.py                    # Main program (~5500 lines)
+├── code.py                    # Main program (~6200 lines)
 ├── settings.toml              # Environment variables (not in repo)
 ├── events.csv                 # Local events database
 ├── schedules.csv              # Local schedules database
@@ -686,7 +686,72 @@ The entire codebase currently resides in a single `code.py` file. This is a comm
 
 ## Version History
 
-### 2.4.0 (Current - November 2025)
+### 2.5.0 (Current - December 2025)
+- **Stock Caching & Market Hours Improvements:**
+  - **Smart Caching Logic:**
+    - Market OPEN (9:30 AM - 4:00 PM ET): Fetches fresh data with 15-minute cache
+    - Market just CLOSED: Fetches final prices one last time
+    - Market CLOSED: Uses cached data indefinitely (no API calls)
+    - Transition detection prevents redundant fetches on weekends/after-hours
+  - **Testing Mode Respects Market Hours:**
+    - `stocks_respect_market_hours=0` now only affects DISPLAY (not fetching)
+    - Testing mode displays stocks anytime but still optimizes API calls
+    - Weekend/after-hours: Uses cache instead of fetching every 15 minutes
+    - Reduces API usage while maintaining 24/7 display capability
+  - **Cache Management:**
+    - Per-stock cache checking (supports gradual rotation through 4+ stocks)
+    - 15-minute intraday cache during market hours
+    - Indefinite cache when market closed
+    - Empty cache detection after restart (3am or weekends)
+  - **Bug Fixes:**
+    - Fixed missing `open_price` field in cached stock data
+    - Fixed stock chart color/percentage calculations
+    - Added diagnostic logging for market state transitions
+
+- **Transit Display Enhancements:**
+  - **Interruptible Sleep:**
+    - Transit display now uses `interruptible_sleep()`
+    - UP button works to stop board during transit display
+    - Consistent behavior across all displays
+  - **Two-Column Time Layout:**
+    - First arrival time: Right-aligned to column 1 (x=49)
+    - Second arrival time: Right-aligned to column 2 (x=63)
+    - Removed comma separator (visual spacing sufficient)
+    - Cleaner, more readable layout
+  - **Code Optimization:**
+    - Created `add_transit_times()` helper function
+    - Eliminated 36 lines of duplicate code
+    - Added Layout constants: `TRANSIT_ICON_X`, `TRANSIT_LABEL_X`, `TRANSIT_START_Y`, `TRANSIT_ROW_HEIGHT`, `TRANSIT_TIME_COL1_END`, `TRANSIT_TIME_COL2_END`
+
+- **Forecast Display Improvements:**
+  - **12-Hour Precipitation Analysis:**
+    - Extended from 6 to 12 hours of forecast data
+    - Smart rain duration logic with 3-hour threshold
+    - If raining > 3 hours: Show next hour + when rain stops
+    - If raining ≤ 3 hours: Show when stops + hour after
+    - If rain never stops in 12h: Show next hour + last available
+  - **Color Indicators:**
+    - MINT (green): Non-consecutive future hours (visual indicator)
+    - DIMMEST_WHITE: Current or consecutive hours
+    - If col2 is MINT (non-consecutive), col3 is always MINT (future indicator)
+    - Improved readability for time gaps
+
+- **Code Architecture Improvements:**
+  - **Layout Constants:**
+    - Added `DISPLAY_WIDTH` and `DISPLAY_HEIGHT` (replaced ambiguous `RIGHT_EDGE`)
+    - Stock chart constants: `STOCK_ROW1_Y`, `STOCK_ROW2_Y`, `STOCK_CHART_Y_START`, `STOCK_CHART_HEIGHT`
+    - Transit constants for all positioning values
+    - Removed all magic numbers from display code
+  - **Helper Functions:**
+    - `add_transit_times()`: Two-column time display
+    - Reduced code duplication
+    - Improved maintainability
+  - **Refactoring:**
+    - Consistent use of Layout constants throughout codebase
+    - Cleaner code structure without functionality impact
+    - No increase in stack depth
+
+### 2.4.0 (November 2025)
 - **CTA Transit Display:**
   - **Real-Time Arrival Tracking:**
     - Shows 3 arrivals at a time (trains + buses combined)
