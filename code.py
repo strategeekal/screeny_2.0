@@ -4321,8 +4321,13 @@ def show_stocks_display(duration, offset, rtc):
 	# Add visual cache indicator if using cached data (4 lilac pixels at top center)
 	data_is_cached = not should_fetch
 	if data_is_cached:
-		for x in range(30, 34):  # x=30-33 (4 pixels centered on 64px width)
-			state.matrix.pixel(x, 0, state.colors["LILAC"])
+		cache_bitmap = displayio.Bitmap(4, 1, 1)  # 4 pixels wide, 1 pixel tall
+		cache_palette = displayio.Palette(1)
+		cache_palette[0] = state.colors["LILAC"]
+		for x in range(4):
+			cache_bitmap[x, 0] = 0  # Fill with palette color 0 (lilac)
+		cache_grid = displayio.TileGrid(cache_bitmap, pixel_shader=cache_palette, x=30, y=0)
+		state.main_group.append(cache_grid)
 
 	try:
 		# Display stocks/forex in vertical rows (2-3 items depending on buffer success)
@@ -4581,8 +4586,13 @@ def show_single_stock_chart(ticker, duration, rtc):
 	# Add visual cache indicator if using cached data (4 lilac pixels at top center)
 	data_is_cached = not data_is_fresh
 	if data_is_cached:
-		for x in range(30, 34):  # x=30-33 (4 pixels centered on 64px width)
-			state.matrix.pixel(x, 0, state.colors["LILAC"])
+		cache_bitmap = displayio.Bitmap(4, 1, 1)  # 4 pixels wide, 1 pixel tall
+		cache_palette = displayio.Palette(1)
+		cache_palette[0] = state.colors["LILAC"]
+		for x in range(4):
+			cache_bitmap[x, 0] = 0  # Fill with palette color 0 (lilac)
+		cache_grid = displayio.TileGrid(cache_bitmap, pixel_shader=cache_palette, x=30, y=0)
+		state.main_group.append(cache_grid)
 
 	try:
 		# Row 1: Ticker + percentage
