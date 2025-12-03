@@ -222,7 +222,6 @@ class API:
 	MAX_RETRIES = 2
 	RETRY_BASE_DELAY = 2
 	RETRY_DELAY = 2
-	MAX_CALLS_BEFORE_RESTART = 350
 	
 	MAX_FORECAST_HOURS = 12
 	DEFAULT_FORECAST_HOURS = 12
@@ -884,7 +883,7 @@ class StateTracker:
 
 	def get_api_stats(self):
 		"""Get formatted API stats string for logging"""
-		return f"Total={self.api_call_count}/{API.MAX_CALLS_BEFORE_RESTART}, Current={self.current_api_calls}, Forecast={self.forecast_api_calls}, Stocks={self.stock_api_calls}/800"
+		return f"Total={self.api_call_count}, Current={self.current_api_calls}, Forecast={self.forecast_api_calls}, Stocks={self.stock_api_calls}/800"
 
 	def reset_api_counters(self):
 		"""Reset API call tracking - returns old total for logging"""
@@ -938,9 +937,6 @@ class StateTracker:
 		"""Check if hard reset is needed due to system errors"""
 		return self.system_error_count >= Recovery.HARD_RESET_THRESHOLD
 
-	def should_preventive_restart(self):
-		"""Check if preventive restart is needed due to API call limit"""
-		return self.api_call_count >= API.MAX_CALLS_BEFORE_RESTART
 
 	def should_enter_extended_failure_mode(self):
 		"""Check if extended failure mode should be entered"""
@@ -1508,6 +1504,7 @@ def is_market_hours_or_cache_valid(local_datetime, has_cached_data=False):
 	# WEEKDAY: Time-based logic
 	current_et_minutes = et_hour * 60 + et_min
 	pre_market_cutoff = 8 * 60 + 30  # 8:30 AM ET (safety margin before 9:30 open)
+	after_hours_cutoff = 16 * 60  # 4:00 PM ET (market close)
 
 	# Before 8:30 AM ET: Never open yet
 	if current_et_minutes < pre_market_cutoff:
@@ -1516,8 +1513,14 @@ def is_market_hours_or_cache_valid(local_datetime, has_cached_data=False):
 		else:
 			return (False, False, f"Pre-market {et_hour:02d}:{et_min:02d} ET (no cache)")
 
-	# After 8:30 AM ET: Might be open, let API decide
-	# Return True to allow fetch - the API will tell us if it's actually open/closed
+	# After 4:00 PM ET: Market closed for the day
+	if current_et_minutes >= after_hours_cutoff:
+		if has_cached_data:
+			return (False, True, f"After hours {et_hour:02d}:{et_min:02d} ET (cached)")
+		else:
+			return (False, False, f"After hours {et_hour:02d}:{et_min:02d} ET (no cache)")
+
+	# Between 8:30 AM - 4:00 PM ET: Might be open, let API decide
 	return (True, True, f"Market hours {et_hour:02d}:{et_min:02d} ET (will check API)")
 
 def cleanup_sockets():
@@ -1814,13 +1817,6 @@ def handle_weather_failure():
 		interruptible_sleep(Timing.RESTART_DELAY)
 		supervisor.reload()
 
-def check_preventive_restart():
-	"""Check if preventive restart is needed due to API call limit"""
-	if state.tracker.should_preventive_restart():
-		log_warning(f"Preventive restart after {state.tracker.api_call_count} API calls")
-		cleanup_global_session()
-		interruptible_sleep(API.RETRY_DELAY)
-		supervisor.reload()
 
 # ============================================================================
 # Weather Fetch Functions
@@ -1874,7 +1870,6 @@ def fetch_current_weather():
 			handle_weather_success()
 
 			# Check for preventive restart
-			check_preventive_restart()
 
 			state.memory_monitor.check_memory("current_fetch_complete")
 			return current_data
@@ -1922,12 +1917,10 @@ def fetch_forecast_weather():
 			if forecast_data:
 				state.memory_monitor.check_memory("forecast_data_complete")
 				handle_weather_success()
-				check_preventive_restart()
 				return forecast_data
 			else:
 				# Parsing failed (insufficient data)
 				handle_weather_failure()
-				check_preventive_restart()
 				return None
 		else:
 			log_warning("Forecast fetch failed")
