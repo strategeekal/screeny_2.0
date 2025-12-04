@@ -2733,8 +2733,13 @@ def fetch_stock_prices(symbols_to_fetch):
 				log_verbose(f"Response: {response.text[:200]}")
 
 	except Exception as e:
-		log_warning(f"Failed to fetch stock prices: {e}")
+		error_msg = str(e)
+		log_warning(f"Failed to fetch stock prices: {error_msg}")
 		log_verbose(f"Exception type: {type(e).__name__}")
+		# If socket reuse error, force session cleanup for next request
+		if "socket" in error_msg.lower() and "already connected" in error_msg.lower():
+			log_warning("Socket reuse detected - will clean session for next request")
+			cleanup_global_session()
 
 	finally:
 		# CRITICAL: Close response to release socket
@@ -2743,6 +2748,8 @@ def fetch_stock_prices(symbols_to_fetch):
 				response.close()
 			except:
 				pass
+		# Force garbage collection to help release sockets
+		gc.collect()
 
 	return stock_data
 
