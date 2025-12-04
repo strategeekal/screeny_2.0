@@ -961,6 +961,7 @@ class WeatherDisplayState:
 		self.matrix_type_cache = None
 		self.button_up = None  # MatrixPortal UP button
 		self.button_down = None  # MatrixPortal DOWN button
+		self.cached_font_metrics = None  # Cache font metrics to avoid stack depth in display cycle
 
 		# Centralized success/failure tracking
 		self.tracker = StateTracker()
@@ -1022,6 +1023,19 @@ state = WeatherDisplayState()
 # Load fonts once at startup
 bg_font = bitmap_font.load_font(Paths.FONT_BIG)
 font = bitmap_font.load_font(Paths.FONT_SMALL)
+
+# Calculate and cache font metrics once at startup (avoid stack depth in display cycle)
+try:
+	temp_label = bitmap_label.Label(font, text="Aygjpq")
+	bbox = temp_label.bounding_box
+	if bbox and len(bbox) >= 4:
+		font_height = bbox[3]
+		baseline_offset = abs(bbox[1]) if bbox[1] < 0 else 0
+		state.cached_font_metrics = (font_height, baseline_offset)
+	else:
+		state.cached_font_metrics = (8, 2)  # Fallback
+except:
+	state.cached_font_metrics = (8, 2)  # Fallback on error
 
 ### ====================================== FUNCTIONS AND UTILITIES  ====================================== ###
 
@@ -2136,11 +2150,17 @@ def get_font_metrics(font, text="Aygjpq"):
 	"""
 	Calculate font metrics including ascenders and descenders
 	Uses test text with both tall and descending characters
+
+	OPTIMIZATION: Returns cached value if available (avoids stack depth in display cycle)
 	"""
+	# Use cached metrics if available (calculated during initialization)
+	if state.cached_font_metrics is not None:
+		return state.cached_font_metrics
+
 	try:
 		temp_label = bitmap_label.Label(font, text=text)
 		bbox = temp_label.bounding_box
-		
+
 		if bbox and len(bbox) >= 4:
 			# bbox format: (x, y, width, height)
 			font_height = bbox[3]  # Total height including ascenders/descenders
