@@ -2830,7 +2830,12 @@ def fetch_intraday_time_series(symbol, interval="15min", outputsize=26):
 			return []
 
 	except Exception as e:
-		log_warning("Failed to fetch intraday data: " + str(e))
+		error_msg = str(e)
+		log_warning("Failed to fetch intraday data: " + error_msg)
+		# If socket reuse error, force session cleanup for next request
+		if "socket" in error_msg.lower() and "already connected" in error_msg.lower():
+			log_warning("Socket reuse detected - will clean session for next request")
+			cleanup_global_session()
 		return []
 
 	finally:
@@ -2840,6 +2845,8 @@ def fetch_intraday_time_series(symbol, interval="15min", outputsize=26):
 				response.close()
 			except:
 				pass
+		# Force garbage collection to help release sockets
+		gc.collect()
 
 	return []
 
