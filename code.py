@@ -4511,8 +4511,38 @@ def show_single_stock_chart(ticker, duration, rtc):
 	# Fetch time series if needed
 	if should_fetch:
 		data_is_fresh = True
-		log_info("Fetching intraday data for " + ticker)
-		time_series = fetch_intraday_time_series(ticker, interval="15min", outputsize=26)
+
+		# Calculate how many 5-minute intervals since market open (9:30 AM ET)
+		# Convert current time to ET
+		user_timezone = os.getenv("TIMEZONE", Strings.TIMEZONE_DEFAULT)
+		user_offset = get_timezone_offset(user_timezone, rtc.datetime)
+		et_offset = get_timezone_offset("America/New_York", rtc.datetime)
+		offset_diff = et_offset - user_offset
+
+		et_hour = rtc.datetime.tm_hour + offset_diff
+		et_min = rtc.datetime.tm_min
+
+		# Handle day rollover
+		if et_hour < 0:
+			et_hour += 24
+		elif et_hour >= 24:
+			et_hour -= 24
+
+		# Calculate minutes since market open (9:30 AM ET = 570 minutes)
+		current_et_minutes = et_hour * 60 + et_min
+		market_open_minutes = 9 * 60 + 30  # 9:30 AM ET
+
+		# Calculate 5-minute intervals elapsed (minimum 1, maximum 78 for full day)
+		if current_et_minutes >= market_open_minutes:
+			minutes_since_open = current_et_minutes - market_open_minutes
+			intervals_elapsed = (minutes_since_open // 5) + 1  # +1 to include current interval
+			outputsize = min(78, max(1, intervals_elapsed))  # Cap at 78 (full day)
+		else:
+			# Before market open - fetch 1 point (will show minimal chart)
+			outputsize = 1
+
+		log_info("Fetching intraday data for " + ticker + " (" + str(outputsize) + " points, 5min interval)")
+		time_series = fetch_intraday_time_series(ticker, interval="5min", outputsize=outputsize)
 
 		if not time_series or len(time_series) == 0:
 			log_warning("No intraday data available for " + ticker)
@@ -4639,8 +4669,8 @@ def show_single_stock_chart(ticker, duration, rtc):
 		CHART_Y_START = Layout.STOCK_CHART_Y_START
 		CHART_WIDTH = Layout.DISPLAY_WIDTH
 
-		# Find min and max prices for scaling
-		prices = [point["close_price"] for point in time_series]
+		# Find min and max prices for scaling (include open price to anchor chart)
+		prices = [actual_open_price] + [point["close_price"] for point in time_series]
 		min_price = min(prices)
 		max_price = max(prices)
 		price_range = max_price - min_price
