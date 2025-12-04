@@ -4574,40 +4574,33 @@ def show_single_stock_chart(ticker, duration, rtc):
 	cached = state.cached_intraday_data[ticker]
 	time_series = cached["data"]
 
-	# Fetch current quote for latest price and percentage (or use cached if market closed)
-	should_fetch_quote = state.should_fetch_stocks
+	# OPTIMIZATION: Calculate current price and change from time series data
+	# This eliminates the need for a separate quote API call, reducing stack depth
+	if len(time_series) > 0:
+		# Current price = latest close price from time series
+		current_price = time_series[-1]["close_price"]
 
-	# Check cache FIRST (even in testing mode) - respects 15min cache age if market open
-	if ticker not in state.cached_stock_prices:
-		should_fetch_quote = True
-		log_info(f"Quote not cached for {ticker} - fetching")
-	elif not state.should_fetch_stocks:
-		# Market closed and cached - use cache
-		should_fetch_quote = False
+		# Day's opening price = first interval's open price
+		actual_open_price = time_series[0]["open_price"]
 
-	if should_fetch_quote:
-		quote_data = fetch_stock_prices([{"symbol": ticker, "name": ticker}])
+		# Calculate percentage change from market open
+		if actual_open_price != 0:
+			change_percent = ((current_price - actual_open_price) / actual_open_price) * 100
+		else:
+			change_percent = 0.0
 
-		if ticker not in quote_data:
-			log_warning("Could not fetch current quote for " + ticker)
-			return False
+		# Determine direction
+		direction = "up" if change_percent >= 0 else "down"
 
-		# Cache the quote data for after-hours use
-		state.cached_stock_prices[ticker] = quote_data[ticker]
+		log_verbose(f"{ticker}: ${current_price:.2f} ({change_percent:+.2f}%) from time series")
 	else:
-		# Market closed - use cached quote data
-		quote_data = {ticker: state.cached_stock_prices[ticker]}
-		log_verbose("Using cached quote for " + ticker)
-
-	current_price = quote_data[ticker]["price"]
-	change_percent = quote_data[ticker]["change_percent"]
-	direction = quote_data[ticker]["direction"]
-	actual_open_price = quote_data[ticker]["open_price"]
+		log_warning("Empty time series for " + ticker)
+		return False
 
 	# Get display name (uses display_name from stocks.csv if available)
 	display_name = get_stock_display_name(ticker)
 
-	# Use the actual day's percentage change from the quote API
+	# Use the day's percentage change calculated from time series
 	# This represents the change from market open (9:30 AM) to current price
 	day_change_percent = change_percent
 
