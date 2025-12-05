@@ -4517,67 +4517,22 @@ def show_single_stock_chart(ticker, duration, rtc):
 	current_time = time.monotonic()
 	should_fetch = state.should_fetch_stocks  # Use state-level flag for market state optimization
 
-	# STEP 1: Fetch quote FIRST (lighter operation, needed for accurate percentage)
-	# This way if we hit pystack exhausted, we fail fast without fetching 78 intraday points
-	should_fetch_quote = should_fetch
+	# STEP 1: Get quote from cache (prefetched before display cycle to avoid stack exhaustion)
 	if ticker not in state.cached_stock_prices:
-		should_fetch_quote = True
-		log_info("Quote not cached for " + ticker + " - fetching")
-	elif not should_fetch:
-		should_fetch_quote = False
+		log_warning("Quote not in cache for " + ticker + " (prefetch may have failed)")
+		return False
 
-	if should_fetch_quote:
-		quote_data = fetch_stock_prices([{"symbol": ticker, "name": ticker}])
-		if ticker not in quote_data:
-			log_warning("Could not fetch quote for " + ticker)
-			return False
-		state.cached_stock_prices[ticker] = quote_data[ticker]
-	else:
-		quote_data = {ticker: state.cached_stock_prices[ticker]}
+	quote_data = state.cached_stock_prices[ticker]
 
 	# Extract quote data
-	current_price = quote_data[ticker]["price"]
-	change_percent = quote_data[ticker]["change_percent"]
-	direction = quote_data[ticker]["direction"]
-	actual_open_price = quote_data[ticker]["open_price"]
+	current_price = quote_data["price"]
+	change_percent = quote_data["change_percent"]
+	direction = quote_data["direction"]
+	actual_open_price = quote_data["open_price"]
 
-	# STEP 2: Fetch intraday time series (heavier operation, 78 points)
-	data_is_fresh = False
-	should_fetch_intraday = should_fetch
-
+	# STEP 2: Get intraday data from cache (prefetched before display cycle)
 	if ticker not in state.cached_intraday_data:
-		should_fetch_intraday = True
-		log_info("Intraday data not cached for " + ticker + " - fetching")
-	elif not should_fetch:
-		log_verbose("Market closed - using cached intraday data for " + ticker)
-		should_fetch_intraday = False
-	elif should_fetch and ticker in state.last_intraday_fetch_time:
-		time_since_fetch = current_time - state.last_intraday_fetch_time[ticker]
-		if time_since_fetch < INTRADAY_CACHE_MAX_AGE:
-			should_fetch_intraday = False
-			log_verbose("Using cached intraday data for " + ticker)
-
-	if should_fetch_intraday:
-		data_is_fresh = True
-		# Reduce from 78 to 48 points to lower stack usage (4 hours of 5-min intervals)
-		outputsize = 48  # 4 hours ÷ 5 min = 48 intervals
-
-		log_info("Fetching intraday data for " + ticker + " (5min interval, up to " + str(outputsize) + " points)")
-		time_series = fetch_intraday_time_series(ticker, interval="5min", outputsize=outputsize)
-
-		if not time_series or len(time_series) == 0:
-			log_warning("No intraday data available for " + ticker)
-			return False
-
-		state.cached_intraday_data[ticker] = {
-			"data": time_series,
-			"timestamp": current_time
-		}
-		state.last_intraday_fetch_time[ticker] = current_time
-
-	# Get cached intraday data
-	if ticker not in state.cached_intraday_data:
-		log_warning("No cached intraday data for " + ticker)
+		log_warning("Intraday data not in cache for " + ticker + " (prefetch may have failed)")
 		return False
 
 	cached = state.cached_intraday_data[ticker]
@@ -4586,6 +4541,9 @@ def show_single_stock_chart(ticker, duration, rtc):
 	if len(time_series) == 0:
 		log_warning("Empty time series for " + ticker)
 		return False
+
+	# Check if data is fresh (just prefetched)
+	data_is_fresh = (current_time - cached["timestamp"]) < 300  # Fresh if < 5 min old
 
 	# Get display name (uses display_name from stocks.csv if available)
 	display_name = get_stock_display_name(ticker)
@@ -6099,6 +6057,58 @@ def run_display_cycle(rtc, cycle_count):
 
 		# For fetching: use time-based logic (no more state transitions!)
 		state.should_fetch_stocks = should_fetch
+
+		# CRITICAL: Prefetch stock prices HERE (shallow stack) instead of during display (deep stack)
+		# This prevents pystack exhausted errors in adafruit_requests
+		if should_fetch and state.cached_stocks and len(state.cached_stocks) > 0:
+			current_time = time.monotonic()
+			time_since_last_fetch = current_time - state.last_stock_fetch_time
+			MIN_FETCH_INTERVAL = 65  # Same as in show_stocks_display
+
+			if time_since_last_fetch >= MIN_FETCH_INTERVAL or state.last_stock_fetch_time == 0:
+				# Prefetch quotes for ALL stocks in rotation (max 3-4 to respect API batch limit)
+				stocks_to_prefetch = state.cached_stocks[:4]  # First 4 stocks
+				log_info("Prefetching stock quotes (shallow stack)")
+
+				prefetched_data = fetch_stock_prices(stocks_to_prefetch)
+
+				if prefetched_data:
+					# Cache the prefetched data
+					for symbol, data in prefetched_data.items():
+						state.cached_stock_prices[symbol] = {
+							"price": data["price"],
+							"change_percent": data["change_percent"],
+							"direction": data["direction"],
+							"open_price": data["open_price"],
+							"timestamp": current_time
+						}
+					state.last_stock_fetch_time = current_time
+					log_verbose("Prefetched " + str(len(prefetched_data)) + " stock quotes")
+
+					# Also prefetch intraday data for highlighted stocks (chart display)
+					for stock in state.cached_stocks[:4]:
+						if stock.get("highlight", False):
+							ticker = stock["symbol"]
+							# Check if intraday data needs refresh
+							if ticker not in state.cached_intraday_data or ticker not in state.last_intraday_fetch_time:
+								log_info("Prefetching intraday data for highlighted stock: " + ticker)
+								intraday = fetch_intraday_time_series(ticker, interval="5min", outputsize=48)
+								if intraday and len(intraday) > 0:
+									state.cached_intraday_data[ticker] = {
+										"data": intraday,
+										"timestamp": current_time
+									}
+									state.last_intraday_fetch_time[ticker] = current_time
+									log_verbose("Prefetched " + str(len(intraday)) + " intraday points for " + ticker)
+							elif current_time - state.last_intraday_fetch_time[ticker] >= 900:  # 15 min cache
+								log_info("Refreshing intraday data for " + ticker)
+								intraday = fetch_intraday_time_series(ticker, interval="5min", outputsize=48)
+								if intraday and len(intraday) > 0:
+									state.cached_intraday_data[ticker]["data"] = intraday
+									state.cached_intraday_data[ticker]["timestamp"] = current_time
+									state.last_intraday_fetch_time[ticker] = current_time
+				else:
+					log_warning("Prefetch failed - will use cached data")
 
 		# Log market state
 		log_info("Market: " + reason)
