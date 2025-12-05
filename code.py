@@ -964,7 +964,6 @@ class WeatherDisplayState:
 		self.cached_stocks = []
 		self.cached_stock_prices = {}  # {symbol: {price, change_percent, direction, timestamp}}
 		self.last_stock_fetch_time = 0
-		self.market_holiday_date = None  # Cache holiday status (YYYY-MM-DD format)
 		self.market_hours_allowed = True  # Cached market hours check (updated each cycle to avoid stack depth)
 		self.cached_intraday_data = {}  # {symbol: {data: [...], timestamp: monotonic, open_price: float}}
 		self.last_intraday_fetch_time = {}  # {symbol: monotonic_timestamp}
@@ -1456,12 +1455,6 @@ def is_market_hours_or_cache_valid(local_datetime, has_cached_data=False):
 		- should_display: True if we should show stocks (fresh or cached)
 		- reason: Human-readable reason (for logging)
 	"""
-	# Check cached holiday status FIRST (avoid timezone calculations if holiday)
-	today = f"{local_datetime.tm_year:04d}-{local_datetime.tm_mon:02d}-{local_datetime.tm_mday:02d}"
-	if state.market_holiday_date == today:
-		# It's a cached holiday - skip display entirely
-		return (False, False, "Market holiday (cached)")
-
 	# Get user's timezone from settings
 	user_timezone = os.getenv("TIMEZONE", Strings.TIMEZONE_DEFAULT)
 
@@ -2675,14 +2668,6 @@ def fetch_stock_prices(symbols_to_fetch):
 				if not symbol:
 					log_warning(f"Quote missing symbol field: {str(quote)[:100]}")
 					continue
-
-				# Check market status (for holiday detection)
-				is_market_open = quote.get("is_market_open", True)
-				if not is_market_open and state.market_holiday_date is None:
-					# Market closed on a weekday during business hours = holiday!
-					# Cache this for the rest of the day to avoid repeated API calls
-					# Get current date from RTC (we don't have direct access here, will handle in caller)
-					log_verbose(f"Market closed detected via API (holiday or early close)")
 
 				# Extract price and change data
 				try:
@@ -4221,9 +4206,8 @@ def show_stocks_display(duration, offset, rtc):
 		stock_prices = fetch_stock_prices(stocks_to_fetch)
 		state.last_stock_fetch_time = time.monotonic()
 
-		# Cache the fetched prices and check for holiday
+		# Cache the fetched prices
 		if stock_prices:
-			market_closed_detected = False
 			for symbol, data in stock_prices.items():
 				state.cached_stock_prices[symbol] = {
 					"price": data["price"],
@@ -4231,20 +4215,6 @@ def show_stocks_display(duration, offset, rtc):
 					"direction": data["direction"],
 					"timestamp": time.monotonic()
 				}
-				# Check if market is closed (holiday detection)
-				if not data.get("is_market_open", True):
-					market_closed_detected = True
-
-			# If market closed during business hours = holiday, cache for the day
-			if market_closed_detected:
-				today = f"{rtc.datetime.tm_year:04d}-{rtc.datetime.tm_mon:02d}-{rtc.datetime.tm_mday:02d}"
-				state.market_holiday_date = today
-				log_info(f"Market holiday detected and cached: {today}")
-				# Only skip display if respecting market hours
-				if display_config.stocks_respect_market_hours:
-					return (False, offset)
-				else:
-					log_verbose("Holiday detected but market hours check disabled - continuing display")
 
 			log_verbose(f"Cached {len(stock_prices)} stock prices ({reason})")
 		else:
