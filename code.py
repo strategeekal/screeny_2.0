@@ -24,6 +24,7 @@ import ssl
 import microcontroller
 import random
 import traceback
+import json
 
 # Display
 import displayio
@@ -1066,12 +1067,10 @@ def log_entry(message, level="INFO"):
 				timestamp = f"{dt.tm_year}-{dt.tm_mon:02d}-{dt.tm_mday:02d} {dt.tm_hour:02d}:{dt.tm_min:02d}:{dt.tm_sec:02d}"
 				time_source = ""
 			except Exception:
-				import time
 				monotonic_time = time.monotonic()
 				timestamp = f"SYS+{int(monotonic_time)}"
 				time_source = " [SYS]"
 		else:
-			import time
 			monotonic_time = time.monotonic()
 			hours = int(monotonic_time // System.SECONDS_PER_HOUR)
 			minutes = int((monotonic_time % System.SECONDS_PER_HOUR) // System.SECONDS_PER_MINUTE)
@@ -1485,7 +1484,6 @@ def is_market_hours_or_cache_valid(local_datetime, has_cached_data=False):
 	Returns:
 		tuple: (should_fetch: bool, should_display: bool, reason: str)
 	"""
-	import time
 
 	# Get user's timezone from settings
 	user_timezone = os.getenv("TIMEZONE", Strings.TIMEZONE_DEFAULT)
@@ -2626,8 +2624,6 @@ def fetch_stock_prices(symbols_to_fetch):
 	Returns:
 		dict: {symbol: {"price": float, "change_percent": float, "direction": str}}
 	"""
-	import time
-
 	if not symbols_to_fetch:
 		log_verbose("No stock symbols to fetch")
 		return {}
@@ -2663,7 +2659,6 @@ def fetch_stock_prices(symbols_to_fetch):
 			return stock_data
 
 		if response.status_code == 200:
-			import json
 			data = json.loads(response.text)
 
 			# Handle Twelve Data response formats:
@@ -2766,7 +2761,6 @@ def fetch_intraday_time_series(symbol, interval="15min", outputsize=26):
 		List of dicts: [{datetime, open_price, close_price}, ...] ordered chronologically (oldest first)
 		Returns empty list on error
 	"""
-	import time
 
 	# Get API key
 	api_key = os.getenv(Strings.TWELVE_DATA_API_KEY)
@@ -2796,7 +2790,6 @@ def fetch_intraday_time_series(symbol, interval="15min", outputsize=26):
 			return []
 
 		if response.status_code == 200:
-			import json
 			data = json.loads(response.text)
 
 			# Check for errors
@@ -3015,7 +3008,6 @@ def fetch_github_data(rtc):
 		log_warning("GITHUB_REPO_URL not configured")
 		return None, None, None, None
 
-	import time
 	cache_buster = int(time.monotonic())
 	github_base = Strings.GITHUB_REPO_URL.rsplit('/', 1)[0] if Strings.GITHUB_REPO_URL else None
 
@@ -4216,7 +4208,6 @@ def show_stocks_display(duration, offset, rtc):
 		stocks_to_fetch.append(stocks_list[idx])
 
 	# Check market hours FIRST before attempting to fetch or display
-	import time
 	has_any_cached = len(state.cached_stock_prices) > 0
 
 	# Respect market hours toggle (can be disabled for testing)
@@ -4516,7 +4507,6 @@ def show_single_stock_chart(ticker, duration, rtc):
 	Returns:
 		bool: True if displayed, False if skipped
 	"""
-	import time
 	from adafruit_display_shapes.line import Line
 
 	INTRADAY_CACHE_MAX_AGE = 900  # 15 minutes (900 seconds)
@@ -4524,76 +4514,74 @@ def show_single_stock_chart(ticker, duration, rtc):
 	# Check if we need to fetch new data
 	current_time = time.monotonic()
 	should_fetch = state.should_fetch_stocks  # Use state-level flag for market state optimization
-	data_is_fresh = False
 
-	# Smart fetch logic for market closed state
-	# Check cache FIRST before deciding to fetch (even in testing mode)
-	if ticker not in state.cached_intraday_data:
-		# Not cached yet - fetch this ticker
-		should_fetch = True
-		log_info(f"Intraday data not cached for {ticker} - fetching")
+	# STEP 1: Fetch quote FIRST (lighter operation, needed for accurate percentage)
+	# This way if we hit pystack exhausted, we fail fast without fetching 78 intraday points
+	should_fetch_quote = should_fetch
+	if ticker not in state.cached_stock_prices:
+		should_fetch_quote = True
+		log_info("Quote not cached for " + ticker + " - fetching")
 	elif not should_fetch:
-		# Market closed and data cached - use cache
+		should_fetch_quote = False
+
+	if should_fetch_quote:
+		quote_data = fetch_stock_prices([{"symbol": ticker, "name": ticker}])
+		if ticker not in quote_data:
+			log_warning("Could not fetch quote for " + ticker)
+			return False
+		state.cached_stock_prices[ticker] = quote_data[ticker]
+	else:
+		quote_data = {ticker: state.cached_stock_prices[ticker]}
+
+	# Extract quote data
+	current_price = quote_data[ticker]["price"]
+	change_percent = quote_data[ticker]["change_percent"]
+	direction = quote_data[ticker]["direction"]
+	actual_open_price = quote_data[ticker]["open_price"]
+
+	# STEP 2: Fetch intraday time series (heavier operation, 78 points)
+	data_is_fresh = False
+	should_fetch_intraday = should_fetch
+
+	if ticker not in state.cached_intraday_data:
+		should_fetch_intraday = True
+		log_info("Intraday data not cached for " + ticker + " - fetching")
+	elif not should_fetch:
 		log_verbose("Market closed - using cached intraday data for " + ticker)
+		should_fetch_intraday = False
 	elif should_fetch and ticker in state.last_intraday_fetch_time:
-		# Market open or testing mode - check cache age
 		time_since_fetch = current_time - state.last_intraday_fetch_time[ticker]
 		if time_since_fetch < INTRADAY_CACHE_MAX_AGE:
-			should_fetch = False
+			should_fetch_intraday = False
 			log_verbose("Using cached intraday data for " + ticker)
 
-	# Fetch time series if needed
-	if should_fetch:
+	if should_fetch_intraday:
 		data_is_fresh = True
+		# Reduce from 78 to 48 points to lower stack usage (4 hours of 5-min intervals)
+		outputsize = 48  # 4 hours ÷ 5 min = 48 intervals
 
-		# Always fetch up to 78 points (full day at 5-min intervals)
-		# API will return fewer points if market just opened (e.g., 12 points after 1 hour)
-		# This avoids complex timezone calculations and stack depth issues
-		outputsize = 78  # Max: 6.5 hours ÷ 5 min = 78 intervals
-
-		log_info("Fetching intraday data for " + ticker + " (5min interval, up to 78 points)")
+		log_info("Fetching intraday data for " + ticker + " (5min interval, up to " + str(outputsize) + " points)")
 		time_series = fetch_intraday_time_series(ticker, interval="5min", outputsize=outputsize)
 
 		if not time_series or len(time_series) == 0:
 			log_warning("No intraday data available for " + ticker)
 			return False
 
-		# Note: We'll get the actual opening price from the quote API later
-		# For now, just cache the time series data
 		state.cached_intraday_data[ticker] = {
 			"data": time_series,
 			"timestamp": current_time
 		}
 		state.last_intraday_fetch_time[ticker] = current_time
 
-	# Get cached data
+	# Get cached intraday data
 	if ticker not in state.cached_intraday_data:
-		log_warning("No cached data for " + ticker)
+		log_warning("No cached intraday data for " + ticker)
 		return False
 
 	cached = state.cached_intraday_data[ticker]
 	time_series = cached["data"]
 
-	# OPTIMIZATION: Calculate current price and change from time series data
-	# This eliminates the need for a separate quote API call, reducing stack depth
-	if len(time_series) > 0:
-		# Current price = latest close price from time series
-		current_price = time_series[-1]["close_price"]
-
-		# Day's opening price = first interval's open price
-		actual_open_price = time_series[0]["open_price"]
-
-		# Calculate percentage change from market open
-		if actual_open_price != 0:
-			change_percent = ((current_price - actual_open_price) / actual_open_price) * 100
-		else:
-			change_percent = 0.0
-
-		# Determine direction
-		direction = "up" if change_percent >= 0 else "down"
-
-		log_verbose(f"{ticker}: ${current_price:.2f} ({change_percent:+.2f}%) from time series")
-	else:
+	if len(time_series) == 0:
 		log_warning("Empty time series for " + ticker)
 		return False
 
