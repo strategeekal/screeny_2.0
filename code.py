@@ -1041,12 +1041,10 @@ def log_entry(message, level="INFO"):
 				timestamp = f"{dt.tm_year}-{dt.tm_mon:02d}-{dt.tm_mday:02d} {dt.tm_hour:02d}:{dt.tm_min:02d}:{dt.tm_sec:02d}"
 				time_source = ""
 			except Exception:
-				import time
 				monotonic_time = time.monotonic()
 				timestamp = f"SYS+{int(monotonic_time)}"
 				time_source = " [SYS]"
 		else:
-			import time
 			monotonic_time = time.monotonic()
 			hours = int(monotonic_time // System.SECONDS_PER_HOUR)
 			minutes = int((monotonic_time % System.SECONDS_PER_HOUR) // System.SECONDS_PER_MINUTE)
@@ -1458,8 +1456,6 @@ def is_market_hours_or_cache_valid(local_datetime, has_cached_data=False):
 		- should_display: True if we should show stocks (fresh or cached)
 		- reason: Human-readable reason (for logging)
 	"""
-	import time
-
 	# Check cached holiday status FIRST (avoid timezone calculations if holiday)
 	today = f"{local_datetime.tm_year:04d}-{local_datetime.tm_mon:02d}-{local_datetime.tm_mday:02d}"
 	if state.market_holiday_date == today:
@@ -2615,8 +2611,6 @@ def fetch_stock_prices(symbols_to_fetch):
 	Returns:
 		dict: {symbol: {"price": float, "change_percent": float, "direction": str}}
 	"""
-	import time
-
 	if not symbols_to_fetch:
 		log_verbose("No stock symbols to fetch")
 		return {}
@@ -2687,7 +2681,6 @@ def fetch_stock_prices(symbols_to_fetch):
 				if not is_market_open and state.market_holiday_date is None:
 					# Market closed on a weekday during business hours = holiday!
 					# Cache this for the rest of the day to avoid repeated API calls
-					import time
 					# Get current date from RTC (we don't have direct access here, will handle in caller)
 					log_verbose(f"Market closed detected via API (holiday or early close)")
 
@@ -2752,8 +2745,6 @@ def fetch_intraday_time_series(symbol, interval="15min", outputsize=26):
 		List of dicts: [{datetime, open_price, close_price}, ...] ordered chronologically (oldest first)
 		Returns empty list on error
 	"""
-	import time
-
 	# Get API key
 	api_key = os.getenv(Strings.TWELVE_DATA_API_KEY)
 	if not api_key:
@@ -2994,7 +2985,6 @@ def fetch_github_data(rtc):
 		log_warning("GITHUB_REPO_URL not configured")
 		return None, None, None, None
 
-	import time
 	cache_buster = int(time.monotonic())
 	github_base = Strings.GITHUB_REPO_URL.rsplit('/', 1)[0] if Strings.GITHUB_REPO_URL else None
 
@@ -4195,7 +4185,6 @@ def show_stocks_display(duration, offset, rtc):
 		stocks_to_fetch.append(stocks_list[idx])
 
 	# Check market hours FIRST before attempting to fetch or display
-	import time
 	has_any_cached = len(state.cached_stock_prices) > 0
 
 	# Respect market hours toggle (can be disabled for testing)
@@ -4482,9 +4471,6 @@ def show_single_stock_chart(ticker, duration, rtc):
 	Returns:
 		bool: True if displayed, False if skipped
 	"""
-	import time
-	from adafruit_display_shapes.line import Line
-
 	INTRADAY_CACHE_MAX_AGE = 900  # 15 minutes (900 seconds)
 
 	# Check if we need to fetch new data
