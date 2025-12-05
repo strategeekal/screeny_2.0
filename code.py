@@ -6060,7 +6060,27 @@ def run_display_cycle(rtc, cycle_count):
 
 		# CRITICAL: Prefetch stock prices HERE (shallow stack) instead of during display (deep stack)
 		# This prevents pystack exhausted errors in adafruit_requests
-		if should_fetch and state.cached_stocks and len(state.cached_stocks) > 0:
+
+		# Determine if we need to prefetch
+		needs_prefetch = False
+		if state.cached_stocks and len(state.cached_stocks) > 0:
+			if should_fetch:
+				# Market open - always prefetch fresh data
+				needs_prefetch = True
+			else:
+				# Market closed - check if needed stocks are missing from cache
+				# Build list of stocks we'll need (highlighted + first few for display)
+				highlighted = [s for s in state.cached_stocks if s.get("highlight", False)]
+				non_highlighted = [s for s in state.cached_stocks if not s.get("highlight", False)]
+				stocks_needed = (highlighted + non_highlighted)[:4]
+
+				for stock in stocks_needed:
+					if stock["symbol"] not in state.cached_stock_prices:
+						needs_prefetch = True
+						log_info("Need to fetch " + stock["symbol"] + " (not in cache)")
+						break
+
+		if needs_prefetch:
 			current_time = time.monotonic()
 			time_since_last_fetch = current_time - state.last_stock_fetch_time
 			MIN_FETCH_INTERVAL = 65  # Same as in show_stocks_display
