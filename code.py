@@ -6122,7 +6122,7 @@ def run_display_cycle(rtc, cycle_count):
 						# Will show chart - prefetch intraday for THIS stock only
 						if ticker not in state.cached_intraday_data or ticker not in state.last_intraday_fetch_time:
 							log_info("Prefetching intraday for chart display: " + ticker)
-							intraday = fetch_intraday_time_series(ticker, interval="5min", outputsize=48)
+							intraday = fetch_intraday_time_series(ticker, interval="5min", outputsize=78)
 							if intraday and len(intraday) > 0:
 								state.cached_intraday_data[ticker] = {
 									"data": intraday,
@@ -6132,7 +6132,7 @@ def run_display_cycle(rtc, cycle_count):
 								log_verbose("Prefetched " + str(len(intraday)) + " intraday points for " + ticker)
 						elif current_time - state.last_intraday_fetch_time[ticker] >= 900:  # 15 min cache
 							log_info("Refreshing intraday data for " + ticker)
-							intraday = fetch_intraday_time_series(ticker, interval="5min", outputsize=48)
+							intraday = fetch_intraday_time_series(ticker, interval="5min", outputsize=78)
 							if intraday and len(intraday) > 0:
 								state.cached_intraday_data[ticker]["data"] = intraday
 								state.cached_intraday_data[ticker]["timestamp"] = current_time
