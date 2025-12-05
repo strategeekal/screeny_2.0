@@ -1485,6 +1485,14 @@ def is_market_hours_or_cache_valid(local_datetime, has_cached_data=False):
 	Returns:
 		tuple: (should_fetch: bool, should_display: bool, reason: str)
 	"""
+<<<<<<< HEAD
+=======
+	# Check cached holiday status FIRST (avoid timezone calculations if holiday)
+	today = f"{local_datetime.tm_year:04d}-{local_datetime.tm_mon:02d}-{local_datetime.tm_mday:02d}"
+	if state.market_holiday_date == today:
+		# It's a cached holiday - skip display entirely
+		return (False, False, "Market holiday (cached)")
+>>>>>>> 3f43fb1e4e2043fb2fcc63f137beeb141741d344
 
 	# Get user's timezone from settings
 	user_timezone = os.getenv("TIMEZONE", Strings.TIMEZONE_DEFAULT)
@@ -2693,8 +2701,16 @@ def fetch_stock_prices(symbols_to_fetch):
 
 				# Check market status (informational only - no more holiday detection)
 				is_market_open = quote.get("is_market_open", True)
+<<<<<<< HEAD
 				if not is_market_open:
 					log_verbose("Market closed per API")
+=======
+				if not is_market_open and state.market_holiday_date is None:
+					# Market closed on a weekday during business hours = holiday!
+					# Cache this for the rest of the day to avoid repeated API calls
+					# Get current date from RTC (we don't have direct access here, will handle in caller)
+					log_verbose(f"Market closed detected via API (holiday or early close)")
+>>>>>>> 3f43fb1e4e2043fb2fcc63f137beeb141741d344
 
 				# Extract price and change data
 				try:
@@ -2764,7 +2780,10 @@ def fetch_intraday_time_series(symbol, interval="15min", outputsize=26):
 		List of dicts: [{datetime, open_price, close_price}, ...] ordered chronologically (oldest first)
 		Returns empty list on error
 	"""
+<<<<<<< HEAD
 
+=======
+>>>>>>> 3f43fb1e4e2043fb2fcc63f137beeb141741d344
 	# Get API key
 	api_key = os.getenv(Strings.TWELVE_DATA_API_KEY)
 	if not api_key:
@@ -4510,8 +4529,11 @@ def show_single_stock_chart(ticker, duration, rtc):
 	Returns:
 		bool: True if displayed, False if skipped
 	"""
+<<<<<<< HEAD
 	from adafruit_display_shapes.line import Line
 
+=======
+>>>>>>> 3f43fb1e4e2043fb2fcc63f137beeb141741d344
 	INTRADAY_CACHE_MAX_AGE = 900  # 15 minutes (900 seconds)
 
 	# Check if we need to fetch new data
