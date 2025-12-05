@@ -2648,9 +2648,9 @@ def fetch_stock_prices(symbols_to_fetch):
 		symbols_str = ",".join(symbols_list)
 
 		# Twelve Data Quote API endpoint (batch)
-		url = f"https://api.twelvedata.com/quote?symbol={symbols_str}&apikey={api_key}"
+		url = "https://api.twelvedata.com/quote?symbol=" + symbols_str + "&apikey=" + api_key
 
-		log_verbose(f"Fetching: {symbols_str}")
+		log_verbose("Fetching: " + symbols_str)
 		response = session.get(url, timeout=10)
 
 		# Check if response is valid
@@ -2672,26 +2672,28 @@ def fetch_stock_prices(symbols_to_fetch):
 			elif isinstance(data, dict):
 				quotes = list(data.values())
 			else:
-				log_warning(f"Unexpected API response format: {type(data)}")
+				log_warning("Unexpected API response format")
 				quotes = []
 
-			log_verbose(f"Processing {len(quotes)} quote(s)")
+			log_verbose("Processing " + str(len(quotes)) + " quote(s)")
 
 			for quote in quotes:
 				# Check if quote has error
 				if "status" in quote and quote["status"] == "error":
-					log_warning(f"Error fetching {quote.get('symbol', 'unknown')}: {quote.get('message', 'unknown error')}")
+					symbol_name = quote.get('symbol', 'unknown')
+					error_msg = quote.get('message', 'unknown error')
+					log_warning("Error fetching " + symbol_name + ": " + error_msg)
 					continue
 
 				symbol = quote.get("symbol")
 				if not symbol:
-					log_warning(f"Quote missing symbol field: {str(quote)[:100]}")
+					log_warning("Quote missing symbol field")
 					continue
 
 				# Check market status (informational only - no more holiday detection)
 				is_market_open = quote.get("is_market_open", True)
 				if not is_market_open:
-					log_verbose(f"Market closed per API (holiday, early close, or after hours)")
+					log_verbose("Market closed per API")
 
 				# Extract price and change data
 				try:
@@ -2708,29 +2710,29 @@ def fetch_stock_prices(symbols_to_fetch):
 						"is_market_open": is_market_open  # Include market status
 					}
 
-					log_verbose(f"{symbol}: ${price:.2f} ({change_percent:+.2f}%)")
+					log_verbose(symbol + ": $" + str(round(price, 2)) + " (" + str(round(change_percent, 2)) + "%)")
 				except (ValueError, TypeError) as e:
-					log_warning(f"Error parsing data for {symbol}: {e}")
+					log_warning("Error parsing data for " + symbol)
 					continue
 
 			# Track API usage: Each symbol counts as 1 API credit
 			if len(stock_data) > 0:
 				state.tracker.record_api_success("stock", len(stock_data))
-				log_verbose(f"Stock API: +{len(stock_data)} credits (Total: {state.tracker.stock_api_calls}/800)")
+				log_verbose("Stock API: +" + str(len(stock_data)) + " credits (Total: " + str(state.tracker.stock_api_calls) + "/800)")
 
 			# Log summary
 			if len(stock_data) < len(symbols_list):
 				failed = [sym for sym in symbols_list if sym not in stock_data]
-				log_warning(f"Failed to fetch: {', '.join(failed)}")
+				log_warning("Failed to fetch: " + ", ".join(failed))
 		else:
-			log_warning(f"HTTP {response.status_code}")
+			log_warning("HTTP " + str(response.status_code))
 			if response.text:
-				log_verbose(f"Response: {response.text[:200]}")
+				log_verbose("Response: " + response.text[:200])
 
 	except Exception as e:
 		error_msg = str(e)
-		log_warning(f"Failed to fetch stock prices: {error_msg}")
-		log_verbose(f"Exception type: {type(e).__name__}")
+		log_warning("Failed to fetch stock prices: " + error_msg)
+		log_verbose("Exception type: " + type(e).__name__)
 		# If socket reuse error, force session cleanup for next request
 		if "socket" in error_msg.lower() and "already connected" in error_msg.lower():
 			log_warning("Socket reuse detected - will clean session for next request")
