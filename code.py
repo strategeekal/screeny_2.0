@@ -6114,12 +6114,14 @@ def run_display_cycle(rtc, cycle_count):
 					state.last_stock_fetch_time = current_time
 					log_verbose("Prefetched " + str(len(prefetched_data)) + " stock quotes")
 
-					# Also prefetch intraday data for ALL highlighted stocks (chart display)
-					for stock in highlighted:
-						ticker = stock["symbol"]
-						# Check if intraday data needs refresh
+					# Prefetch intraday ONLY for the stock that will show THIS cycle (not all 4!)
+					# Determine which stock will be displayed using rotation logic
+					display_mode, ticker = get_stock_display_mode(state.cached_stocks, state.tracker.current_stock_offset)
+
+					if display_mode == "chart" and ticker:
+						# Will show chart - prefetch intraday for THIS stock only
 						if ticker not in state.cached_intraday_data or ticker not in state.last_intraday_fetch_time:
-							log_info("Prefetching intraday data for highlighted stock: " + ticker)
+							log_info("Prefetching intraday for chart display: " + ticker)
 							intraday = fetch_intraday_time_series(ticker, interval="5min", outputsize=48)
 							if intraday and len(intraday) > 0:
 								state.cached_intraday_data[ticker] = {
@@ -6135,11 +6137,13 @@ def run_display_cycle(rtc, cycle_count):
 								state.cached_intraday_data[ticker]["data"] = intraday
 								state.cached_intraday_data[ticker]["timestamp"] = current_time
 								state.last_intraday_fetch_time[ticker] = current_time
+					else:
+						# Will show multi-stock display - no intraday needed
+						log_verbose("Multi-stock display this cycle - no intraday prefetch needed")
 				else:
 					log_warning("Prefetch failed - will use cached data")
 
 		# Force garbage collection after prefetch to free memory before display cycle
-		# This is critical when prefetching multiple highlighted stocks (4 × 48 points = 192 data points)
 		gc.collect()
 
 		# Log market state
