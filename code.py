@@ -24,6 +24,7 @@ import ssl
 import microcontroller
 import random
 import traceback
+import json
 
 # Display
 import displayio
@@ -961,6 +962,7 @@ class WeatherDisplayState:
 		self.matrix_type_cache = None
 		self.button_up = None  # MatrixPortal UP button
 		self.button_down = None  # MatrixPortal DOWN button
+		self.cached_font_metrics = None  # Cache font metrics to avoid stack depth in display cycle
 
 		# Centralized success/failure tracking
 		self.tracker = StateTracker()
@@ -1066,12 +1068,10 @@ def log_entry(message, level="INFO"):
 				timestamp = f"{dt.tm_year}-{dt.tm_mon:02d}-{dt.tm_mday:02d} {dt.tm_hour:02d}:{dt.tm_min:02d}:{dt.tm_sec:02d}"
 				time_source = ""
 			except Exception:
-				import time
 				monotonic_time = time.monotonic()
 				timestamp = f"SYS+{int(monotonic_time)}"
 				time_source = " [SYS]"
 		else:
-			import time
 			monotonic_time = time.monotonic()
 			hours = int(monotonic_time // System.SECONDS_PER_HOUR)
 			minutes = int((monotonic_time % System.SECONDS_PER_HOUR) // System.SECONDS_PER_MINUTE)
@@ -1485,7 +1485,6 @@ def is_market_hours_or_cache_valid(local_datetime, has_cached_data=False):
 	Returns:
 		tuple: (should_fetch: bool, should_display: bool, reason: str)
 	"""
-	import time
 
 	# Get user's timezone from settings
 	user_timezone = os.getenv("TIMEZONE", Strings.TIMEZONE_DEFAULT)
@@ -2160,7 +2159,7 @@ def get_font_metrics(font, text="Aygjpq"):
 	try:
 		temp_label = bitmap_label.Label(font, text=text)
 		bbox = temp_label.bounding_box
-		
+
 		if bbox and len(bbox) >= 4:
 			# bbox format: (x, y, width, height)
 			font_height = bbox[3]  # Total height including ascenders/descenders
@@ -2626,8 +2625,6 @@ def fetch_stock_prices(symbols_to_fetch):
 	Returns:
 		dict: {symbol: {"price": float, "change_percent": float, "direction": str}}
 	"""
-	import time
-
 	if not symbols_to_fetch:
 		log_verbose("No stock symbols to fetch")
 		return {}
@@ -2652,9 +2649,9 @@ def fetch_stock_prices(symbols_to_fetch):
 		symbols_str = ",".join(symbols_list)
 
 		# Twelve Data Quote API endpoint (batch)
-		url = f"https://api.twelvedata.com/quote?symbol={symbols_str}&apikey={api_key}"
+		url = "https://api.twelvedata.com/quote?symbol=" + symbols_str + "&apikey=" + api_key
 
-		log_verbose(f"Fetching: {symbols_str}")
+		log_verbose("Fetching: " + symbols_str)
 		response = session.get(url, timeout=10)
 
 		# Check if response is valid
@@ -2663,7 +2660,6 @@ def fetch_stock_prices(symbols_to_fetch):
 			return stock_data
 
 		if response.status_code == 200:
-			import json
 			data = json.loads(response.text)
 
 			# Handle Twelve Data response formats:
@@ -2677,26 +2673,28 @@ def fetch_stock_prices(symbols_to_fetch):
 			elif isinstance(data, dict):
 				quotes = list(data.values())
 			else:
-				log_warning(f"Unexpected API response format: {type(data)}")
+				log_warning("Unexpected API response format")
 				quotes = []
 
-			log_verbose(f"Processing {len(quotes)} quote(s)")
+			log_verbose("Processing " + str(len(quotes)) + " quote(s)")
 
 			for quote in quotes:
 				# Check if quote has error
 				if "status" in quote and quote["status"] == "error":
-					log_warning(f"Error fetching {quote.get('symbol', 'unknown')}: {quote.get('message', 'unknown error')}")
+					symbol_name = quote.get('symbol', 'unknown')
+					error_msg = quote.get('message', 'unknown error')
+					log_warning("Error fetching " + symbol_name + ": " + error_msg)
 					continue
 
 				symbol = quote.get("symbol")
 				if not symbol:
-					log_warning(f"Quote missing symbol field: {str(quote)[:100]}")
+					log_warning("Quote missing symbol field")
 					continue
 
 				# Check market status (informational only - no more holiday detection)
 				is_market_open = quote.get("is_market_open", True)
 				if not is_market_open:
-					log_verbose(f"Market closed per API (holiday, early close, or after hours)")
+					log_verbose("Market closed per API")
 
 				# Extract price and change data
 				try:
@@ -2713,28 +2711,33 @@ def fetch_stock_prices(symbols_to_fetch):
 						"is_market_open": is_market_open  # Include market status
 					}
 
-					log_verbose(f"{symbol}: ${price:.2f} ({change_percent:+.2f}%)")
+					log_verbose(symbol + ": $" + str(round(price, 2)) + " (" + str(round(change_percent, 2)) + "%)")
 				except (ValueError, TypeError) as e:
-					log_warning(f"Error parsing data for {symbol}: {e}")
+					log_warning("Error parsing data for " + symbol)
 					continue
 
 			# Track API usage: Each symbol counts as 1 API credit
 			if len(stock_data) > 0:
 				state.tracker.record_api_success("stock", len(stock_data))
-				log_verbose(f"Stock API: +{len(stock_data)} credits (Total: {state.tracker.stock_api_calls}/800)")
+				log_verbose("Stock API: +" + str(len(stock_data)) + " credits (Total: " + str(state.tracker.stock_api_calls) + "/800)")
 
 			# Log summary
 			if len(stock_data) < len(symbols_list):
 				failed = [sym for sym in symbols_list if sym not in stock_data]
-				log_warning(f"Failed to fetch: {', '.join(failed)}")
+				log_warning("Failed to fetch: " + ", ".join(failed))
 		else:
-			log_warning(f"HTTP {response.status_code}")
+			log_warning("HTTP " + str(response.status_code))
 			if response.text:
-				log_verbose(f"Response: {response.text[:200]}")
+				log_verbose("Response: " + response.text[:200])
 
 	except Exception as e:
-		log_warning(f"Failed to fetch stock prices: {e}")
-		log_verbose(f"Exception type: {type(e).__name__}")
+		error_msg = str(e)
+		log_warning("Failed to fetch stock prices: " + error_msg)
+		log_verbose("Exception type: " + type(e).__name__)
+		# If socket reuse error, force session cleanup for next request
+		if "socket" in error_msg.lower() and "already connected" in error_msg.lower():
+			log_warning("Socket reuse detected - will clean session for next request")
+			cleanup_global_session()
 
 	finally:
 		# CRITICAL: Close response to release socket
@@ -2743,6 +2746,8 @@ def fetch_stock_prices(symbols_to_fetch):
 				response.close()
 			except:
 				pass
+		# Force garbage collection to help release sockets
+		gc.collect()
 
 	return stock_data
 
@@ -2759,7 +2764,6 @@ def fetch_intraday_time_series(symbol, interval="15min", outputsize=26):
 		List of dicts: [{datetime, open_price, close_price}, ...] ordered chronologically (oldest first)
 		Returns empty list on error
 	"""
-	import time
 
 	# Get API key
 	api_key = os.getenv(Strings.TWELVE_DATA_API_KEY)
@@ -2789,7 +2793,6 @@ def fetch_intraday_time_series(symbol, interval="15min", outputsize=26):
 			return []
 
 		if response.status_code == 200:
-			import json
 			data = json.loads(response.text)
 
 			# Check for errors
@@ -2830,7 +2833,12 @@ def fetch_intraday_time_series(symbol, interval="15min", outputsize=26):
 			return []
 
 	except Exception as e:
-		log_warning("Failed to fetch intraday data: " + str(e))
+		error_msg = str(e)
+		log_warning("Failed to fetch intraday data: " + error_msg)
+		# If socket reuse error, force session cleanup for next request
+		if "socket" in error_msg.lower() and "already connected" in error_msg.lower():
+			log_warning("Socket reuse detected - will clean session for next request")
+			cleanup_global_session()
 		return []
 
 	finally:
@@ -2840,6 +2848,8 @@ def fetch_intraday_time_series(symbol, interval="15min", outputsize=26):
 				response.close()
 			except:
 				pass
+		# Force garbage collection to help release sockets
+		gc.collect()
 
 	return []
 
@@ -3001,7 +3011,6 @@ def fetch_github_data(rtc):
 		log_warning("GITHUB_REPO_URL not configured")
 		return None, None, None, None
 
-	import time
 	cache_buster = int(time.monotonic())
 	github_base = Strings.GITHUB_REPO_URL.rsplit('/', 1)[0] if Strings.GITHUB_REPO_URL else None
 
@@ -4202,7 +4211,6 @@ def show_stocks_display(duration, offset, rtc):
 		stocks_to_fetch.append(stocks_list[idx])
 
 	# Check market hours FIRST before attempting to fetch or display
-	import time
 	has_any_cached = len(state.cached_stock_prices) > 0
 
 	# Respect market hours toggle (can be disabled for testing)
@@ -4502,7 +4510,6 @@ def show_single_stock_chart(ticker, duration, rtc):
 	Returns:
 		bool: True if displayed, False if skipped
 	"""
-	import time
 	from adafruit_display_shapes.line import Line
 
 	INTRADAY_CACHE_MAX_AGE = 900  # 15 minutes (900 seconds)
@@ -4510,84 +4517,39 @@ def show_single_stock_chart(ticker, duration, rtc):
 	# Check if we need to fetch new data
 	current_time = time.monotonic()
 	should_fetch = state.should_fetch_stocks  # Use state-level flag for market state optimization
-	data_is_fresh = False
 
-	# Smart fetch logic for market closed state
-	# Check cache FIRST before deciding to fetch (even in testing mode)
+	# STEP 1: Get quote from cache (prefetched before display cycle to avoid stack exhaustion)
+	if ticker not in state.cached_stock_prices:
+		log_warning("Quote not in cache for " + ticker + " (prefetch may have failed)")
+		return False
+
+	quote_data = state.cached_stock_prices[ticker]
+
+	# Extract quote data
+	current_price = quote_data["price"]
+	change_percent = quote_data["change_percent"]
+	direction = quote_data["direction"]
+	actual_open_price = quote_data["open_price"]
+
+	# STEP 2: Get intraday data from cache (prefetched before display cycle)
 	if ticker not in state.cached_intraday_data:
-		# Not cached yet - fetch this ticker
-		should_fetch = True
-		log_info(f"Intraday data not cached for {ticker} - fetching")
-	elif not should_fetch:
-		# Market closed and data cached - use cache
-		log_verbose("Market closed - using cached intraday data for " + ticker)
-	elif should_fetch and ticker in state.last_intraday_fetch_time:
-		# Market open or testing mode - check cache age
-		time_since_fetch = current_time - state.last_intraday_fetch_time[ticker]
-		if time_since_fetch < INTRADAY_CACHE_MAX_AGE:
-			should_fetch = False
-			log_verbose("Using cached intraday data for " + ticker)
-
-	# Fetch time series if needed
-	if should_fetch:
-		data_is_fresh = True
-		log_info("Fetching intraday data for " + ticker)
-		time_series = fetch_intraday_time_series(ticker, interval="15min", outputsize=26)
-
-		if not time_series or len(time_series) == 0:
-			log_warning("No intraday data available for " + ticker)
-			return False
-
-		# Note: We'll get the actual opening price from the quote API later
-		# For now, just cache the time series data
-		state.cached_intraday_data[ticker] = {
-			"data": time_series,
-			"timestamp": current_time
-		}
-		state.last_intraday_fetch_time[ticker] = current_time
-
-	# Get cached data
-	if ticker not in state.cached_intraday_data:
-		log_warning("No cached data for " + ticker)
+		log_warning("Intraday data not in cache for " + ticker + " (prefetch may have failed)")
 		return False
 
 	cached = state.cached_intraday_data[ticker]
 	time_series = cached["data"]
 
-	# Fetch current quote for latest price and percentage (or use cached if market closed)
-	should_fetch_quote = state.should_fetch_stocks
+	if len(time_series) == 0:
+		log_warning("Empty time series for " + ticker)
+		return False
 
-	# Check cache FIRST (even in testing mode) - respects 15min cache age if market open
-	if ticker not in state.cached_stock_prices:
-		should_fetch_quote = True
-		log_info(f"Quote not cached for {ticker} - fetching")
-	elif not state.should_fetch_stocks:
-		# Market closed and cached - use cache
-		should_fetch_quote = False
-
-	if should_fetch_quote:
-		quote_data = fetch_stock_prices([{"symbol": ticker, "name": ticker}])
-
-		if ticker not in quote_data:
-			log_warning("Could not fetch current quote for " + ticker)
-			return False
-
-		# Cache the quote data for after-hours use
-		state.cached_stock_prices[ticker] = quote_data[ticker]
-	else:
-		# Market closed - use cached quote data
-		quote_data = {ticker: state.cached_stock_prices[ticker]}
-		log_verbose("Using cached quote for " + ticker)
-
-	current_price = quote_data[ticker]["price"]
-	change_percent = quote_data[ticker]["change_percent"]
-	direction = quote_data[ticker]["direction"]
-	actual_open_price = quote_data[ticker]["open_price"]
+	# Check if data is fresh (just prefetched)
+	data_is_fresh = (current_time - cached["timestamp"]) < 300  # Fresh if < 5 min old
 
 	# Get display name (uses display_name from stocks.csv if available)
 	display_name = get_stock_display_name(ticker)
 
-	# Use the actual day's percentage change from the quote API
+	# Use the day's percentage change calculated from time series
 	# This represents the change from market open (9:30 AM) to current price
 	day_change_percent = change_percent
 
@@ -4659,8 +4621,8 @@ def show_single_stock_chart(ticker, duration, rtc):
 		CHART_Y_START = Layout.STOCK_CHART_Y_START
 		CHART_WIDTH = Layout.DISPLAY_WIDTH
 
-		# Find min and max prices for scaling
-		prices = [point["close_price"] for point in time_series]
+		# Find min and max prices for scaling (include open price to anchor chart)
+		prices = [actual_open_price] + [point["close_price"] for point in time_series]
 		min_price = min(prices)
 		max_price = max(prices)
 		price_range = max_price - min_price
@@ -6096,6 +6058,94 @@ def run_display_cycle(rtc, cycle_count):
 
 		# For fetching: use time-based logic (no more state transitions!)
 		state.should_fetch_stocks = should_fetch
+
+		# CRITICAL: Prefetch stock prices HERE (shallow stack) instead of during display (deep stack)
+		# This prevents pystack exhausted errors in adafruit_requests
+
+		# Determine if we need to prefetch
+		needs_prefetch = False
+		if state.cached_stocks and len(state.cached_stocks) > 0:
+			if should_fetch:
+				# Market open - always prefetch fresh data
+				needs_prefetch = True
+			else:
+				# Market closed - check if needed stocks are missing from cache
+				# Build list of stocks we'll need (highlighted + first few for display)
+				highlighted = [s for s in state.cached_stocks if s.get("highlight", False)]
+				non_highlighted = [s for s in state.cached_stocks if not s.get("highlight", False)]
+				stocks_needed = (highlighted + non_highlighted)[:4]
+
+				for stock in stocks_needed:
+					if stock["symbol"] not in state.cached_stock_prices:
+						needs_prefetch = True
+						log_info("Need to fetch " + stock["symbol"] + " (not in cache)")
+						break
+
+		if needs_prefetch:
+			current_time = time.monotonic()
+			time_since_last_fetch = current_time - state.last_stock_fetch_time
+			MIN_FETCH_INTERVAL = 65  # Same as in show_stocks_display
+
+			if time_since_last_fetch >= MIN_FETCH_INTERVAL or state.last_stock_fetch_time == 0:
+				# Build smart prefetch list: prioritize highlighted stocks, then fill with others
+				highlighted = [s for s in state.cached_stocks if s.get("highlight", False)]
+				non_highlighted = [s for s in state.cached_stocks if not s.get("highlight", False)]
+
+				# Prefetch quotes: all highlighted + fill to 4 with non-highlighted
+				stocks_to_prefetch = highlighted + non_highlighted
+				stocks_to_prefetch = stocks_to_prefetch[:4]  # Respect API batch limit
+
+				log_info("Prefetching stock quotes (shallow stack)")
+				if len(highlighted) > 0:
+					highlighted_symbols = [s["symbol"] for s in highlighted]
+					log_verbose("Prioritizing highlighted: " + ", ".join(highlighted_symbols))
+
+				prefetched_data = fetch_stock_prices(stocks_to_prefetch)
+
+				if prefetched_data:
+					# Cache the prefetched data
+					for symbol, data in prefetched_data.items():
+						state.cached_stock_prices[symbol] = {
+							"price": data["price"],
+							"change_percent": data["change_percent"],
+							"direction": data["direction"],
+							"open_price": data["open_price"],
+							"timestamp": current_time
+						}
+					state.last_stock_fetch_time = current_time
+					log_verbose("Prefetched " + str(len(prefetched_data)) + " stock quotes")
+
+					# Prefetch intraday ONLY for the stock that will show THIS cycle (not all 4!)
+					# Determine which stock will be displayed using rotation logic
+					display_mode, ticker = get_stock_display_mode(state.cached_stocks, state.tracker.current_stock_offset)
+
+					if display_mode == "chart" and ticker:
+						# Will show chart - prefetch intraday for THIS stock only
+						if ticker not in state.cached_intraday_data or ticker not in state.last_intraday_fetch_time:
+							log_info("Prefetching intraday for chart display: " + ticker)
+							intraday = fetch_intraday_time_series(ticker, interval="5min", outputsize=78)
+							if intraday and len(intraday) > 0:
+								state.cached_intraday_data[ticker] = {
+									"data": intraday,
+									"timestamp": current_time
+								}
+								state.last_intraday_fetch_time[ticker] = current_time
+								log_verbose("Prefetched " + str(len(intraday)) + " intraday points for " + ticker)
+						elif current_time - state.last_intraday_fetch_time[ticker] >= 900:  # 15 min cache
+							log_info("Refreshing intraday data for " + ticker)
+							intraday = fetch_intraday_time_series(ticker, interval="5min", outputsize=78)
+							if intraday and len(intraday) > 0:
+								state.cached_intraday_data[ticker]["data"] = intraday
+								state.cached_intraday_data[ticker]["timestamp"] = current_time
+								state.last_intraday_fetch_time[ticker] = current_time
+					else:
+						# Will show multi-stock display - no intraday needed
+						log_verbose("Multi-stock display this cycle - no intraday prefetch needed")
+				else:
+					log_warning("Prefetch failed - will use cached data")
+
+		# Force garbage collection after prefetch to free memory before display cycle
+		gc.collect()
 
 		# Log market state
 		log_info("Market: " + reason)

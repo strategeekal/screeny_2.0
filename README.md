@@ -692,11 +692,34 @@ The entire codebase currently resides in a single `code.py` file. This is a comm
 ## Version History
 
 ### 2.5.0 (Current - December 2025)
+- **Progressive 5-Min Interval Charts (Major Feature):**
+  - **Granular Intraday Data:**
+    - Changed from 15-min to 5-min intervals (3× more granular)
+    - Fetches up to 78 data points (full trading day coverage)
+    - API returns available data progressively throughout the day
+  - **Progressive Chart Fill:**
+    - Early morning: Sparse chart with few points (shows market just opened)
+    - Mid-day: Partial fill (visual indicator of time elapsed)
+    - Market close: Full 78-point chart (complete day coverage)
+    - Honest visualization (only shows available data, not interpolated)
+  - **Anchored to Market Open:**
+    - Chart scaling includes actual market open price
+    - Visual chart now matches percentage display
+    - Fixes misleading charts where % was negative but chart looked positive
+  - **Uniform Sampling:**
+    - 78 data points mapped to 64 pixels (1.22 points per pixel)
+    - Minimal compression with even distribution
+    - Preserves accurate price movement representation
+  - **Same API Cost:**
+    - 1 API credit regardless of outputsize parameter
+    - No additional cost for 3× more data
+
 - **Simplified Market State Logic (Major Refactor):**
   - **Time-Based Logic (Replaces Complex State Transitions):**
     - Weekend: Markets never open → use cache if available (no fetching)
     - Pre-market (before 8:30 AM ET weekdays): Markets never open yet → use cache
-    - Market hours (after 8:30 AM ET weekdays): Might be open → let API decide
+    - Market hours (8:30 AM - 4:00 PM ET weekdays): Might be open → let API decide
+    - After hours (after 4:00 PM ET weekdays): Market closed → use cache
     - Holidays: No detection logic → API says closed, we use cache
   - **Removed Complex State Tracking:**
     - Eliminated `last_market_state` variable (no more open→closed transitions)
@@ -705,6 +728,7 @@ The entire codebase currently resides in a single `code.py` file. This is a comm
     - Net reduction: -48 lines of code while adding new features
   - **Visual Cache Indicator:**
     - 4 lilac pixels at top center (x=30-33, y=0) when displaying cached data
+    - Uses displayio.Bitmap + TileGrid (proper CircuitPython approach)
     - Shows in both stock rotation and single stock chart modes
     - Clear visual feedback for debugging and testing
   - **Testing Mode Respects Market Hours:**
@@ -720,8 +744,20 @@ The entire codebase currently resides in a single `code.py` file. This is a comm
   - **Bug Fixes:**
     - Fixed missing `open_price` field in cached stock data
     - Fixed false holiday detection (December 2 cached as holiday)
+    - Fixed market hours missing upper bound (was fetching at 10:54 PM ET)
     - Fixed pystack exhausted from complex diagnostic f-strings
+    - Fixed pystack exhausted from timezone calculations (simplified to use API)
+    - Fixed cache indicator using nonexistent state.matrix attribute
     - Fixed stock chart color/percentage calculations
+
+- **Removed Obsolete Features:**
+  - **350 API Call Restart:**
+    - Removed MAX_CALLS_BEFORE_RESTART constant
+    - Removed should_preventive_restart() method
+    - Removed check_preventive_restart() function
+    - Removed all function calls and references
+    - Updated logging to remove /350 reference (now shows "Total=X")
+    - No longer needed for weather API management
 
 - **Transit Display Enhancements:**
   - **Interruptible Sleep:**
