@@ -6138,6 +6138,10 @@ def run_display_cycle(rtc, cycle_count):
 				else:
 					log_warning("Prefetch failed - will use cached data")
 
+		# Force garbage collection after prefetch to free memory before display cycle
+		# This is critical when prefetching multiple highlighted stocks (4 × 48 points = 192 data points)
+		gc.collect()
+
 		# Log market state
 		log_info("Market: " + reason)
 
