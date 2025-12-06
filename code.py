@@ -4713,7 +4713,7 @@ def show_transit_display(rtc, duration, current_data=None):
 				font,
 				color=state.colors["WHITE"],
 				text=times_text,
-				x=64 - times_width - 1,  # Right-aligned
+				x=64 - times_width,  # Right-aligned
 				y=y_pos
 			)
 			state.main_group.append(times_label)
@@ -4745,7 +4745,7 @@ def show_transit_display(rtc, duration, current_data=None):
 				font,
 				color=state.colors["WHITE"],
 				text=times_text,
-				x=64 - times_width - 1,  # Right-aligned
+				x=64 - times_width,  # Right-aligned
 				y=y_pos
 			)
 			state.main_group.append(times_label)
@@ -4780,7 +4780,7 @@ def show_transit_display(rtc, duration, current_data=None):
 				font,
 				color=state.colors["WHITE"],
 				text=times_text,
-				x=64 - times_width - 1,  # Right-aligned
+				x=64 - times_width,  # Right-aligned
 				y=y_pos
 			)
 			state.main_group.append(times_label)
