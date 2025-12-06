@@ -4528,7 +4528,7 @@ def show_single_stock_chart(ticker, duration, rtc):
 			font,
 			text=pct_text,
 			color=pct_color,
-			x=64 - get_text_width(pct_text, font),  # Right-aligned
+			x=right_align_text(pct_text, font, Layout.RIGHT_EDGE),
 			y=1
 		)
 		state.main_group.append(pct_label)
@@ -4542,8 +4542,7 @@ def show_single_stock_chart(ticker, duration, rtc):
 			font,
 			text=price_text,
 			color=state.colors["WHITE"],
-			# x=1,
-			x=64 - get_text_width(price_text, font),  # Right-aligned
+			x=right_align_text(price_text, font, Layout.RIGHT_EDGE),
 			y=9
 		)
 		state.main_group.append(price_label)
@@ -4708,12 +4707,11 @@ def show_transit_display(rtc, duration, current_data=None):
 
 			# Times separated by commas (right-aligned)
 			times_text = ", ".join(brown_purple_times)
-			times_width = get_text_width(times_text, font)
 			times_label = bitmap_label.Label(
 				font,
 				color=state.colors["WHITE"],
 				text=times_text,
-				x=64 - times_width,  # Right-aligned
+				x=right_align_text(times_text, font, Layout.RIGHT_EDGE),
 				y=y_pos
 			)
 			state.main_group.append(times_label)
@@ -4740,12 +4738,11 @@ def show_transit_display(rtc, duration, current_data=None):
 
 			# Times separated by commas (right-aligned)
 			times_text = ", ".join(red_times)
-			times_width = get_text_width(times_text, font)
 			times_label = bitmap_label.Label(
 				font,
 				color=state.colors["WHITE"],
 				text=times_text,
-				x=64 - times_width,  # Right-aligned
+				x=right_align_text(times_text, font, Layout.RIGHT_EDGE),
 				y=y_pos
 			)
 			state.main_group.append(times_label)
@@ -4775,12 +4772,11 @@ def show_transit_display(rtc, duration, current_data=None):
 
 			# Times separated by commas (right-aligned)
 			times_text = ", ".join(bus_8_times)
-			times_width = get_text_width(times_text, font)
 			times_label = bitmap_label.Label(
 				font,
 				color=state.colors["WHITE"],
 				text=times_text,
-				x=64 - times_width,  # Right-aligned
+				x=right_align_text(times_text, font, Layout.RIGHT_EDGE),
 				y=y_pos
 			)
 			state.main_group.append(times_label)
