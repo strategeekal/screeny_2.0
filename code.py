@@ -4370,11 +4370,13 @@ def show_single_stock_chart(ticker, duration, rtc):
 	# Use state.should_fetch_stocks (set per-cycle based on market hours)
 	current_time = time.monotonic()
 	should_fetch = state.should_fetch_stocks  # Respect market hours
+	fetch_full_chart = False  # Flag to indicate we should fetch all 78 points
 
 	# If not fetching (outside market hours) and no cache, fetch once to create cache
 	if not should_fetch and ticker not in state.cached_intraday_data:
 		log_info(f"Outside market hours with no cache for {ticker} - fetching once to create cache")
 		should_fetch = True  # Override to fetch once
+		fetch_full_chart = True  # Fetch full 78-point chart (not progressive)
 
 	# Also check cache age (don't fetch too frequently during market hours)
 	# Only skip fetch if we actually have cached data
@@ -4390,9 +4392,12 @@ def show_single_stock_chart(ticker, duration, rtc):
 	if should_fetch:
 		data_is_fresh = True
 
+		# If fetch_full_chart flag is set, always fetch all 78 points (outside market hours)
+		if fetch_full_chart:
+			intervals_elapsed = 78
 		# Calculate progressive outputsize: how many 5-min intervals since market open?
 		# Market opens at 9:30 AM ET, closes at 4:00 PM ET (6.5 hours = 390 minutes = 78 intervals)
-		if rtc:
+		elif rtc:
 			now = rtc.datetime
 			current_minutes = now.tm_hour * 60 + now.tm_min
 
@@ -4400,7 +4405,7 @@ def show_single_stock_chart(ticker, duration, rtc):
 			if state.market_open_local_minutes > 0:
 				minutes_since_open = current_minutes - state.market_open_local_minutes
 
-				# Check if outside market hours
+				# Check if outside market hours (time of day check)
 				if minutes_since_open < 0 or minutes_since_open >= 390:  # 390 min = 6.5 hours
 					# Outside market hours - check if we have cached data
 					if ticker in state.cached_intraday_data:
