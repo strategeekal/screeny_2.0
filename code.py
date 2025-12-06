@@ -4301,6 +4301,14 @@ def show_stocks_display(duration, offset, rtc):
 		# Add day indicator
 		add_weekday_indicator_if_enabled(state.main_group, rtc, "Stocks")
 
+		# Add cache indicator (4-pixel lilac marker at bottom center) when using cached data
+		if not should_fetch:
+			cache_indicator = displayio.Bitmap(4, 1, 1)
+			cache_palette = displayio.Palette(1)
+			cache_palette[0] = state.colors["LILAC"]
+			cache_tile = displayio.TileGrid(cache_indicator, pixel_shader=cache_palette, x=30, y=31)
+			state.main_group.append(cache_tile)
+
 		# Display for specified duration
 		start_time = time.monotonic()
 		while time.monotonic() - start_time < duration:
@@ -4582,6 +4590,14 @@ def show_single_stock_chart(ticker, duration, rtc):
 			x2, y2 = data_points[i + 1]
 			line = Line(x1, y1, x2, y2, color=chart_color)
 			state.main_group.append(line)
+
+		# Add cache indicator (4-pixel lilac marker at bottom center) when using cached data
+		if not data_is_fresh:
+			cache_indicator = displayio.Bitmap(4, 1, 1)
+			cache_palette = displayio.Palette(1)
+			cache_palette[0] = state.colors["LILAC"]
+			cache_tile = displayio.TileGrid(cache_indicator, pixel_shader=cache_palette, x=30, y=31)
+			state.main_group.append(cache_tile)
 
 		cache_status = "(fresh)" if data_is_fresh else "(cached)"
 		log_info("Chart: " + display_name + " " + pct_text + " (" + price_text + ") with " + str(num_points) + " data points " + cache_status)
