@@ -4203,13 +4203,10 @@ def show_stocks_display(duration, offset, rtc):
 			detail_parts.append(f"{display_name} {formatted_price}")
 	stock_details = ", ".join(detail_parts)
 
-	# Add market status to log if displaying cached data
+	# Log stock display with cache status
 	# Note: Show count out of fetched (4) to indicate buffer usage
 	cache_status = "(fresh)" if should_fetch else "(cached)"
-	if "CLOSED" in reason:
-		log_info(f"Stocks ({len(stocks_to_show)}/{len(stocks_to_fetch)}), markets closed, displaying cached data: {stock_details} {cache_status}")
-	else:
-		log_info(f"Stocks ({len(stocks_to_show)}/{len(stocks_to_fetch)}): {stock_details} {cache_status}")
+	log_info(f"Stocks ({len(stocks_to_show)}/{len(stocks_to_fetch)}): {stock_details} {cache_status}")
 
 	clear_display()
 	gc.collect()	
