@@ -4108,10 +4108,10 @@ def show_stocks_display(duration, offset, rtc):
 	should_fetch = state.should_fetch_stocks
 	has_cached = len(state.cached_stock_prices) > 0
 
-	# If not fetching and no cache, skip display
+	# If not fetching (outside market hours) and no cache, fetch once to create cache
 	if not should_fetch and not has_cached:
-		log_verbose("Stocks skipped: No cache available outside market hours")
-		return (False, offset)
+		log_info("Outside market hours with no cache - fetching once to create cache")
+		should_fetch = True  # Override to fetch once
 
 	# Initialize stock_prices - will be either fresh or from cache
 	stock_prices = {}
@@ -6029,10 +6029,12 @@ def run_display_cycle(rtc, cycle_count):
 		return  # Schedule handled everything
 
 	# Update market hours status ONCE per cycle (simple time check, no stack depth)
-	if display_config.show_stocks and display_config.stocks_respect_market_hours:
+	# Always check market hours to determine if we should fetch fresh data
+	# Individual displays will handle cache fallback logic
+	if display_config.show_stocks:
 		update_market_hours_status(rtc)
 	else:
-		state.should_fetch_stocks = True  # Always fetch if market hours check is disabled
+		state.should_fetch_stocks = False  # Skip if stocks display is disabled
 
 	# Normal cycle
 	_run_normal_cycle(rtc, cycle_count, cycle_start_time)
