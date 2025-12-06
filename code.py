@@ -4377,7 +4377,8 @@ def show_single_stock_chart(ticker, duration, rtc):
 		should_fetch = True  # Override to fetch once
 
 	# Also check cache age (don't fetch too frequently during market hours)
-	if should_fetch and ticker in state.last_intraday_fetch_time:
+	# Only skip fetch if we actually have cached data
+	if should_fetch and ticker in state.last_intraday_fetch_time and ticker in state.cached_intraday_data:
 		time_since_fetch = current_time - state.last_intraday_fetch_time[ticker]
 		if time_since_fetch < INTRADAY_CACHE_MAX_AGE:
 			should_fetch = False
