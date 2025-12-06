@@ -4106,11 +4106,13 @@ def show_stocks_display(duration, offset, rtc):
 
 	# Use pre-calculated market hours status (set once per cycle)
 	should_fetch = state.should_fetch_stocks
-	has_cached = len(state.cached_stock_prices) > 0
 
-	# If not fetching (outside market hours) and no cache, fetch once to create cache
-	if not should_fetch and not has_cached:
-		log_info("Outside market hours with no cache - fetching once to create cache")
+	# Check if current batch of stocks are cached (not just any stocks)
+	current_batch_cached = all(s["symbol"] in state.cached_stock_prices for s in stocks_to_fetch)
+
+	# If not fetching (outside market hours) and current batch not cached, fetch once
+	if not should_fetch and not current_batch_cached:
+		log_info("Outside market hours with no cache for current batch - fetching once to create cache")
 		should_fetch = True  # Override to fetch once
 
 	# Initialize stock_prices - will be either fresh or from cache
