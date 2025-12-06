@@ -329,43 +329,53 @@ GC=F,Gold Futures,commodity,GLD,0
   - Prices >= $1000: No cents, comma separators (86,932)
   - Prices < $1000: Show cents (18.49)
 - **Color-coded:** Green for gains, Red for losses (all types)
-- **Single Stock Chart Display (NEW in 2.2.0):**
+- **Single Stock Chart Display (NEW in 2.2.0, Enhanced in 2.4.0):**
   - **Full-screen intraday chart** showing price movement throughout trading day
   - **Layout:**
     - Row 1: Display name + daily percentage change (color-coded)
     - Row 2: Current price with smart formatting ($1,234 or $226.82)
     - Chart area: 16-pixel tall line graph (64 pixels wide)
-  - **Data:** 26 data points at 15-minute intervals (covers full 6.5-hour trading day)
+  - **Progressive Chart Loading (NEW in 2.4.0):**
+    - **5-minute intervals:** 1-78 data points (vs previous 15-min/26 points)
+    - **During market hours:** Chart fills progressively as day advances
+      - First point: Market open price (9:30 AM ET)
+      - Last point: Market close (4:00 PM ET) = 78 intervals (6.5 hours × 12/hour)
+      - Updates every 5 minutes with new data point
+      - Visual feedback shows how much trading day remains
+    - **Outside market hours:** Full 78-point chart for complete visualization
+    - **Smart caching:** Remembers each stock's chart data outside market hours
   - **Accurate percentage:** Uses actual market open price (9:30 AM) from quote API
-  - **Smart caching:** 15-minute cache reduces API usage (~26 calls/day vs 780)
+  - **Smart caching:** 15-minute cache reduces API usage during market hours
   - **Efficient API usage:** Single time_series call per 15 minutes
   - **Visual feedback:** Line graph scales automatically to price range
-  - **Smart Rotation (NEW):** Control via `highlight` column in stocks.csv
+  - **Smart Rotation:** Control via `highlight` column in stocks.csv
     - `highlight=1`: Shows as full-screen chart
     - `highlight=0`: Shows in multi-stock rotation
     - Rotation automatically switches between chart and multi-stock modes
     - Chart advances by 1, multi-stock advances by 3
-  - **API Tracking (NEW):** Stock API calls tracked separately (Total X/800)
-  - **Cache Indicators (NEW):** Logs show "(cached)" or "(fresh)" status
+  - **API Tracking:** Stock API calls tracked separately (Total X/800)
+  - **Cache Indicators:** Logs show "(cached)" or "(fresh)" status
 - **Resilient 4-Ticker Buffer (Multi-Stock Mode):**
   - Fetches 4 items but displays 3 (protects against invalid tickers)
   - Progressive degradation: Shows 3→2→skip based on API successes
   - Logs warnings for failed tickers (e.g., typos like "IBT" instead of "IBIT")
   - Never crashes from bad ticker symbols
   - Proper rotation with buffer overlap (no skipped tickers)
-- **Smart Market Hours Logic:**
-  - **Time-based rules** (no complex state transitions):
-    - Weekend: Never fetches (uses cache if available)
-    - Pre-market (before 8:30 AM ET): Never fetches (uses cache)
-    - Market hours (after 8:30 AM ET): Fetches, lets API decide if open/closed
-    - Holidays: No detection needed (API says closed, uses cache)
-  - **Visual cache indicator:** 4 lilac pixels at top center when using cached data
-  - Logs market status (e.g., "Market: Weekend (cached)")
+- **Market Hours Aware (Enhanced in 2.4.0):**
+  - **During market hours (9:30 AM - 4:00 PM ET, weekdays):**
+    - Fetches fresh data every cycle (with rate limiting)
+    - Progressive chart updates every 5 minutes
+  - **Outside market hours (weekends, before/after close):**
+    - Uses cached data if available
+    - Fetches once per stock/batch to create cache if none exists
+    - Displays full 78-point chart for complete visualization
+  - **Smart caching per rotation batch:**
+    - Multi-stock mode: Each batch of 3-4 stocks cached independently
+    - Single stock chart: Each ticker cached separately
+    - Enables smooth rotation through all stocks on weekends
+  - **Timezone handling:** Automatically converts user's timezone to Eastern Time
   - **Configurable:** `stocks_respect_market_hours` toggle (1=prod, 0=testing)
-    - Setting only affects DISPLAY (not fetching logic)
-    - Testing mode (0): Shows stocks 24/7 but still optimizes API calls
-    - Production mode (1): Skips display on weekends/holidays
-  - Automatically converts user's timezone to Eastern Time
+  - Logs market status (e.g., "Outside market hours with no cache - fetching once")
   - Falls back to clock display when stocks unavailable
 - **Flexible Configuration:**
   - Unlimited tickers supported (no hard limit)

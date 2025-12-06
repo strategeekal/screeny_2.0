@@ -4687,13 +4687,14 @@ def show_transit_display(rtc, duration, current_data=None):
 			)
 			state.main_group.append(label_loop)
 
-			# Times separated by commas
+			# Times separated by commas (right-aligned)
 			times_text = ", ".join(brown_purple_times)
+			times_width = get_text_width(times_text, font)
 			times_label = bitmap_label.Label(
 				font,
 				color=state.colors["WHITE"],
 				text=times_text,
-				x=37,
+				x=64 - times_width - 1,  # Right-aligned
 				y=y_pos
 			)
 			state.main_group.append(times_label)
@@ -4718,13 +4719,14 @@ def show_transit_display(rtc, duration, current_data=None):
 			)
 			state.main_group.append(label_95st)
 
-			# Times separated by commas
+			# Times separated by commas (right-aligned)
 			times_text = ", ".join(red_times)
+			times_width = get_text_width(times_text, font)
 			times_label = bitmap_label.Label(
 				font,
 				color=state.colors["WHITE"],
 				text=times_text,
-				x=37,
+				x=64 - times_width - 1,  # Right-aligned
 				y=y_pos
 			)
 			state.main_group.append(times_label)
@@ -4741,24 +4743,25 @@ def show_transit_display(rtc, duration, current_data=None):
 				y=y_pos
 			)
 
-			# "8 So" label (8 South)
+			# "8 79st" label (8 to 79th Street)
 			label_8 = bitmap_label.Label(
 				font,
 				color=state.colors["WHITE"],
-				text="South",
+				text="79st",
 				x=10,
 				y=y_pos
 			)
 			state.main_group.append(icon_8)
 			state.main_group.append(label_8)
 
-			# Times separated by commas
+			# Times separated by commas (right-aligned)
 			times_text = ", ".join(bus_8_times)
+			times_width = get_text_width(times_text, font)
 			times_label = bitmap_label.Label(
 				font,
 				color=state.colors["WHITE"],
 				text=times_text,
-				x=37,
+				x=64 - times_width - 1,  # Right-aligned
 				y=y_pos
 			)
 			state.main_group.append(times_label)
