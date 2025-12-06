@@ -4437,6 +4437,25 @@ def show_single_stock_chart(ticker, duration, rtc):
 			log_warning("No intraday data available for " + ticker)
 			return False
 
+		# Check if data is from today (holiday detection)
+		# Most recent point is last in the list (ordered chronologically)
+		if rtc and time_series:
+			latest_point = time_series[-1]
+			latest_datetime = latest_point.get("datetime", "")
+
+			# Extract date from datetime string (format: "2024-12-06 10:00:00")
+			if latest_datetime and len(latest_datetime) >= 10:
+				latest_date = latest_datetime[:10]  # Get YYYY-MM-DD
+				now = rtc.datetime
+				today_date = f"{now.tm_year:04d}-{now.tm_mon:02d}-{now.tm_mday:02d}"
+
+				if latest_date != today_date:
+					# Data is from previous day - market is closed (holiday)
+					log_info(f"Holiday detected: Latest data from {latest_date}, today is {today_date}")
+					state.should_fetch_stocks = False  # Don't fetch again this cycle
+					# Set full chart flag so we use all the data we got
+					data_is_fresh = False  # Mark as not fresh since it's old data
+
 		# Note: We'll get the actual opening price from the quote API later
 		# For now, just cache the time series data
 		state.cached_intraday_data[ticker] = {
