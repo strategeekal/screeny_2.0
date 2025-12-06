@@ -4394,14 +4394,22 @@ def show_single_stock_chart(ticker, duration, rtc):
 			if state.market_open_local_minutes > 0:
 				minutes_since_open = current_minutes - state.market_open_local_minutes
 
-				# Calculate 5-minute intervals elapsed (minimum 1, maximum 78)
-				intervals_elapsed = max(1, min(78, (minutes_since_open // 5) + 1))
+				# CRITICAL: If outside market hours, don't fetch - use cache instead
+				if minutes_since_open < 0 or minutes_since_open >= 390:  # 390 min = 6.5 hours
+					log_verbose(f"Outside market hours (minutes since open: {minutes_since_open}), using cached data instead of fetching")
+					should_fetch = False
+					data_is_fresh = False
+				else:
+					# During market hours: progressive (1-78 points as day progresses)
+					intervals_elapsed = max(1, min(78, (minutes_since_open // 5) + 1))
 			else:
 				# Fallback if market hours not calculated
-				intervals_elapsed = 26  # Default to ~2 hours worth
+				intervals_elapsed = 78  # Default to full chart
 		else:
-			intervals_elapsed = 26  # Fallback if no RTC
+			intervals_elapsed = 78  # Fallback if no RTC
 
+	# Only fetch if still needed after market hours check
+	if should_fetch:
 		log_info(f"Fetching intraday data for {ticker} (5min interval, {intervals_elapsed} points)")
 		time_series = fetch_intraday_time_series(ticker, interval="5min", outputsize=intervals_elapsed)
 
