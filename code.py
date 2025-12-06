@@ -4371,6 +4371,11 @@ def show_single_stock_chart(ticker, duration, rtc):
 	current_time = time.monotonic()
 	should_fetch = state.should_fetch_stocks  # Respect market hours
 
+	# If not fetching (outside market hours) and no cache, fetch once to create cache
+	if not should_fetch and ticker not in state.cached_intraday_data:
+		log_info(f"Outside market hours with no cache for {ticker} - fetching once to create cache")
+		should_fetch = True  # Override to fetch once
+
 	# Also check cache age (don't fetch too frequently during market hours)
 	if should_fetch and ticker in state.last_intraday_fetch_time:
 		time_since_fetch = current_time - state.last_intraday_fetch_time[ticker]
@@ -6029,10 +6034,10 @@ def run_display_cycle(rtc, cycle_count):
 		return  # Schedule handled everything
 
 	# Update market hours status ONCE per cycle (simple time check, no stack depth)
-	# Always check market hours to determine if we should fetch fresh data
-	# Individual displays will handle cache fallback logic
+	# Always call this to determine if we're in market hours for smart caching
 	if display_config.show_stocks:
 		update_market_hours_status(rtc)
+		# Note: Displays will handle "fetch once if no cache" logic even outside market hours
 	else:
 		state.should_fetch_stocks = False  # Skip if stocks display is disabled
 
