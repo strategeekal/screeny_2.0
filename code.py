@@ -4366,16 +4366,19 @@ def show_single_stock_chart(ticker, duration, rtc):
 	"""
 	INTRADAY_CACHE_MAX_AGE = 900  # 15 minutes (900 seconds)
 
-	# Check if we need to fetch new data
+	# Only fetch intraday data if market is open
+	# Use state.should_fetch_stocks (set per-cycle based on market hours)
 	current_time = time.monotonic()
-	should_fetch = True
-	data_is_fresh = False
+	should_fetch = state.should_fetch_stocks  # Respect market hours
 
-	if ticker in state.last_intraday_fetch_time:
+	# Also check cache age (don't fetch too frequently during market hours)
+	if should_fetch and ticker in state.last_intraday_fetch_time:
 		time_since_fetch = current_time - state.last_intraday_fetch_time[ticker]
 		if time_since_fetch < INTRADAY_CACHE_MAX_AGE:
 			should_fetch = False
-			log_verbose("Using cached intraday data for " + ticker)
+			log_verbose("Using cached intraday data for " + ticker + " (recently fetched)")
+
+	data_is_fresh = False
 
 	# Fetch time series if needed
 	if should_fetch:
@@ -4421,6 +4424,10 @@ def show_single_stock_chart(ticker, duration, rtc):
 
 	cached = state.cached_intraday_data[ticker]
 	time_series = cached["data"]
+
+	# Log cache usage if not fetching fresh
+	if not data_is_fresh:
+		log_verbose(f"Using cached chart data for {ticker} ({len(time_series)} points, outside market hours)")
 
 	# Fetch current quote for latest price and percentage
 	quote_data = fetch_stock_prices([{"symbol": ticker, "name": ticker}])
