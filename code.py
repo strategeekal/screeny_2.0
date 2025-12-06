@@ -5882,7 +5882,7 @@ def _run_normal_cycle(rtc, cycle_count, cycle_start_time):
 			interruptible_sleep(1)
 
 	# Stocks display (with frequency control and market hours check)
-	if display_config.show_stocks and state.market_hours_allowed:
+	if display_config.show_stocks and (state.should_fetch_stocks or len(state.cached_stock_prices) > 0):
 		# Smart frequency: show every cycle if stocks are the only display, otherwise respect frequency
 		other_displays_active = (display_config.show_weather or display_config.show_forecast or display_config.show_events)
 
