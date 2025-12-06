@@ -4380,8 +4380,27 @@ def show_single_stock_chart(ticker, duration, rtc):
 	# Fetch time series if needed
 	if should_fetch:
 		data_is_fresh = True
-		log_info("Fetching intraday data for " + ticker)
-		time_series = fetch_intraday_time_series(ticker, interval="15min", outputsize=26)
+
+		# Calculate progressive outputsize: how many 5-min intervals since market open?
+		# Market opens at 9:30 AM ET, closes at 4:00 PM ET (6.5 hours = 390 minutes = 78 intervals)
+		if rtc:
+			now = rtc.datetime
+			current_minutes = now.tm_hour * 60 + now.tm_min
+
+			# Use pre-calculated market open time in local minutes
+			if state.market_open_local_minutes > 0:
+				minutes_since_open = current_minutes - state.market_open_local_minutes
+
+				# Calculate 5-minute intervals elapsed (minimum 1, maximum 78)
+				intervals_elapsed = max(1, min(78, (minutes_since_open // 5) + 1))
+			else:
+				# Fallback if market hours not calculated
+				intervals_elapsed = 26  # Default to ~2 hours worth
+		else:
+			intervals_elapsed = 26  # Fallback if no RTC
+
+		log_info(f"Fetching intraday data for {ticker} (5min interval, {intervals_elapsed} points)")
+		time_series = fetch_intraday_time_series(ticker, interval="5min", outputsize=intervals_elapsed)
 
 		if not time_series or len(time_series) == 0:
 			log_warning("No intraday data available for " + ticker)
