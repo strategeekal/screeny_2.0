@@ -4536,7 +4536,7 @@ def show_single_stock_chart(ticker, duration, rtc):
 			font,
 			text=pct_text,
 			color=pct_color,
-			x=right_align_text(pct_text, font, Layout.RIGHT_EDGE),
+			x=Layout.RIGHT_EDGE - get_text_width(pct_text, font),
 			y=1
 		)
 		state.main_group.append(pct_label)
@@ -4550,7 +4550,7 @@ def show_single_stock_chart(ticker, duration, rtc):
 			font,
 			text=price_text,
 			color=state.colors["WHITE"],
-			x=right_align_text(price_text, font, Layout.RIGHT_EDGE),
+			x=Layout.RIGHT_EDGE - get_text_width(price_text, font),
 			y=9
 		)
 		state.main_group.append(price_label)
@@ -4727,7 +4727,7 @@ def show_transit_display(rtc, duration, current_data=None):
 				font,
 				color=state.colors["WHITE"],
 				text=times_text,
-				x=right_align_text(times_text, font, Layout.RIGHT_EDGE),
+				x=Layout.RIGHT_EDGE - get_text_width(times_text, font),
 				y=y_pos
 			)
 			state.main_group.append(times_label)
@@ -4758,7 +4758,7 @@ def show_transit_display(rtc, duration, current_data=None):
 				font,
 				color=state.colors["WHITE"],
 				text=times_text,
-				x=right_align_text(times_text, font, Layout.RIGHT_EDGE),
+				x=Layout.RIGHT_EDGE - get_text_width(times_text, font),
 				y=y_pos
 			)
 			state.main_group.append(times_label)
@@ -4792,7 +4792,7 @@ def show_transit_display(rtc, duration, current_data=None):
 				font,
 				color=state.colors["WHITE"],
 				text=times_text,
-				x=right_align_text(times_text, font, Layout.RIGHT_EDGE),
+				x=Layout.RIGHT_EDGE - get_text_width(times_text, font),
 				y=y_pos
 			)
 			state.main_group.append(times_label)
