@@ -229,6 +229,24 @@ The device ID is automatically detected from the ESP32-S3's unique CPU UID. Chec
 - Reports every 100 cycles
 - Identifies memory spikes at checkpoints
 
+### Stack Management
+
+**Critical Constraint:** CircuitPython has limited call stack depth (~12-15 levels in practice)
+
+**Stack Optimization Strategies:**
+- **Inline calculations over helper functions:** Stock/transit displays use inline `Layout.RIGHT_EDGE - get_text_width(text, font)` instead of `right_align_text()` helper to save 1 stack level per call
+- **Removed redundant imports:** Eliminated 10 inline imports that added 2-3 stack levels each
+- **Simplified market hours logic:** Pre-calculate at startup instead of nested timezone conversions
+- **Progressive chart flag:** Use boolean flag to avoid repeated time-based calculations
+
+**Why inline for right-alignment?**
+The `right_align_text()` helper exists but isn't used in stock/transit displays. Using it caused stack exhaustion:
+```
+show_single_stock_chart → right_align_text → get_text_width →
+  text_cache.get_text_width → bitmap_label.Label (exhausted)
+```
+Inline calculation eliminates one function call layer while maintaining clean code with `Layout.RIGHT_EDGE` constant.
+
 ### Timing & Scheduling
 
 **Daily Restart:** 3am automatic restart
