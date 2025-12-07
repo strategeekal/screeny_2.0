@@ -4310,7 +4310,7 @@ def show_stocks_display(duration, offset, rtc):
 		add_weekday_indicator_if_enabled(state.main_group, rtc, "Stocks")
 
 		# Add cache indicator (4-pixel lilac marker at top center) when using cached data
-		if not should_fetch:
+		if not state.should_fetch_stocks:
 			cache_indicator = displayio.Bitmap(4, 1, 1)
 			cache_palette = displayio.Palette(1)
 			cache_palette[0] = state.colors["LILAC"]
@@ -4389,6 +4389,7 @@ def show_single_stock_chart(ticker, duration, rtc):
 	current_time = time.monotonic()
 	should_fetch = state.should_fetch_stocks  # Respect market hours
 	fetch_full_chart = False  # Flag to indicate we should fetch all 78 points
+	actually_fetched = False  # Track if we actually fetched data (for logging)
 
 	# If not fetching (outside market hours) and no cache, fetch once to create cache
 	if not should_fetch and ticker not in state.cached_intraday_data:
@@ -4452,6 +4453,8 @@ def show_single_stock_chart(ticker, duration, rtc):
 		if not time_series or len(time_series) == 0:
 			log_warning("No intraday data available for " + ticker)
 			return False
+
+		actually_fetched = True  # We successfully fetched data
 
 		# Check if data is from today (market close detection)
 		# Most recent point is last in the list (ordered chronologically)
@@ -4607,7 +4610,13 @@ def show_single_stock_chart(ticker, duration, rtc):
 			cache_tile = displayio.TileGrid(cache_indicator, pixel_shader=cache_palette, x=30, y=0)
 			state.main_group.append(cache_tile)
 
-		cache_status = "(fresh)" if data_is_fresh else "(cached)"
+		# Determine cache status for logging
+		if actually_fetched and not data_is_fresh:
+			cache_status = "(fetched to cache)"
+		elif data_is_fresh:
+			cache_status = "(fresh)"
+		else:
+			cache_status = "(cached)"
 		log_info("Chart: " + display_name + " " + pct_text + " (" + price_text + ") with " + str(num_points) + " data points " + cache_status)
 
 		# Hold display for duration
@@ -4789,7 +4798,7 @@ def show_transit_display(rtc, duration, current_data=None):
 			label_8 = bitmap_label.Label(
 				font,
 				color=state.colors["WHITE"],
-				text="76st",
+				text="79st",
 				x=Layout.TRANSIT_LABEL_X,
 				y=y_pos
 			)
