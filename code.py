@@ -3041,12 +3041,21 @@ def parse_display_config_csv(csv_content):
 				key = parts[0]
 				value = parts[1]
 
+				# Define known integer settings (to avoid misinterpreting 0/1 as boolean)
+				integer_settings = [
+					'stocks_display_frequency',
+					'stocks_display_grace_period_minutes'
+				]
+
 				# Convert to appropriate type
-				if value in ('0', '1'):
+				if key in integer_settings and value.isdigit():
+					# Integer settings (including 0 and 1)
+					config[key] = int(value)
+				elif value in ('0', '1'):
 					# Boolean values
 					config[key] = (value == '1')
 				elif value.isdigit():
-					# Numeric values (e.g., stocks_display_frequency=3)
+					# Other numeric values
 					config[key] = int(value)
 				else:
 					# String values
