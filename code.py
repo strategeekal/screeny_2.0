@@ -438,6 +438,7 @@ class DisplayConfig:
 		self.show_stocks = False  # Stock market display (disabled by default)
 		self.stocks_display_frequency = 3  # Show stocks every N cycles (e.g., 3 = every 15 min)
 		self.stocks_respect_market_hours = True  # True = only show during market hours + grace period, False = always show (for testing)
+		self.stocks_display_grace_period_minutes = 60  # Continue showing stocks for N minutes after market close (default 1 hour)
 		self.show_transit = False  # CTA transit arrival display (disabled by default)
 		self.transit_respect_commute_hours = True  # True = only show Mon-Fri 9:30am-12pm, False = always show (for testing)
 
@@ -1454,6 +1455,40 @@ def is_commute_hours(local_datetime):
 	end_time = 12 * 60  # 12:00pm = 720 minutes
 
 	return start_time <= time_in_minutes < end_time
+
+def is_stock_display_hours(local_datetime):
+	"""
+	Check if current time is within stock display hours.
+
+	Args:
+		local_datetime: RTC datetime in user's local timezone
+
+	Returns:
+		bool: True if within display window (market open to close + grace period), False otherwise
+	"""
+	# If not respecting market hours, always show
+	if not display_config.stocks_respect_market_hours:
+		return True
+
+	# Check if it's a weekday (0=Monday, 4=Friday)
+	weekday = local_datetime.tm_wday
+	is_weekday = 0 <= weekday <= 4
+
+	if not is_weekday:
+		return False
+
+	# Get current time in minutes since midnight
+	current_minutes = local_datetime.tm_hour * 60 + local_datetime.tm_min
+
+	# Check if within display window: market_open to (market_close + grace_period)
+	# Use pre-calculated local market times from state
+	if state.market_open_local_minutes == 0 or state.market_close_local_minutes == 0:
+		# Market times not calculated yet - default to always show
+		return True
+
+	display_end_minutes = state.market_close_local_minutes + display_config.stocks_display_grace_period_minutes
+
+	return state.market_open_local_minutes <= current_minutes < display_end_minutes
 
 def cleanup_sockets():
 	"""Aggressive socket cleanup to prevent memory issues"""
@@ -3117,6 +3152,9 @@ def apply_display_config(config_dict):
 		applied += 1
 	if "stocks_respect_market_hours" in config_dict:
 		display_config.stocks_respect_market_hours = config_dict["stocks_respect_market_hours"]
+		applied += 1
+	if "stocks_display_grace_period_minutes" in config_dict:
+		display_config.stocks_display_grace_period_minutes = config_dict["stocks_display_grace_period_minutes"]
 		applied += 1
 	if "show_transit" in config_dict:
 		display_config.show_transit = config_dict["show_transit"]
@@ -5994,6 +6032,12 @@ def _run_normal_cycle(rtc, cycle_count, cycle_start_time):
 		else:
 			# Stocks are the only display - show every cycle to avoid clock fallback
 			should_show_stocks = True
+
+		# Check display hours if respect_market_hours is enabled
+		if should_show_stocks and display_config.stocks_respect_market_hours:
+			should_show_stocks = is_stock_display_hours(rtc.datetime)
+			if not should_show_stocks:
+				log_verbose("Outside stock display hours - skipping stock display")
 
 		if should_show_stocks:
 			# Smart rotation: Check if current stock is highlighted
