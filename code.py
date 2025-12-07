@@ -106,6 +106,14 @@ class Layout:
 	SCHEDULE_UV_Y = 30
 	SCHEDULE_X_OFFSET = -1
 	
+	# Transit display positioning
+	TRANSIT_ICON_X = 2           # X position for route icons/rectangles
+	TRANSIT_LABEL_X = 10         # X position for route labels
+	TRANSIT_START_Y = 9          # Starting Y position (below header)
+	TRANSIT_ROW_HEIGHT = 8       # Height of each route row
+	TRANSIT_TIME_COL1_END = 49   # Right edge of first time column
+	TRANSIT_TIME_COL2_END = 63   # Right edge of second time column
+	
 	# Progress bar positioning (below day indicator)
 	PROGRESS_BAR_HORIZONTAL_X = 23 # 23 (aligned with image)
 	PROGRESS_BAR_HORIZONTAL_Y = 29  # Below 28px tall image + 1px gap = y=31
@@ -964,8 +972,13 @@ class WeatherDisplayState:
 		self.cached_stocks = []
 		self.cached_stock_prices = {}  # {symbol: {price, change_percent, direction, timestamp}}
 		self.last_stock_fetch_time = 0
-		self.market_holiday_date = None  # Cache holiday status (YYYY-MM-DD format)
-		self.market_hours_allowed = True  # Cached market hours check (updated each cycle to avoid stack depth)
+
+		# Simplified market hours tracking (calculated at startup, updated per cycle)
+		self.market_hours_offset_minutes = 0  # Offset from local time to ET in minutes
+		self.market_open_local_minutes = 0  # Market open time in local minutes (e.g., 8:30 AM = 510)
+		self.market_close_local_minutes = 0  # Market close time in local minutes (e.g., 3:00 PM = 900)
+		self.should_fetch_stocks = False  # Set once per cycle based on time check
+
 		self.cached_intraday_data = {}  # {symbol: {data: [...], timestamp: monotonic, open_price: float}}
 		self.last_intraday_fetch_time = {}  # {symbol: monotonic_timestamp}
 
@@ -1041,12 +1054,10 @@ def log_entry(message, level="INFO"):
 				timestamp = f"{dt.tm_year}-{dt.tm_mon:02d}-{dt.tm_mday:02d} {dt.tm_hour:02d}:{dt.tm_min:02d}:{dt.tm_sec:02d}"
 				time_source = ""
 			except Exception:
-				import time
 				monotonic_time = time.monotonic()
 				timestamp = f"SYS+{int(monotonic_time)}"
 				time_source = " [SYS]"
 		else:
-			import time
 			monotonic_time = time.monotonic()
 			hours = int(monotonic_time // System.SECONDS_PER_HOUR)
 			minutes = int((monotonic_time % System.SECONDS_PER_HOUR) // System.SECONDS_PER_MINUTE)
@@ -1443,84 +1454,6 @@ def is_commute_hours(local_datetime):
 	end_time = 12 * 60  # 12:00pm = 720 minutes
 
 	return start_time <= time_in_minutes < end_time
-
-def is_market_hours_or_cache_valid(local_datetime, has_cached_data=False):
-	"""
-	Check if US stock markets are open or if cached data is still valid.
-
-	Args:
-		local_datetime: RTC datetime in user's local timezone
-		has_cached_data: Whether we have cached stock prices
-
-	Returns:
-		tuple: (should_fetch: bool, should_display: bool, reason: str)
-		- should_fetch: True if we should fetch new prices from API
-		- should_display: True if we should show stocks (fresh or cached)
-		- reason: Human-readable reason (for logging)
-	"""
-	import time
-
-	# Check cached holiday status FIRST (avoid timezone calculations if holiday)
-	today = f"{local_datetime.tm_year:04d}-{local_datetime.tm_mon:02d}-{local_datetime.tm_mday:02d}"
-	if state.market_holiday_date == today:
-		# It's a cached holiday - skip display entirely
-		return (False, False, "Market holiday (cached)")
-
-	# Get user's timezone from settings
-	user_timezone = os.getenv("TIMEZONE", Strings.TIMEZONE_DEFAULT)
-
-	# Convert local time to ET
-	# First, figure out user's offset from UTC
-	user_offset = get_timezone_offset(user_timezone, local_datetime)
-
-	# Get ET offset from UTC
-	et_offset = get_timezone_offset("America/New_York", local_datetime)
-
-	# Calculate difference: how many hours to add to local time to get ET
-	offset_diff = et_offset - user_offset
-
-	# Convert local time to ET
-	et_hour = local_datetime.tm_hour + offset_diff
-	et_min = local_datetime.tm_min
-
-	# Handle day rollover
-	if et_hour < 0:
-		et_hour += 24
-	elif et_hour >= 24:
-		et_hour -= 24
-
-	# Check if it's a weekday (0=Monday, 4=Friday)
-	weekday = local_datetime.tm_wday
-	is_weekday = 0 <= weekday <= 4
-
-	if not is_weekday:
-		return (False, False, "Weekend - markets closed")
-
-	# Convert times to minutes for easier comparison
-	current_et_minutes = et_hour * 60 + et_min
-	market_open_minutes = Timing.MARKET_OPEN_HOUR * 60 + Timing.MARKET_OPEN_MINUTE  # 9:30 AM = 570
-	market_close_minutes = Timing.MARKET_CLOSE_HOUR * 60 + Timing.MARKET_CLOSE_MINUTE  # 4:00 PM = 960
-	grace_end_minutes = market_close_minutes + Timing.MARKET_CACHE_GRACE_MINUTES  # 5:30 PM = 1050
-
-	# Check time windows
-	if current_et_minutes < market_open_minutes:
-		# Before market open
-		return (False, False, f"Before market open (ET {et_hour:02d}:{et_min:02d})")
-
-	elif market_open_minutes <= current_et_minutes < market_close_minutes:
-		# During market hours - fetch and display
-		return (True, True, f"Market open (ET {et_hour:02d}:{et_min:02d})")
-
-	elif market_close_minutes <= current_et_minutes < grace_end_minutes:
-		# After close but within grace period - use cache if available
-		if has_cached_data:
-			return (False, True, f"Market CLOSED, using cache (ET {et_hour:02d}:{et_min:02d})")
-		else:
-			return (False, False, f"After hours, no cache (ET {et_hour:02d}:{et_min:02d})")
-
-	else:
-		# After grace period
-		return (False, False, f"Markets closed (ET {et_hour:02d}:{et_min:02d})")
 
 def cleanup_sockets():
 	"""Aggressive socket cleanup to prevent memory issues"""
@@ -2615,8 +2548,6 @@ def fetch_stock_prices(symbols_to_fetch):
 	Returns:
 		dict: {symbol: {"price": float, "change_percent": float, "direction": str}}
 	"""
-	import time
-
 	if not symbols_to_fetch:
 		log_verbose("No stock symbols to fetch")
 		return {}
@@ -2682,15 +2613,6 @@ def fetch_stock_prices(symbols_to_fetch):
 					log_warning(f"Quote missing symbol field: {str(quote)[:100]}")
 					continue
 
-				# Check market status (for holiday detection)
-				is_market_open = quote.get("is_market_open", True)
-				if not is_market_open and state.market_holiday_date is None:
-					# Market closed on a weekday during business hours = holiday!
-					# Cache this for the rest of the day to avoid repeated API calls
-					import time
-					# Get current date from RTC (we don't have direct access here, will handle in caller)
-					log_verbose(f"Market closed detected via API (holiday or early close)")
-
 				# Extract price and change data
 				try:
 					price = float(quote.get("close", 0))
@@ -2702,8 +2624,7 @@ def fetch_stock_prices(symbols_to_fetch):
 						"price": price,
 						"open_price": open_price,
 						"change_percent": change_percent,
-						"direction": direction,
-						"is_market_open": is_market_open  # Include market status
+						"direction": direction
 					}
 
 					log_verbose(f"{symbol}: ${price:.2f} ({change_percent:+.2f}%)")
@@ -2752,8 +2673,6 @@ def fetch_intraday_time_series(symbol, interval="15min", outputsize=26):
 		List of dicts: [{datetime, open_price, close_price}, ...] ordered chronologically (oldest first)
 		Returns empty list on error
 	"""
-	import time
-
 	# Get API key
 	api_key = os.getenv(Strings.TWELVE_DATA_API_KEY)
 	if not api_key:
@@ -2994,7 +2913,6 @@ def fetch_github_data(rtc):
 		log_warning("GITHUB_REPO_URL not configured")
 		return None, None, None, None
 
-	import time
 	cache_buster = int(time.monotonic())
 	github_base = Strings.GITHUB_REPO_URL.rsplit('/', 1)[0] if Strings.GITHUB_REPO_URL else None
 
@@ -4194,24 +4112,16 @@ def show_stocks_display(duration, offset, rtc):
 		idx = (offset + i) % len(stocks_list)
 		stocks_to_fetch.append(stocks_list[idx])
 
-	# Check market hours FIRST before attempting to fetch or display
-	import time
-	has_any_cached = len(state.cached_stock_prices) > 0
+	# Use pre-calculated market hours status (set once per cycle)
+	should_fetch = state.should_fetch_stocks
 
-	# Respect market hours toggle (can be disabled for testing)
-	if display_config.stocks_respect_market_hours:
-		should_fetch, should_display, reason = is_market_hours_or_cache_valid(rtc.datetime, has_any_cached)
+	# Check if current batch of stocks are cached (not just any stocks)
+	current_batch_cached = all(s["symbol"] in state.cached_stock_prices for s in stocks_to_fetch)
 
-		if not should_display:
-			# Markets closed and no valid cache - skip display entirely
-			log_verbose(f"Stocks skipped: {reason}")
-			return (False, offset)
-	else:
-		# Market hours check disabled - always fetch and display (testing mode)
-		should_fetch = True
-		should_display = True
-		reason = "Market hours check disabled (testing mode)"
-		log_verbose(reason)
+	# If not fetching (outside market hours) and current batch not cached, fetch once
+	if not should_fetch and not current_batch_cached:
+		log_info("Outside market hours with no cache for current batch - fetching once to create cache")
+		should_fetch = True  # Override to fetch once
 
 	# Initialize stock_prices - will be either fresh or from cache
 	stock_prices = {}
@@ -4232,9 +4142,8 @@ def show_stocks_display(duration, offset, rtc):
 		stock_prices = fetch_stock_prices(stocks_to_fetch)
 		state.last_stock_fetch_time = time.monotonic()
 
-		# Cache the fetched prices and check for holiday
+		# Cache the fetched prices
 		if stock_prices:
-			market_closed_detected = False
 			for symbol, data in stock_prices.items():
 				state.cached_stock_prices[symbol] = {
 					"price": data["price"],
@@ -4242,28 +4151,14 @@ def show_stocks_display(duration, offset, rtc):
 					"direction": data["direction"],
 					"timestamp": time.monotonic()
 				}
-				# Check if market is closed (holiday detection)
-				if not data.get("is_market_open", True):
-					market_closed_detected = True
 
-			# If market closed during business hours = holiday, cache for the day
-			if market_closed_detected:
-				today = f"{rtc.datetime.tm_year:04d}-{rtc.datetime.tm_mon:02d}-{rtc.datetime.tm_mday:02d}"
-				state.market_holiday_date = today
-				log_info(f"Market holiday detected and cached: {today}")
-				# Only skip display if respecting market hours
-				if display_config.stocks_respect_market_hours:
-					return (False, offset)
-				else:
-					log_verbose("Holiday detected but market hours check disabled - continuing display")
-
-			log_verbose(f"Cached {len(stock_prices)} stock prices ({reason})")
+			log_verbose(f"Cached {len(stock_prices)} stock prices (fresh)")
 		else:
 			log_info("Failed to fetch stock prices, skipping display")
 			return (False, offset)
 	else:
-		# After hours - use cached prices
-		log_verbose(f"Using cached stock prices ({reason})")
+		# Outside market hours - use cached prices
+		log_verbose("Using cached stock prices (outside market hours)")
 		stock_prices = state.cached_stock_prices
 
 	# Build display data from fetched prices (with buffer tolerance)
@@ -4318,13 +4213,10 @@ def show_stocks_display(duration, offset, rtc):
 			detail_parts.append(f"{display_name} {formatted_price}")
 	stock_details = ", ".join(detail_parts)
 
-	# Add market status to log if displaying cached data
+	# Log stock display with cache status
 	# Note: Show count out of fetched (4) to indicate buffer usage
 	cache_status = "(fresh)" if should_fetch else "(cached)"
-	if "CLOSED" in reason:
-		log_info(f"Stocks ({len(stocks_to_show)}/{len(stocks_to_fetch)}), markets closed, displaying cached data: {stock_details} {cache_status}")
-	else:
-		log_info(f"Stocks ({len(stocks_to_show)}/{len(stocks_to_fetch)}): {stock_details} {cache_status}")
+	log_info(f"Stocks ({len(stocks_to_show)}/{len(stocks_to_fetch)}): {stock_details} {cache_status}")
 
 	clear_display()
 	gc.collect()	
@@ -4417,6 +4309,14 @@ def show_stocks_display(duration, offset, rtc):
 		# Add day indicator
 		add_weekday_indicator_if_enabled(state.main_group, rtc, "Stocks")
 
+		# Add cache indicator (4-pixel lilac marker at top center) when using cached data
+		if not should_fetch:
+			cache_indicator = displayio.Bitmap(4, 1, 1)
+			cache_palette = displayio.Palette(1)
+			cache_palette[0] = state.colors["LILAC"]
+			cache_tile = displayio.TileGrid(cache_indicator, pixel_shader=cache_palette, x=30, y=0)
+			state.main_group.append(cache_tile)
+
 		# Display for specified duration
 		start_time = time.monotonic()
 		while time.monotonic() - start_time < duration:
@@ -4482,31 +4382,95 @@ def show_single_stock_chart(ticker, duration, rtc):
 	Returns:
 		bool: True if displayed, False if skipped
 	"""
-	import time
-	from adafruit_display_shapes.line import Line
-
 	INTRADAY_CACHE_MAX_AGE = 900  # 15 minutes (900 seconds)
 
-	# Check if we need to fetch new data
+	# Only fetch intraday data if market is open
+	# Use state.should_fetch_stocks (set per-cycle based on market hours)
 	current_time = time.monotonic()
-	should_fetch = True
-	data_is_fresh = False
+	should_fetch = state.should_fetch_stocks  # Respect market hours
+	fetch_full_chart = False  # Flag to indicate we should fetch all 78 points
 
-	if ticker in state.last_intraday_fetch_time:
+	# If not fetching (outside market hours) and no cache, fetch once to create cache
+	if not should_fetch and ticker not in state.cached_intraday_data:
+		log_info(f"Outside market hours with no cache for {ticker} - fetching once to create cache")
+		should_fetch = True  # Override to fetch once
+		fetch_full_chart = True  # Fetch full 78-point chart (not progressive)
+
+	# Also check cache age (don't fetch too frequently during market hours)
+	# Only skip fetch if we actually have cached data
+	if should_fetch and ticker in state.last_intraday_fetch_time and ticker in state.cached_intraday_data:
 		time_since_fetch = current_time - state.last_intraday_fetch_time[ticker]
 		if time_since_fetch < INTRADAY_CACHE_MAX_AGE:
 			should_fetch = False
-			log_verbose("Using cached intraday data for " + ticker)
+			log_verbose("Using cached intraday data for " + ticker + " (recently fetched)")
+
+	data_is_fresh = False
 
 	# Fetch time series if needed
 	if should_fetch:
 		data_is_fresh = True
-		log_info("Fetching intraday data for " + ticker)
-		time_series = fetch_intraday_time_series(ticker, interval="15min", outputsize=26)
+
+		# If fetch_full_chart flag is set, always fetch all 78 points (outside market hours)
+		if fetch_full_chart:
+			intervals_elapsed = 78
+		# Calculate progressive outputsize: how many 5-min intervals since market open?
+		# Market opens at 9:30 AM ET, closes at 4:00 PM ET (6.5 hours = 390 minutes = 78 intervals)
+		elif rtc:
+			now = rtc.datetime
+			current_minutes = now.tm_hour * 60 + now.tm_min
+
+			# Use pre-calculated market open time in local minutes
+			if state.market_open_local_minutes > 0:
+				minutes_since_open = current_minutes - state.market_open_local_minutes
+
+				# Check if outside market hours (time of day check)
+				if minutes_since_open < 0 or minutes_since_open >= 390:  # 390 min = 6.5 hours
+					# Outside market hours - check if we have cached data
+					if ticker in state.cached_intraday_data:
+						# Have cache - use it instead of fetching
+						log_verbose(f"Outside market hours (minutes since open: {minutes_since_open}), using cached data")
+						should_fetch = False
+						data_is_fresh = False
+					else:
+						# No cache - fetch once to create cache (full 78-point chart)
+						log_info(f"Outside market hours but no cache - fetching full chart for {ticker}")
+						intervals_elapsed = 78
+				else:
+					# During market hours: progressive (1-78 points as day progresses)
+					intervals_elapsed = max(1, min(78, (minutes_since_open // 5) + 1))
+			else:
+				# Fallback if market hours not calculated
+				intervals_elapsed = 78  # Default to full chart
+		else:
+			intervals_elapsed = 78  # Fallback if no RTC
+
+	# Only fetch if still needed after market hours check
+	if should_fetch:
+		log_info(f"Fetching intraday data for {ticker} (5min interval, {intervals_elapsed} points)")
+		time_series = fetch_intraday_time_series(ticker, interval="5min", outputsize=intervals_elapsed)
 
 		if not time_series or len(time_series) == 0:
 			log_warning("No intraday data available for " + ticker)
 			return False
+
+		# Check if data is from today (market close detection)
+		# Most recent point is last in the list (ordered chronologically)
+		if rtc and time_series:
+			latest_point = time_series[-1]
+			latest_datetime = latest_point.get("datetime", "")
+
+			# Extract date from datetime string (format: "2024-12-06 10:00:00")
+			if latest_datetime and len(latest_datetime) >= 10:
+				latest_date = latest_datetime[:10]  # Get YYYY-MM-DD
+				now = rtc.datetime
+				today_date = f"{now.tm_year:04d}-{now.tm_mon:02d}-{now.tm_mday:02d}"
+
+				if latest_date != today_date:
+					# Data is from previous day - market is closed (weekend/holiday)
+					log_info(f"Markets Closed: Latest data from {latest_date}, today is {today_date}")
+					state.should_fetch_stocks = False  # Don't fetch again this cycle
+					# Set full chart flag so we use all the data we got
+					data_is_fresh = False  # Mark as not fresh since it's old data
 
 		# Note: We'll get the actual opening price from the quote API later
 		# For now, just cache the time series data
@@ -4523,6 +4487,10 @@ def show_single_stock_chart(ticker, duration, rtc):
 
 	cached = state.cached_intraday_data[ticker]
 	time_series = cached["data"]
+
+	# Log cache usage if not fetching fresh
+	if not data_is_fresh:
+		log_verbose(f"Using cached chart data for {ticker} ({len(time_series)} points, outside market hours)")
 
 	# Fetch current quote for latest price and percentage
 	quote_data = fetch_stock_prices([{"symbol": ticker, "name": ticker}])
@@ -4576,7 +4544,7 @@ def show_single_stock_chart(ticker, duration, rtc):
 			font,
 			text=pct_text,
 			color=pct_color,
-			x=64 - get_text_width(pct_text, font),  # Right-aligned
+			x=Layout.RIGHT_EDGE - get_text_width(pct_text, font),
 			y=1
 		)
 		state.main_group.append(pct_label)
@@ -4590,8 +4558,7 @@ def show_single_stock_chart(ticker, duration, rtc):
 			font,
 			text=price_text,
 			color=state.colors["WHITE"],
-			# x=1,
-			x=64 - get_text_width(price_text, font),  # Right-aligned
+			x=Layout.RIGHT_EDGE - get_text_width(price_text, font),
 			y=9
 		)
 		state.main_group.append(price_label)
@@ -4632,6 +4599,14 @@ def show_single_stock_chart(ticker, duration, rtc):
 			line = Line(x1, y1, x2, y2, color=chart_color)
 			state.main_group.append(line)
 
+		# Add cache indicator (4-pixel lilac marker at top center) when using cached data
+		if not data_is_fresh:
+			cache_indicator = displayio.Bitmap(4, 1, 1)
+			cache_palette = displayio.Palette(1)
+			cache_palette[0] = state.colors["LILAC"]
+			cache_tile = displayio.TileGrid(cache_indicator, pixel_shader=cache_palette, x=30, y=0)
+			state.main_group.append(cache_tile)
+
 		cache_status = "(fresh)" if data_is_fresh else "(cached)"
 		log_info("Chart: " + display_name + " " + pct_text + " (" + price_text + ") with " + str(num_points) + " data points " + cache_status)
 
@@ -4647,6 +4622,32 @@ def show_single_stock_chart(ticker, duration, rtc):
 
 	finally:
 		gc.collect()
+		
+def add_transit_times(times_list, y_pos):
+		"""Helper to display up to 2 arrival times in two columns, right-aligned"""
+		if len(times_list) >= 1:
+			time1_text = times_list[0]
+			time1_width = get_text_width(time1_text, font)
+			time1_label = bitmap_label.Label(
+				font,
+				color=state.colors["WHITE"],
+				text=time1_text,
+				x=Layout.TRANSIT_TIME_COL1_END - time1_width,
+				y=y_pos
+			)
+			state.main_group.append(time1_label)
+		
+		if len(times_list) >= 2:
+			time2_text = times_list[1]
+			time2_width = get_text_width(time2_text, font)
+			time2_label = bitmap_label.Label(
+				font,
+				color=state.colors["WHITE"],
+				text=time2_text,
+				x=Layout.TRANSIT_TIME_COL2_END - time2_width,
+				y=y_pos
+			)
+			state.main_group.append(time2_label)
 
 def show_transit_display(rtc, duration, current_data=None):
 	"""
@@ -4717,12 +4718,12 @@ def show_transit_display(rtc, duration, current_data=None):
 		brown_purple_times.sort(key=sort_key)
 		bus_8_times.sort(key=sort_key)
 
-		# Take only next 3 soonest arrivals per group
+		# Take only next 2 soonest arrivals per group
 		red_times = red_times[:2]
 		brown_purple_times = brown_purple_times[:2]
 		bus_8_times = bus_8_times[:2]
 
-		y_pos = 9  # Start below header
+		y_pos = Layout.TRANSIT_START_Y
 
 		# Display Brown+Purple line FIRST (diagonal split) with "Loop" suffix
 		if brown_purple_times:
@@ -4741,7 +4742,7 @@ def show_transit_display(rtc, duration, current_data=None):
 					else:
 						bp_rect[x, y] = 1  # Purple
 
-			bp_tile = displayio.TileGrid(bp_rect, pixel_shader=bp_palette, x=2, y=y_pos)
+			bp_tile = displayio.TileGrid(bp_rect, pixel_shader=bp_palette, x=Layout.TRANSIT_ICON_X, y=y_pos)
 			state.main_group.append(bp_tile)
 
 			# "Loop" label after rectangle
@@ -4749,86 +4750,53 @@ def show_transit_display(rtc, duration, current_data=None):
 				font,
 				color=state.colors["WHITE"],
 				text="Loop",
-				x=10,
+				x=Layout.TRANSIT_LABEL_X,
 				y=y_pos
 			)
 			state.main_group.append(label_loop)
+			
+			add_transit_times(brown_purple_times, y_pos)
+			y_pos += Layout.TRANSIT_ROW_HEIGHT
 
-			# Times separated by commas
-			times_text = ", ".join(brown_purple_times)
-			times_label = bitmap_label.Label(
-				font,
-				color=state.colors["WHITE"],
-				text=times_text,
-				x=37,
-				y=y_pos
-			)
-			state.main_group.append(times_label)
-			y_pos += 8
-
-		# Display Red line SECOND with red square
 		if red_times:
-			# Red rectangle
 			red_rect = displayio.Bitmap(5, 6, 1)
 			red_palette = displayio.Palette(1)
 			red_palette[0] = state.colors["RED"]
-			red_tile = displayio.TileGrid(red_rect, pixel_shader=red_palette, x=2, y=y_pos)
+			red_tile = displayio.TileGrid(red_rect, pixel_shader=red_palette, x=Layout.TRANSIT_ICON_X, y=y_pos)
 			state.main_group.append(red_tile)
-
-			# "95st" label after rectangle
+		
 			label_95st = bitmap_label.Label(
 				font,
 				color=state.colors["WHITE"],
 				text="95st",
-				x=10,
+				x=Layout.TRANSIT_LABEL_X,
 				y=y_pos
 			)
 			state.main_group.append(label_95st)
-
-			# Times separated by commas
-			times_text = ", ".join(red_times)
-			times_label = bitmap_label.Label(
-				font,
-				color=state.colors["WHITE"],
-				text=times_text,
-				x=37,
-				y=y_pos
-			)
-			state.main_group.append(times_label)
-			y_pos += 8
-
+		
+			add_transit_times(red_times, y_pos)
+			y_pos += Layout.TRANSIT_ROW_HEIGHT
+		
 		# Display Route 8 bus
 		if bus_8_times:
-			# "8 So" label (8 South)
 			icon_8 = bitmap_label.Label(
 				font,
 				color=state.colors["AQUA"],
 				text="8",
-				x=3,
+				x=3,  # Slightly offset from TRANSIT_ICON_X for text alignment
 				y=y_pos
 			)
-
-			# "8 So" label (8 South)
 			label_8 = bitmap_label.Label(
 				font,
 				color=state.colors["WHITE"],
-				text="South",
-				x=10,
+				text="76st",
+				x=Layout.TRANSIT_LABEL_X,
 				y=y_pos
 			)
 			state.main_group.append(icon_8)
 			state.main_group.append(label_8)
-
-			# Times separated by commas
-			times_text = ", ".join(bus_8_times)
-			times_label = bitmap_label.Label(
-				font,
-				color=state.colors["WHITE"],
-				text=times_text,
-				x=37,
-				y=y_pos
-			)
-			state.main_group.append(times_label)
+		
+			add_transit_times(bus_8_times, y_pos)
 			
 			# Add day indicator
 			add_weekday_indicator_if_enabled(state.main_group, rtc, "Transit")
@@ -5553,7 +5521,104 @@ def update_rtc_datetime(rtc, new_year=None, new_month=None, new_day=None, new_ho
 
 
 ### MAIN PROGRAM - HELPER FUNCTIONS ###
-		
+
+def calculate_market_hours_offset():
+	"""
+	Calculate market hours in local time (done ONCE at startup).
+
+	Market hours are always 9:30 AM - 4:00 PM Eastern Time.
+	This function converts those to local time and caches the result.
+
+	Simple approach: Calculate offset from local timezone to ET,
+	then adjust market hours to local time.
+	"""
+	# Get user's timezone
+	user_timezone = os.getenv("TIMEZONE", Strings.TIMEZONE_DEFAULT)
+
+	# Use current RTC time for DST-aware offset calculation
+	if state.rtc_instance:
+		now = state.rtc_instance.datetime
+	else:
+		# Fallback: use arbitrary date if RTC not available
+		import time
+		t = time.localtime()
+		now = t
+
+	# Calculate offset from local to ET (in hours)
+	user_offset = get_timezone_offset(user_timezone, now)
+	et_offset = get_timezone_offset("America/New_York", now)
+	offset_hours = et_offset - user_offset  # How many hours to add to local time to get ET
+
+	# Market hours in ET: 9:30 AM - 4:00 PM
+	market_open_et_minutes = 9 * 60 + 30  # 570 minutes (9:30 AM)
+	market_close_et_minutes = 16 * 60  # 960 minutes (4:00 PM)
+
+	# Convert to local time
+	offset_minutes = offset_hours * 60
+	market_open_local = market_open_et_minutes - offset_minutes
+	market_close_local = market_close_et_minutes - offset_minutes
+
+	# Handle day rollover (if needed)
+	if market_open_local < 0:
+		market_open_local += 24 * 60
+	if market_close_local < 0:
+		market_close_local += 24 * 60
+	if market_open_local >= 24 * 60:
+		market_open_local -= 24 * 60
+	if market_close_local >= 24 * 60:
+		market_close_local -= 24 * 60
+
+	# Store in state
+	state.market_hours_offset_minutes = offset_minutes
+	state.market_open_local_minutes = market_open_local
+	state.market_close_local_minutes = market_close_local
+
+	# Log for debugging
+	open_hour = market_open_local // 60
+	open_min = market_open_local % 60
+	close_hour = market_close_local // 60
+	close_min = market_close_local % 60
+	log_info(f"Market hours (local time): {open_hour:02d}:{open_min:02d} - {close_hour:02d}:{close_min:02d}")
+
+def update_market_hours_status(rtc):
+	"""
+	Check if we should fetch stocks (called ONCE per cycle).
+
+	Simple logic:
+	1. Not a weekday → don't fetch
+	2. Before market open → don't fetch
+	3. During market hours → fetch
+	4. After market close → don't fetch
+
+	Updates state.should_fetch_stocks for the entire cycle.
+	"""
+	if not rtc:
+		state.should_fetch_stocks = False
+		return
+
+	now = rtc.datetime
+
+	# Check if weekday (0=Monday, 4=Friday)
+	is_weekday = 0 <= now.tm_wday <= 4
+	if not is_weekday:
+		state.should_fetch_stocks = False
+		log_verbose("Weekend - stocks will use cache")
+		return
+
+	# Get current time in minutes
+	current_minutes = now.tm_hour * 60 + now.tm_min
+
+	# Check if within market hours (using pre-calculated local times)
+	if state.market_open_local_minutes <= current_minutes < state.market_close_local_minutes:
+		state.should_fetch_stocks = True
+		log_verbose("Market hours - stocks will fetch fresh data")
+	else:
+		state.should_fetch_stocks = False
+		if current_minutes < state.market_open_local_minutes:
+			log_verbose("Before market open - stocks will use cache")
+		else:
+			log_verbose("After market close - stocks will use cache")
+
 def initialize_system(rtc):
 	"""Initialize all hardware and load configuration"""
 	log_info("=== STARTUP ===")
@@ -5687,23 +5752,27 @@ def initialize_system(rtc):
 	schedule_count = len(scheduled_display.schedules) if scheduled_display.schedules_loaded else 0
 	stock_count = len(state.cached_stocks) if state.cached_stocks else 0
 
-	# Check market status for stocks display
-	if stock_count > 0:
-		_, should_display, market_reason = is_market_hours_or_cache_valid(rtc.datetime, False)
-		if not should_display:
-			# Provide specific message based on why markets are closed
-			if "Weekend" in market_reason:
-				stock_source_flag += f" (markets closed - weekend)"
-			elif "holiday" in market_reason:
-				stock_source_flag += f" (markets closed - holiday)"
-			elif "Before market open" in market_reason:
-				stock_source_flag += f" (markets open 9:30 AM ET)"
-			else:
-				stock_source_flag += f" (markets closed today)"
+	# Calculate market hours offset (once at startup, before checking status)
+	if stock_count > 0 and display_config.show_stocks:
+		calculate_market_hours_offset()
+
+	# Check market status for startup message
+	if stock_count > 0 and display_config.stocks_respect_market_hours:
+		now = rtc.datetime
+		is_weekday = 0 <= now.tm_wday <= 4
+		current_minutes = now.tm_hour * 60 + now.tm_min
+
+		if not is_weekday:
+			stock_source_flag += " (markets closed - weekend)"
+		elif state.market_open_local_minutes > 0 and current_minutes < state.market_open_local_minutes:
+			stock_source_flag += " (markets open 9:30 AM ET)"
+		elif state.market_close_local_minutes > 0 and current_minutes >= state.market_close_local_minutes:
+			stock_source_flag += " (markets closed today)"
 
 	log_info(f"Hardware ready | {schedule_count} schedules{schedule_source_flag} | {stock_count} stocks{stock_source_flag} | {state.total_event_count} events{imported_str} | Today: {today_msg}")
+
 	state.memory_monitor.check_memory("initialization_complete")
-	
+
 	return events
 
 def setup_network_and_time(rtc):
@@ -5898,8 +5967,9 @@ def _run_normal_cycle(rtc, cycle_count, cycle_start_time):
 		else:
 			interruptible_sleep(1)
 
-	# Stocks display (with frequency control and market hours check)
-	if display_config.show_stocks and state.market_hours_allowed:
+	# Stocks display (with frequency control)
+	# Display functions will handle market hours check and cache logic
+	if display_config.show_stocks:
 		# Smart frequency: show every cycle if stocks are the only display, otherwise respect frequency
 		other_displays_active = (display_config.show_weather or display_config.show_forecast or display_config.show_events)
 
@@ -6007,12 +6077,13 @@ def run_display_cycle(rtc, cycle_count):
 	if _run_scheduled_cycle(rtc, cycle_count, cycle_start_time):
 		return  # Schedule handled everything
 
-	# Check market hours BEFORE normal cycle (outside display stack to avoid exhaustion)
-	if display_config.show_stocks and display_config.stocks_respect_market_hours:
-		has_cached_stocks = len(state.cached_stock_prices) > 0
-		_, state.market_hours_allowed, _ = is_market_hours_or_cache_valid(rtc.datetime, has_cached_stocks)
+	# Update market hours status ONCE per cycle (simple time check, no stack depth)
+	# Always call this to determine if we're in market hours for smart caching
+	if display_config.show_stocks:
+		update_market_hours_status(rtc)
+		# Note: Displays will handle "fetch once if no cache" logic even outside market hours
 	else:
-		state.market_hours_allowed = True  # Always allow if check is disabled
+		state.should_fetch_stocks = False  # Skip if stocks display is disabled
 
 	# Normal cycle
 	_run_normal_cycle(rtc, cycle_count, cycle_start_time)
