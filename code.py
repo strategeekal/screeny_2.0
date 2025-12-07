@@ -4475,11 +4475,18 @@ def show_single_stock_chart(ticker, duration, rtc):
 					# Set full chart flag so we use all the data we got
 					data_is_fresh = False  # Mark as not fresh since it's old data
 
-		# Note: We'll get the actual opening price from the quote API later
-		# For now, just cache the time series data
+		# Fetch current quote for price and percentage (only when fetching new data)
+		quote_data = fetch_stock_prices([{"symbol": ticker, "name": ticker}])
+
+		if ticker not in quote_data:
+			log_warning("Could not fetch current quote for " + ticker)
+			return False
+
+		# Cache both time series and quote data together
 		state.cached_intraday_data[ticker] = {
 			"data": time_series,
-			"timestamp": current_time
+			"timestamp": current_time,
+			"quote": quote_data[ticker]  # Cache quote to avoid re-fetching
 		}
 		state.last_intraday_fetch_time[ticker] = current_time
 
@@ -4495,17 +4502,16 @@ def show_single_stock_chart(ticker, duration, rtc):
 	if not data_is_fresh:
 		log_verbose(f"Using cached chart data for {ticker} ({len(time_series)} points, outside market hours)")
 
-	# Fetch current quote for latest price and percentage
-	quote_data = fetch_stock_prices([{"symbol": ticker, "name": ticker}])
-
-	if ticker not in quote_data:
-		log_warning("Could not fetch current quote for " + ticker)
+	# Get quote data from cache (already fetched and cached with time series)
+	quote = cached.get("quote")
+	if not quote:
+		log_warning("No cached quote for " + ticker)
 		return False
 
-	current_price = quote_data[ticker]["price"]
-	change_percent = quote_data[ticker]["change_percent"]
-	direction = quote_data[ticker]["direction"]
-	actual_open_price = quote_data[ticker]["open_price"]
+	current_price = quote["price"]
+	change_percent = quote["change_percent"]
+	direction = quote["direction"]
+	actual_open_price = quote["open_price"]
 
 	# Get display name (uses display_name from stocks.csv if available)
 	display_name = get_stock_display_name(ticker)
