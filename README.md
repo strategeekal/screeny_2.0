@@ -1,4 +1,4 @@
-# Pantallita 2.4.0
+# Pantallita 2.5.0
 
 A dual RGB matrix weather display system running on MatrixPortal S3, showing real-time weather, forecasts, stock prices with intraday charts, CTA transit arrivals, events, and scheduled activities for family use. Features built-in button control for easy stop/exit.
 
@@ -37,7 +37,7 @@ Pantallita displays weather information, 12-hour forecasts, stock market data, C
 
 ```
 screeny_2.0/
-├── code.py                    # Main program (~5500 lines)
+├── code.py                    # Main program (~6200 lines)
 ├── settings.toml              # Environment variables (not in repo)
 ├── events.csv                 # Local events database
 ├── schedules.csv              # Local schedules database
@@ -719,7 +719,118 @@ The entire codebase currently resides in a single `code.py` file. This is a comm
 
 ## Version History
 
-### 2.4.0 (Current - November 2025)
+### 2.5.0 (Current - December 2025)
+- **Progressive 5-Min Interval Charts (Major Feature):**
+  - **Granular Intraday Data:**
+    - Changed from 15-min to 5-min intervals (3× more granular)
+    - Fetches up to 78 data points (full trading day coverage)
+    - API returns available data progressively throughout the day
+  - **Progressive Chart Fill:**
+    - Early morning: Sparse chart with few points (shows market just opened)
+    - Mid-day: Partial fill (visual indicator of time elapsed)
+    - Market close: Full 78-point chart (complete day coverage)
+    - Honest visualization (only shows available data, not interpolated)
+  - **Anchored to Market Open:**
+    - Chart scaling includes actual market open price
+    - Visual chart now matches percentage display
+    - Fixes misleading charts where % was negative but chart looked positive
+  - **Uniform Sampling:**
+    - 78 data points mapped to 64 pixels (1.22 points per pixel)
+    - Minimal compression with even distribution
+    - Preserves accurate price movement representation
+  - **Same API Cost:**
+    - 1 API credit regardless of outputsize parameter
+    - No additional cost for 3× more data
+
+- **Simplified Market State Logic (Major Refactor):**
+  - **Time-Based Logic (Replaces Complex State Transitions):**
+    - Weekend: Markets never open → use cache if available (no fetching)
+    - Pre-market (before 8:30 AM ET weekdays): Markets never open yet → use cache
+    - Market hours (8:30 AM - 4:00 PM ET weekdays): Might be open → let API decide
+    - After hours (after 4:00 PM ET weekdays): Market closed → use cache
+    - Holidays: No detection logic → API says closed, we use cache
+  - **Removed Complex State Tracking:**
+    - Eliminated `last_market_state` variable (no more open→closed transitions)
+    - Eliminated `market_holiday_date` variable (no more false holiday detection)
+    - Eliminated catch-22 bugs where bad state blocked corrections
+    - Net reduction: -48 lines of code while adding new features
+  - **Visual Cache Indicator:**
+    - 4 lilac pixels at top center (x=30-33, y=0) when displaying cached data
+    - Uses displayio.Bitmap + TileGrid (proper CircuitPython approach)
+    - Shows in both stock rotation and single stock chart modes
+    - Clear visual feedback for debugging and testing
+  - **Testing Mode Respects Market Hours:**
+    - `stocks_respect_market_hours=0` now only affects DISPLAY (not fetching)
+    - Testing mode displays stocks anytime but still optimizes API calls
+    - Weekend/pre-market: Uses cache instead of fetching every cycle
+    - Reduces API usage while maintaining 24/7 display capability
+  - **Cache Management:**
+    - Per-stock cache checking (supports gradual rotation through 4+ stocks)
+    - 15-minute intraday cache during market hours
+    - Indefinite cache when market closed (weekend/pre-market/holidays)
+    - Empty cache detection after restart (3am or weekends)
+  - **Bug Fixes:**
+    - Fixed missing `open_price` field in cached stock data
+    - Fixed false holiday detection (December 2 cached as holiday)
+    - Fixed market hours missing upper bound (was fetching at 10:54 PM ET)
+    - Fixed pystack exhausted from complex diagnostic f-strings
+    - Fixed pystack exhausted from timezone calculations (simplified to use API)
+    - Fixed cache indicator using nonexistent state.matrix attribute
+    - Fixed stock chart color/percentage calculations
+
+- **Removed Obsolete Features:**
+  - **350 API Call Restart:**
+    - Removed MAX_CALLS_BEFORE_RESTART constant
+    - Removed should_preventive_restart() method
+    - Removed check_preventive_restart() function
+    - Removed all function calls and references
+    - Updated logging to remove /350 reference (now shows "Total=X")
+    - No longer needed for weather API management
+
+- **Transit Display Enhancements:**
+  - **Interruptible Sleep:**
+    - Transit display now uses `interruptible_sleep()`
+    - UP button works to stop board during transit display
+    - Consistent behavior across all displays
+  - **Two-Column Time Layout:**
+    - First arrival time: Right-aligned to column 1 (x=49)
+    - Second arrival time: Right-aligned to column 2 (x=63)
+    - Removed comma separator (visual spacing sufficient)
+    - Cleaner, more readable layout
+  - **Code Optimization:**
+    - Created `add_transit_times()` helper function
+    - Eliminated 36 lines of duplicate code
+    - Added Layout constants: `TRANSIT_ICON_X`, `TRANSIT_LABEL_X`, `TRANSIT_START_Y`, `TRANSIT_ROW_HEIGHT`, `TRANSIT_TIME_COL1_END`, `TRANSIT_TIME_COL2_END`
+
+- **Forecast Display Improvements:**
+  - **12-Hour Precipitation Analysis:**
+    - Extended from 6 to 12 hours of forecast data
+    - Smart rain duration logic with 3-hour threshold
+    - If raining > 3 hours: Show next hour + when rain stops
+    - If raining ≤ 3 hours: Show when stops + hour after
+    - If rain never stops in 12h: Show next hour + last available
+  - **Color Indicators:**
+    - MINT (green): Non-consecutive future hours (visual indicator)
+    - DIMMEST_WHITE: Current or consecutive hours
+    - If col2 is MINT (non-consecutive), col3 is always MINT (future indicator)
+    - Improved readability for time gaps
+
+- **Code Architecture Improvements:**
+  - **Layout Constants:**
+    - Added `DISPLAY_WIDTH` and `DISPLAY_HEIGHT` (replaced ambiguous `RIGHT_EDGE`)
+    - Stock chart constants: `STOCK_ROW1_Y`, `STOCK_ROW2_Y`, `STOCK_CHART_Y_START`, `STOCK_CHART_HEIGHT`
+    - Transit constants for all positioning values
+    - Removed all magic numbers from display code
+  - **Helper Functions:**
+    - `add_transit_times()`: Two-column time display
+    - Reduced code duplication
+    - Improved maintainability
+  - **Refactoring:**
+    - Consistent use of Layout constants throughout codebase
+    - Cleaner code structure without functionality impact
+    - No increase in stack depth
+
+### 2.4.0 (November 2025)
 - **CTA Transit Display:**
   - **Real-Time Arrival Tracking:**
     - Shows 3 arrivals at a time (trains + buses combined)
