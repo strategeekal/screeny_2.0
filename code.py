@@ -1208,7 +1208,7 @@ def setup_buttons():
 		button_down.pull = digitalio.Pull.UP
 		state.button_down = button_down
 
-		log_debug("MatrixPortal buttons initialized - UP=stop, DOWN=advance")
+		log_info("MatrixPortal buttons initialized - UP=stop, DOWN=advance")
 		return True
 
 	except Exception as e:
@@ -1455,28 +1455,6 @@ def is_commute_hours(local_datetime):
 	end_time = 12 * 60  # 12:00pm = 720 minutes
 
 	return start_time <= time_in_minutes < end_time
-
-def format_minutes_to_time(minutes):
-	"""
-	Convert minutes since midnight to readable time format.
-
-	Args:
-		minutes: Minutes since midnight (e.g., 510 = 8:30am)
-
-	Returns:
-		str: Formatted time (e.g., "8:30am", "3:00pm")
-	"""
-	hour = minutes // 60
-	minute = minutes % 60
-
-	if hour == 0:
-		return f"12:{minute:02d}am"
-	elif hour < 12:
-		return f"{hour}:{minute:02d}am"
-	elif hour == 12:
-		return f"12:{minute:02d}pm"
-	else:
-		return f"{hour - 12}:{minute:02d}pm"
 
 def is_stock_display_hours(local_datetime):
 	"""
@@ -5662,7 +5640,7 @@ def calculate_market_hours_offset():
 	open_min = market_open_local % 60
 	close_hour = market_close_local // 60
 	close_min = market_close_local % 60
-	log_debug(f"Market hours (local time): {open_hour:02d}:{open_min:02d} - {close_hour:02d}:{close_min:02d}")
+	log_info(f"Market hours (local time): {open_hour:02d}:{open_min:02d} - {close_hour:02d}:{close_min:02d}")
 
 def update_market_hours_status(rtc):
 	"""
@@ -5788,6 +5766,7 @@ def initialize_system(rtc):
 	if github_stocks:
 		state.cached_stocks = github_stocks
 		stock_source_flag = " (imported)"
+		log_info(f"GitHub stocks: {len(github_stocks)} symbols")
 	else:
 		log_verbose("Failed to fetch stocks from GitHub, trying local file")
 		local_stocks = load_stocks_from_csv()
@@ -6212,32 +6191,15 @@ def main():
 		state.tracker.last_successful_weather = state.startup_time  # Initialize both timestamps
 		state.memory_monitor.log_report()
 
-		# Log active display features with time restrictions
+		# Log active display features
 		active_features = display_config.get_active_features()
-		enhanced_features = []
-
-		for feature in active_features:
-			formatted_feature = feature.replace("_", " ")
-
-			# Add time frames for time-restricted displays
-			if feature == "stocks" and display_config.stocks_respect_market_hours:
-				# Show stocks display window (market open to close + grace period)
-				if state.market_open_local_minutes > 0 and state.market_close_local_minutes > 0:
-					open_time = format_minutes_to_time(state.market_open_local_minutes)
-					close_with_grace = state.market_close_local_minutes + display_config.stocks_display_grace_period_minutes
-					close_time = format_minutes_to_time(close_with_grace)
-					formatted_feature = f"stocks ({open_time}-{close_time})"
-			elif feature == "transit" and display_config.transit_respect_commute_hours:
-				# Show transit commute hours (hardcoded 9:30am-12pm local time)
-				formatted_feature = "transit (9:30am-12:00pm)"
-
-			enhanced_features.append(formatted_feature)
+		formatted_features = [feature.replace("_", " ") for feature in active_features]
 
 		# Add location if available
 		if location_info and "location" in location_info:
 			log_info(f"Fetching time and weather for: {location_info['location']}")
 
-		log_info(f"Active displays: {', '.join(enhanced_features)}")
+		log_info(f"Active displays: {', '.join(formatted_features)}")
 		log_info(f"== STARTING MAIN DISPLAY LOOP == \n")
 		
 		# Main display loop
