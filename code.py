@@ -4695,16 +4695,9 @@ def show_single_stock_chart(ticker, duration, rtc):
 		# Build consolidated log message
 		log_msg = f"Chart: {display_name} {pct_text} ({price_text})"
 
-		# Add market closed info if applicable
+		# Add market closed info if applicable (use raw date to minimize stack depth)
 		if market_closed_date:
-			# Format date as "Dec 05" for readability
-			try:
-				year, month, day = market_closed_date.split('-')
-				month_names = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-				formatted_date = f"{month_names[int(month)]} {int(day)}"
-				log_msg += f" - Markets closed, data from {formatted_date}"
-			except:
-				log_msg += f" - Markets closed, data from {market_closed_date}"
+			log_msg += f" - Markets closed ({market_closed_date})"
 
 		log_msg += f" {cache_status}"
 		log_info(log_msg)
