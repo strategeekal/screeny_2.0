@@ -4462,6 +4462,7 @@ def show_single_stock_chart(ticker, duration, rtc):
 
 	# If not fetching (outside market hours) and no cache, fetch once to create cache
 	if not should_fetch and ticker not in state.cached_intraday_data:
+		log_info(f"Outside market hours with no cache for {ticker} - fetching once to create cache")
 		should_fetch = True  # Override to fetch once
 		fetch_full_chart = True  # Fetch full 78-point chart (not progressive)
 
@@ -4515,6 +4516,7 @@ def show_single_stock_chart(ticker, duration, rtc):
 
 	# Only fetch if still needed after market hours check
 	if should_fetch:
+		log_info(f"Fetching intraday data for {ticker} (5min interval, {intervals_elapsed} points)")
 		time_series = fetch_intraday_time_series(ticker, interval="5min", outputsize=intervals_elapsed)
 
 		if not time_series or len(time_series) == 0:
@@ -4537,7 +4539,7 @@ def show_single_stock_chart(ticker, duration, rtc):
 
 				if latest_date != today_date:
 					# Data is from previous day - market is closed (weekend/holiday)
-					log_info(f"Markets closed: data from {latest_date}")
+					log_info(f"Markets Closed: Latest data from {latest_date}, today is {today_date}")
 					state.should_fetch_stocks = False  # Don't fetch again this cycle
 					# Set full chart flag so we use all the data we got
 					data_is_fresh = False  # Mark as not fresh since it's old data
@@ -4690,7 +4692,7 @@ def show_single_stock_chart(ticker, duration, rtc):
 			cache_status = "(fresh)"
 		else:
 			cache_status = "(cached)"
-		log_info("Chart: " + display_name + " " + pct_text + " (" + price_text + ") " + cache_status)
+		log_info("Chart: " + display_name + " " + pct_text + " (" + price_text + ") with " + str(num_points) + " data points " + cache_status)
 
 		# Hold display for duration
 		time.sleep(duration)
