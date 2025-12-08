@@ -1208,7 +1208,7 @@ def setup_buttons():
 		button_down.pull = digitalio.Pull.UP
 		state.button_down = button_down
 
-		log_info("MatrixPortal buttons initialized - UP=stop, DOWN=advance")
+		log_debug("MatrixPortal buttons initialized - UP=stop, DOWN=advance")
 		return True
 
 	except Exception as e:
@@ -1455,6 +1455,28 @@ def is_commute_hours(local_datetime):
 	end_time = 12 * 60  # 12:00pm = 720 minutes
 
 	return start_time <= time_in_minutes < end_time
+
+def format_minutes_to_time(minutes):
+	"""
+	Convert minutes since midnight to readable time format.
+
+	Args:
+		minutes: Minutes since midnight (e.g., 510 = 8:30am)
+
+	Returns:
+		str: Formatted time (e.g., "8:30am", "3:00pm")
+	"""
+	hour = minutes // 60
+	minute = minutes % 60
+
+	if hour == 0:
+		return f"12:{minute:02d}am"
+	elif hour < 12:
+		return f"{hour}:{minute:02d}am"
+	elif hour == 12:
+		return f"12:{minute:02d}pm"
+	else:
+		return f"{hour - 12}:{minute:02d}pm"
 
 def is_stock_display_hours(local_datetime):
 	"""
@@ -4440,7 +4462,6 @@ def show_single_stock_chart(ticker, duration, rtc):
 
 	# If not fetching (outside market hours) and no cache, fetch once to create cache
 	if not should_fetch and ticker not in state.cached_intraday_data:
-		log_info(f"Outside market hours with no cache for {ticker} - fetching once to create cache")
 		should_fetch = True  # Override to fetch once
 		fetch_full_chart = True  # Fetch full 78-point chart (not progressive)
 
@@ -4453,6 +4474,7 @@ def show_single_stock_chart(ticker, duration, rtc):
 			log_verbose("Using cached intraday data for " + ticker + " (recently fetched)")
 
 	data_is_fresh = False
+	market_closed_date = None  # Track if data is from previous day (for logging)
 
 	# Fetch time series if needed
 	if should_fetch:
@@ -4494,7 +4516,6 @@ def show_single_stock_chart(ticker, duration, rtc):
 
 	# Only fetch if still needed after market hours check
 	if should_fetch:
-		log_info(f"Fetching intraday data for {ticker} (5min interval, {intervals_elapsed} points)")
 		time_series = fetch_intraday_time_series(ticker, interval="5min", outputsize=intervals_elapsed)
 
 		if not time_series or len(time_series) == 0:
@@ -4517,7 +4538,7 @@ def show_single_stock_chart(ticker, duration, rtc):
 
 				if latest_date != today_date:
 					# Data is from previous day - market is closed (weekend/holiday)
-					log_info(f"Markets Closed: Latest data from {latest_date}, today is {today_date}")
+					market_closed_date = latest_date  # Save for consolidated log message
 					state.should_fetch_stocks = False  # Don't fetch again this cycle
 					# Set full chart flag so we use all the data we got
 					data_is_fresh = False  # Mark as not fresh since it's old data
@@ -4663,14 +4684,30 @@ def show_single_stock_chart(ticker, duration, rtc):
 			cache_tile = displayio.TileGrid(cache_indicator, pixel_shader=cache_palette, x=30, y=0)
 			state.main_group.append(cache_tile)
 
-		# Determine cache status for logging
+		# Determine cache status and create consolidated log message
 		if actually_fetched and not data_is_fresh:
 			cache_status = "(fetched to cache)"
 		elif data_is_fresh:
 			cache_status = "(fresh)"
 		else:
 			cache_status = "(cached)"
-		log_info("Chart: " + display_name + " " + pct_text + " (" + price_text + ") with " + str(num_points) + " data points " + cache_status)
+
+		# Build consolidated log message
+		log_msg = f"Chart: {display_name} {pct_text} ({price_text})"
+
+		# Add market closed info if applicable
+		if market_closed_date:
+			# Format date as "Dec 05" for readability
+			try:
+				year, month, day = market_closed_date.split('-')
+				month_names = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+				formatted_date = f"{month_names[int(month)]} {int(day)}"
+				log_msg += f" - Markets closed, data from {formatted_date}"
+			except:
+				log_msg += f" - Markets closed, data from {market_closed_date}"
+
+		log_msg += f" {cache_status}"
+		log_info(log_msg)
 
 		# Hold display for duration
 		time.sleep(duration)
@@ -5640,7 +5677,7 @@ def calculate_market_hours_offset():
 	open_min = market_open_local % 60
 	close_hour = market_close_local // 60
 	close_min = market_close_local % 60
-	log_info(f"Market hours (local time): {open_hour:02d}:{open_min:02d} - {close_hour:02d}:{close_min:02d}")
+	log_debug(f"Market hours (local time): {open_hour:02d}:{open_min:02d} - {close_hour:02d}:{close_min:02d}")
 
 def update_market_hours_status(rtc):
 	"""
@@ -5766,7 +5803,6 @@ def initialize_system(rtc):
 	if github_stocks:
 		state.cached_stocks = github_stocks
 		stock_source_flag = " (imported)"
-		log_info(f"GitHub stocks: {len(github_stocks)} symbols")
 	else:
 		log_verbose("Failed to fetch stocks from GitHub, trying local file")
 		local_stocks = load_stocks_from_csv()
@@ -6191,15 +6227,32 @@ def main():
 		state.tracker.last_successful_weather = state.startup_time  # Initialize both timestamps
 		state.memory_monitor.log_report()
 
-		# Log active display features
+		# Log active display features with time restrictions
 		active_features = display_config.get_active_features()
-		formatted_features = [feature.replace("_", " ") for feature in active_features]
-		
+		enhanced_features = []
+
+		for feature in active_features:
+			formatted_feature = feature.replace("_", " ")
+
+			# Add time frames for time-restricted displays
+			if feature == "stocks" and display_config.stocks_respect_market_hours:
+				# Show stocks display window (market open to close + grace period)
+				if state.market_open_local_minutes > 0 and state.market_close_local_minutes > 0:
+					open_time = format_minutes_to_time(state.market_open_local_minutes)
+					close_with_grace = state.market_close_local_minutes + display_config.stocks_display_grace_period_minutes
+					close_time = format_minutes_to_time(close_with_grace)
+					formatted_feature = f"stocks ({open_time}-{close_time})"
+			elif feature == "transit" and display_config.transit_respect_commute_hours:
+				# Show transit commute hours (hardcoded 9:30am-12pm local time)
+				formatted_feature = "transit (9:30am-12:00pm)"
+
+			enhanced_features.append(formatted_feature)
+
 		# Add location if available
 		if location_info and "location" in location_info:
 			log_info(f"Fetching time and weather for: {location_info['location']}")
-		
-		log_info(f"Active displays: {', '.join(formatted_features)}")
+
+		log_info(f"Active displays: {', '.join(enhanced_features)}")
 		log_info(f"== STARTING MAIN DISPLAY LOOP == \n")
 		
 		# Main display loop
