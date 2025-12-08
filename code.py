@@ -1208,7 +1208,7 @@ def setup_buttons():
 		button_down.pull = digitalio.Pull.UP
 		state.button_down = button_down
 
-		log_info("MatrixPortal buttons initialized - UP=stop, DOWN=advance")
+		log_debug("MatrixPortal buttons initialized - UP=stop, DOWN=advance")
 		return True
 
 	except Exception as e:
@@ -5640,7 +5640,7 @@ def calculate_market_hours_offset():
 	open_min = market_open_local % 60
 	close_hour = market_close_local // 60
 	close_min = market_close_local % 60
-	log_info(f"Market hours (local time): {open_hour:02d}:{open_min:02d} - {close_hour:02d}:{close_min:02d}")
+	log_debug(f"Market hours (local time): {open_hour:02d}:{open_min:02d} - {close_hour:02d}:{close_min:02d}")
 
 def update_market_hours_status(rtc):
 	"""
@@ -5766,7 +5766,6 @@ def initialize_system(rtc):
 	if github_stocks:
 		state.cached_stocks = github_stocks
 		stock_source_flag = " (imported)"
-		log_info(f"GitHub stocks: {len(github_stocks)} symbols")
 	else:
 		log_verbose("Failed to fetch stocks from GitHub, trying local file")
 		local_stocks = load_stocks_from_csv()
