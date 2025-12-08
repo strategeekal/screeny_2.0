@@ -4474,7 +4474,6 @@ def show_single_stock_chart(ticker, duration, rtc):
 			log_verbose("Using cached intraday data for " + ticker + " (recently fetched)")
 
 	data_is_fresh = False
-	market_closed_date = None  # Track if data is from previous day (for logging)
 
 	# Fetch time series if needed
 	if should_fetch:
@@ -4538,7 +4537,7 @@ def show_single_stock_chart(ticker, duration, rtc):
 
 				if latest_date != today_date:
 					# Data is from previous day - market is closed (weekend/holiday)
-					market_closed_date = latest_date  # Save for consolidated log message
+					log_info(f"Markets closed: data from {latest_date}")
 					state.should_fetch_stocks = False  # Don't fetch again this cycle
 					# Set full chart flag so we use all the data we got
 					data_is_fresh = False  # Mark as not fresh since it's old data
@@ -4684,23 +4683,14 @@ def show_single_stock_chart(ticker, duration, rtc):
 			cache_tile = displayio.TileGrid(cache_indicator, pixel_shader=cache_palette, x=30, y=0)
 			state.main_group.append(cache_tile)
 
-		# Determine cache status and create consolidated log message
+		# Determine cache status for logging
 		if actually_fetched and not data_is_fresh:
 			cache_status = "(fetched to cache)"
 		elif data_is_fresh:
 			cache_status = "(fresh)"
 		else:
 			cache_status = "(cached)"
-
-		# Build consolidated log message
-		log_msg = f"Chart: {display_name} {pct_text} ({price_text})"
-
-		# Add market closed info if applicable (use raw date to minimize stack depth)
-		if market_closed_date:
-			log_msg += f" - Markets closed ({market_closed_date})"
-
-		log_msg += f" {cache_status}"
-		log_info(log_msg)
+		log_info("Chart: " + display_name + " " + pct_text + " (" + price_text + ") " + cache_status)
 
 		# Hold display for duration
 		time.sleep(duration)
