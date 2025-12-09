@@ -933,8 +933,8 @@ class StateTracker:
 		return self.system_error_count >= Recovery.HARD_RESET_THRESHOLD
 
 	def should_preventive_restart(self):
-		"""Check if preventive restart is needed due to API call limit"""
-		return self.api_call_count >= API.MAX_CALLS_BEFORE_RESTART
+		"""Check if preventive restart is needed due to API call limit - DISABLED"""
+		return False  # Preventive restart disabled - no longer needed with 800 stock API limit
 
 	def should_enter_extended_failure_mode(self):
 		"""Check if extended failure mode should be entered"""
@@ -5670,8 +5670,15 @@ def update_market_hours_status(rtc):
 	# Get current time in minutes
 	current_minutes = now.tm_hour * 60 + now.tm_min
 
-	# Check if within market hours (using pre-calculated local times)
-	if state.market_open_local_minutes <= current_minutes < state.market_close_local_minutes:
+	# Extend fetch window by grace period to ensure we capture closing prices
+	# This allows stocks that rotate late in the day to still get their closing price
+	if display_config.stocks_display_grace_period_minutes > 0:
+		fetch_end_minutes = state.market_close_local_minutes + display_config.stocks_display_grace_period_minutes
+	else:
+		fetch_end_minutes = state.market_close_local_minutes
+
+	# Check if within extended fetch window (market open to close + grace period)
+	if state.market_open_local_minutes <= current_minutes < fetch_end_minutes:
 		state.should_fetch_stocks = True
 		log_verbose("Market hours - stocks will fetch fresh data")
 	else:
