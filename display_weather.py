@@ -24,14 +24,16 @@ def log(message, level=config.LogLevel.INFO):
         print(f"[DISPLAY:{level_name}] {message}")
 
 # ============================================================================
-# FONT CHARACTER WIDTHS (Fixed - get_bounding_box returns 0)
+# TEXT ALIGNMENT NOTE
 # ============================================================================
 
-# Font widths based on font file names:
-# tinybit6-16.bdf = 6 pixels per character
-# bigbit10-16.bdf = 10 pixels per character
-SMALL_FONT_CHAR_WIDTH = 6
-LARGE_FONT_CHAR_WIDTH = 10
+# Using CircuitPython's anchor_point system for proper text alignment:
+# - anchor_point=(0.0, 0.0) = top-left anchor (default)
+# - anchor_point=(1.0, 0.0) = top-right anchor (for right-alignment)
+# - anchor_point=(0.5, 0.0) = top-center anchor (for centering)
+# - anchored_position=(x, y) = where to place the anchor point
+#
+# This works with variable-width fonts automatically!
 
 # ============================================================================
 # WEATHER DISPLAY (EVERYTHING INLINE)
@@ -115,16 +117,13 @@ def show(weather_data, duration):
     if show_feels:
         feels_text = f"{feels}°"
 
-        # Calculate text width using fixed char width (6px for small font)
-        text_width = len(feels_text) * SMALL_FONT_CHAR_WIDTH
-        feels_x = config.Layout.RIGHT_EDGE - text_width + 1
-
+        # Use anchor point for proper right-alignment with variable-width fonts
         feels_label = bitmap_label.Label(
             state.font_small,
             text=feels_text,
             color=config.Colors.WHITE,
-            x=feels_x,
-            y=config.Layout.FEELSLIKE_Y
+            anchor_point=(1.0, 0.0),  # Right-top anchor
+            anchored_position=(config.Layout.RIGHT_EDGE, config.Layout.FEELSLIKE_Y)
         )
         state.main_group.append(feels_label)
 
@@ -134,16 +133,13 @@ def show(weather_data, duration):
     if show_shade:
         shade_text = f"{shade}°"
 
-        # Calculate text width using fixed char width
-        text_width = len(shade_text) * SMALL_FONT_CHAR_WIDTH
-        shade_x = config.Layout.RIGHT_EDGE - text_width + 1
-
+        # Use anchor point for proper right-alignment
         shade_label = bitmap_label.Label(
             state.font_small,
             text=shade_text,
             color=config.Colors.WHITE,
-            x=shade_x,
-            y=config.Layout.FEELSLIKE_SHADE_Y
+            anchor_point=(1.0, 0.0),  # Right-top anchor
+            anchored_position=(config.Layout.RIGHT_EDGE, config.Layout.FEELSLIKE_SHADE_Y)
         )
         state.main_group.append(shade_label)
 
@@ -162,23 +158,26 @@ def show(weather_data, duration):
 
     time_text = f"{hour_12}:{minute:02d}"
 
-    # Calculate text width using fixed char width
-    time_text_width = len(time_text) * SMALL_FONT_CHAR_WIDTH
-
+    # Use anchor point for proper alignment with variable-width fonts
     if show_shade:
         # Centered
-        time_x = (config.Display.WIDTH - time_text_width) // 2
+        time_label = bitmap_label.Label(
+            state.font_small,
+            text=time_text,
+            color=config.Colors.WHITE,
+            anchor_point=(0.5, 0.0),  # Center-top anchor
+            anchored_position=(config.Display.WIDTH // 2, config.Layout.WEATHER_TIME_Y)
+        )
     else:
         # Right-aligned at shade position
-        time_x = config.Layout.RIGHT_EDGE - time_text_width + 1
+        time_label = bitmap_label.Label(
+            state.font_small,
+            text=time_text,
+            color=config.Colors.WHITE,
+            anchor_point=(1.0, 0.0),  # Right-top anchor
+            anchored_position=(config.Layout.RIGHT_EDGE, config.Layout.WEATHER_TIME_Y)
+        )
 
-    time_label = bitmap_label.Label(
-        state.font_small,
-        text=time_text,
-        color=config.Colors.WHITE,
-        x=time_x,
-        y=config.Layout.WEATHER_TIME_Y
-    )
     state.main_group.append(time_label)
 
     # ========================================================================
@@ -241,28 +240,42 @@ def show(weather_data, duration):
 # NOTES
 # ============================================================================
 """
-Character width calculation:
+Text Alignment with Anchor Points:
 
-OLD (broken):
-bbox = font.get_bounding_box()  # Returns (0, 0, 0, 0) in CircuitPython!
-char_width = bbox[2]  # Always 0
-text_width = len(text) * char_width  # Always 0 - BROKEN
+CircuitPython's bitmap_label.Label supports anchor_point and anchored_position
+which automatically handle text alignment for variable-width fonts!
 
-NEW (fixed):
-SMALL_FONT_CHAR_WIDTH = 6  # From tinybit6-16.bdf filename
-text_width = len(text) * SMALL_FONT_CHAR_WIDTH  # Works!
+RIGHT-ALIGNMENT:
+    anchor_point=(1.0, 0.0)      # Right-top corner of text
+    anchored_position=(63, y)    # Place that anchor at right edge
 
-Right-alignment calculation:
-feels_x = RIGHT_EDGE - text_width + 1
-Example: "25°" = 3 chars * 6px = 18px wide
-feels_x = 63 - 18 + 1 = 46 (perfectly right-aligned)
+CENTER-ALIGNMENT:
+    anchor_point=(0.5, 0.0)      # Center-top of text
+    anchored_position=(32, y)    # Place that anchor at center
 
-V2 Layout Logic:
-1. Temp always shows (left, big font)
-2. Feels shows if different (right-aligned, small font, temp only)
-3. Shade shows if different from feels (right-aligned below, temp only)
-4. Clock: centered if shade shown, else at shade position (right-aligned)
-5. UV bar (colored)
+LEFT-ALIGNMENT (default):
+    anchor_point=(0.0, 0.0)      # Left-top corner (or just use x, y)
+    anchored_position=(x, y)     # Or just x, y parameters
+
+This works with both fixed-width and proportional fonts!
+
+Example:
+    # Right-align "25°" at right edge (x=63)
+    label = bitmap_label.Label(
+        font,
+        text="25°",
+        anchor_point=(1.0, 0.0),
+        anchored_position=(63, 16)
+    )
+    # The rightmost pixel of the text will be at x=63
+    # Works perfectly regardless of actual text width!
+
+V2 Layout Implementation:
+1. Temp always shows (left, big font, x/y positioning)
+2. Feels shows if different (right-aligned with anchor_point=1.0)
+3. Shade shows if different from feels (right-aligned with anchor_point=1.0)
+4. Clock: centered (anchor_point=0.5) if shade shown, else right-aligned (anchor_point=1.0)
+5. UV bar (colored, pixel-by-pixel)
 6. Humidity bar (white, 1px per 10%, gaps every 2px)
 7. NO condition text
 

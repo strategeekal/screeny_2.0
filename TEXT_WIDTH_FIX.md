@@ -1,4 +1,4 @@
-# Text Width Calculation Fix
+# Text Alignment Fix
 
 ## Problem
 
@@ -14,82 +14,144 @@ feels_x = RIGHT_EDGE - text_width + 1  # Wrong position!
 
 ## Solution
 
-Use **fixed character widths** based on the font file names:
+Use CircuitPython's **anchor_point and anchored_position** system which automatically handles text alignment for both fixed-width and proportional fonts:
 
 ```python
-# Font widths from filenames:
-# tinybit6-16.bdf = 6 pixels per character
-# bigbit10-16.bdf = 10 pixels per character
-
-SMALL_FONT_CHAR_WIDTH = 6
-LARGE_FONT_CHAR_WIDTH = 10
-
-# FIXED CODE
-text_width = len(text) * SMALL_FONT_CHAR_WIDTH  # Works!
-feels_x = RIGHT_EDGE - text_width + 1  # Correct!
+# PROPER SOLUTION - Works with variable-width fonts!
+label = bitmap_label.Label(
+    font,
+    text="25°",
+    anchor_point=(1.0, 0.0),      # Right-top anchor
+    anchored_position=(63, 16)    # Place anchor at right edge
+)
+# Text is automatically right-aligned at x=63!
 ```
 
-## Examples
+## Anchor Point System
 
-### Feels Like Temperature (Right-Aligned)
+### How It Works
+
+**Anchor Point:** A position within the text bounding box (0.0 to 1.0 range)
+- `(0.0, 0.0)` = top-left corner
+- `(1.0, 0.0)` = top-right corner
+- `(0.5, 0.0)` = top-center
+- `(0.0, 1.0)` = bottom-left corner
+- etc.
+
+**Anchored Position:** Where to place that anchor point on the display
+
+### Examples
+
+#### Right-Align Text
 ```python
-feels_text = "25°"  # 3 characters
-text_width = 3 * 6 = 18 pixels
-feels_x = 63 - 18 + 1 = 46
-# Text starts at x=46 and extends to x=63 (right edge)
+# Place the RIGHT edge of text at x=63 (right edge of display)
+label = bitmap_label.Label(
+    font,
+    text="25°",
+    anchor_point=(1.0, 0.0),      # Anchor at right-top of text
+    anchored_position=(63, 16)    # Place that point at x=63, y=16
+)
+# Works for "25°" (narrow) or "-100°" (wide) automatically!
 ```
 
-### Clock (Centered)
+#### Center Text
 ```python
-time_text = "10:45"  # 5 characters
-text_width = 5 * 6 = 30 pixels
-time_x = (64 - 30) // 2 = 17
-# Text is centered on 64-pixel wide display
+# Place the CENTER of text at x=32 (center of 64-pixel display)
+label = bitmap_label.Label(
+    font,
+    text="10:45",
+    anchor_point=(0.5, 0.0),      # Anchor at center-top of text
+    anchored_position=(32, 24)    # Place that point at x=32, y=24
+)
+# Perfectly centered regardless of text width!
+```
+
+#### Left-Align Text (Default)
+```python
+# Traditional x, y positioning (no anchor needed)
+label = bitmap_label.Label(
+    font,
+    text="77°",
+    x=2,
+    y=20
+)
+# Or use anchor_point=(0.0, 0.0) explicitly
 ```
 
 ## Implementation
 
-The fix is implemented in `display_weather.py`:
+The fix is implemented in `display_weather.py` using anchor points throughout:
 
-1. **Constants defined at module level:**
-   ```python
-   SMALL_FONT_CHAR_WIDTH = 6
-   LARGE_FONT_CHAR_WIDTH = 10
-   ```
+### Feels Like Temperature (Right-Aligned)
+```python
+feels_label = bitmap_label.Label(
+    state.font_small,
+    text=f"{feels}°",
+    color=config.Colors.WHITE,
+    anchor_point=(1.0, 0.0),
+    anchored_position=(config.Layout.RIGHT_EDGE, config.Layout.FEELSLIKE_Y)
+)
+```
 
-2. **Used for all text positioning:**
-   - Feels like temperature (right-aligned)
-   - Feels shade temperature (right-aligned)
-   - Clock (centered or right-aligned)
+### Feels Shade Temperature (Right-Aligned)
+```python
+shade_label = bitmap_label.Label(
+    state.font_small,
+    text=f"{shade}°",
+    color=config.Colors.WHITE,
+    anchor_point=(1.0, 0.0),
+    anchored_position=(config.Layout.RIGHT_EDGE, config.Layout.FEELSLIKE_SHADE_Y)
+)
+```
 
-3. **All calculations inline:**
-   ```python
-   text_width = len(feels_text) * SMALL_FONT_CHAR_WIDTH
-   feels_x = config.Layout.RIGHT_EDGE - text_width + 1
-   ```
+### Clock (Centered or Right-Aligned)
+```python
+if show_shade:
+    # Centered
+    time_label = bitmap_label.Label(
+        state.font_small,
+        text=time_text,
+        anchor_point=(0.5, 0.0),
+        anchored_position=(config.Display.WIDTH // 2, config.Layout.WEATHER_TIME_Y)
+    )
+else:
+    # Right-aligned
+    time_label = bitmap_label.Label(
+        state.font_small,
+        text=time_text,
+        anchor_point=(1.0, 0.0),
+        anchored_position=(config.Layout.RIGHT_EDGE, config.Layout.WEATHER_TIME_Y)
+    )
+```
 
 ## Why This Works
 
-The font filenames indicate their character width:
-- `tinybit6-16.bdf` = 6 pixels wide, 16 pixels tall
-- `bigbit10-16.bdf` = 10 pixels wide, 16 pixels tall
+The `anchor_point` and `anchored_position` system is built into CircuitPython's `bitmap_label.Label` class. It:
 
-These are **fixed-width (monospace) fonts**, so every character is exactly the same width. This makes text width calculation simple and reliable.
+1. **Calculates actual text width** automatically (handles variable-width fonts)
+2. **Positions the anchor** at the specified point within the text bounding box
+3. **Places that anchor** at the specified display coordinates
+
+This works for:
+- ✅ Fixed-width (monospace) fonts like `tinybit6-16.bdf`
+- ✅ Variable-width (proportional) fonts
+- ✅ Different text lengths ("5°" vs "-100°")
+- ✅ Different characters ("WWW" vs "iii")
 
 ## V2 Layout Requirements
 
-With fixed text width calculation, we achieve the exact v2 layout:
+With anchor point alignment, we achieve the exact v2 layout:
 
-1. **Temperature:** Always left-aligned, big font
-2. **Feels like:** Right-aligned if different from temp
-3. **Feels shade:** Right-aligned below feels if different
+1. **Temperature:** Always left-aligned, big font (standard x, y positioning)
+2. **Feels like:** Right-aligned if different from temp (anchor_point=1.0)
+3. **Feels shade:** Right-aligned below feels if different (anchor_point=1.0)
 4. **Clock:**
-   - Centered if shade is shown
-   - Right-aligned at shade position if shade not shown
-5. **UV bar:** Colored bar at bottom
-6. **Humidity bar:** White bar with gaps every 2 pixels
+   - Centered if shade is shown (anchor_point=0.5)
+   - Right-aligned at shade position if shade not shown (anchor_point=1.0)
+5. **UV bar:** Colored bar at bottom (pixel-by-pixel rendering)
+6. **Humidity bar:** White bar with gaps every 2 pixels (pixel-by-pixel rendering)
 
-All text aligns perfectly with the 64-pixel display width!
+All text aligns perfectly regardless of font type or text width!
 
 ## Stack Depth Impact
 
