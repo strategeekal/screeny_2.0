@@ -212,9 +212,10 @@ def show(weather_data, duration):
         state.main_group.append(rect)
 
     # ========================================================================
-    # INTERRUPTIBLE SLEEP (Inline - no sleep helper)
+    # INTERRUPTIBLE SLEEP WITH LIVE CLOCK (Inline)
     # ========================================================================
     end_time = time.monotonic() + duration
+    last_minute = -1  # Track last minute to avoid unnecessary updates
 
     while time.monotonic() < end_time:
         # Check button inline (import hardware only when needed to avoid circular imports)
@@ -222,6 +223,21 @@ def show(weather_data, duration):
         if hardware.button_up_pressed():
             logger.log("UP button pressed during weather display", config.LogLevel.INFO)
             raise KeyboardInterrupt
+
+        # Update clock only when minute changes (prevents blinking)
+        now = state.rtc.datetime
+        current_minute = now.tm_min
+
+        if current_minute != last_minute:
+            # Minute changed - update display
+            hour = now.tm_hour
+            hour_12 = hour % 12
+            if hour_12 == 0:
+                hour_12 = 12
+
+            new_time_text = f"{hour_12}:{current_minute:02d}"
+            time_label.text = new_time_text
+            last_minute = current_minute
 
         time.sleep(0.1)
 
