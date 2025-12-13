@@ -39,8 +39,13 @@ socket_pool = None
 # Cycle counter
 cycle_count = 0
 
-# Last memory check
-last_memory_free = 0
+# Uptime tracking (using time.monotonic())
+start_time = 0  # Set in code_v3.py on startup
+
+# Memory tracking
+baseline_memory = 0      # Memory at startup (after initialization)
+last_memory_free = 0     # Last memory check value
+low_watermark_memory = 0 # Lowest memory seen so far
 
 # ============================================================================
 # WEATHER CACHE

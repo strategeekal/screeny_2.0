@@ -14,16 +14,7 @@ import state
 import hardware
 import weather_api
 import display_weather
-
-# ============================================================================
-# LOGGING
-# ============================================================================
-
-def log(message, level=config.LogLevel.INFO):
-    """Simple logging"""
-    if level <= config.CURRENT_LOG_LEVEL:
-        level_name = ["", "ERROR", "WARN", "INFO", "DEBUG", "VERBOSE"][level]
-        print(f"[MAIN:{level_name}] {message}")
+import logger
 
 # ============================================================================
 # DISPLAY FUNCTIONS (Inline - no helper functions)
@@ -98,11 +89,12 @@ def run_display_cycle():
     """Run one display cycle - Phase 1: Weather"""
     state.cycle_count += 1
 
-    log(f"=== Cycle {state.cycle_count} ===", config.LogLevel.DEBUG)
+    # Log cycle start (v2.5 format)
+    logger.log_cycle_start(state.cycle_count)
 
     # Check WiFi status
     if not hardware.is_wifi_connected():
-        log("WiFi disconnected!", config.LogLevel.WARNING)
+        logger.log("WiFi disconnected!", config.LogLevel.WARNING)
         show_message("NO WIFI", config.Colors.RED)
         time.sleep(5)
 
@@ -111,7 +103,7 @@ def run_display_cycle():
             show_message("WIFI OK", config.Colors.GREEN)
             time.sleep(2)
         else:
-            log("WiFi reconnect failed - showing clock fallback", config.LogLevel.ERROR)
+            logger.log("WiFi reconnect failed - showing clock fallback", config.LogLevel.ERROR)
             show_clock()
             time.sleep(config.Timing.CLOCK_UPDATE_INTERVAL)
         return
@@ -124,29 +116,30 @@ def run_display_cycle():
         try:
             display_weather.show(weather_data, config.Timing.WEATHER_DISPLAY_DURATION)
         except Exception as e:
-            log(f"Weather display error: {e}", config.LogLevel.ERROR)
+            logger.log(f"Weather display error: {e}", config.LogLevel.ERROR)
             traceback.print_exception(e)
             show_clock()
             time.sleep(config.Timing.CLOCK_UPDATE_INTERVAL)
     else:
-        log("No weather data available - showing clock fallback", config.LogLevel.WARNING)
+        logger.log("No weather data available - showing clock fallback", config.LogLevel.WARNING)
         show_clock()
         time.sleep(config.Timing.CLOCK_UPDATE_INTERVAL)
 
     # Memory check (inline)
     if state.cycle_count % config.Timing.MEMORY_CHECK_INTERVAL == 0:
-        free_before = state.last_memory_free
         gc.collect()
-        free_after = gc.mem_free()
-        state.last_memory_free = free_after
+        current = gc.mem_free()
+        state.last_memory_free = current
 
-        # Log memory status
-        if free_before > 0:
-            delta = free_after - free_before
-            delta_sign = "+" if delta >= 0 else ""
-            log(f"Memory: {free_after} bytes free ({delta_sign}{delta})", config.LogLevel.INFO)
-        else:
-            log(f"Memory: {free_after} bytes free", config.LogLevel.INFO)
+        # Update low watermark
+        if state.low_watermark_memory == 0 or current < state.low_watermark_memory:
+            state.low_watermark_memory = current
+
+        # Log memory status with baseline and low watermark
+        logger.log_memory_status(
+            baseline=state.baseline_memory,
+            low_watermark=state.low_watermark_memory
+        )
 
 # ============================================================================
 # INITIALIZATION
@@ -154,8 +147,8 @@ def run_display_cycle():
 
 def initialize():
     """Initialize all hardware and services"""
-    log("=== Pantallita 3.0 - Phase 1: Weather Display ===")
-    log(f"CircuitPython version: {supervisor.runtime.serial_connected}")
+    logger.log("=== Pantallita 3.0 - Phase 1: Weather Display ===")
+    logger.log(f"CircuitPython version: {supervisor.runtime.serial_connected}")
 
     # Show startup message
     show_message("INIT...", config.Colors.GREEN, 16)
@@ -184,14 +177,14 @@ def initialize():
         show_message("READY!", config.Colors.GREEN, 16)
         time.sleep(2)
 
-        log("=== Initialization complete ===")
-        log("Press UP button to stop")
-        log("Running Phase 1: Weather Display")
+        logger.log("=== Initialization complete ===")
+        logger.log("Press UP button to stop")
+        logger.log("Running Phase 1: Weather Display")
 
         return True
 
     except Exception as e:
-        log(f"Initialization failed: {e}", config.LogLevel.ERROR)
+        logger.log(f"Initialization failed: {e}", config.LogLevel.ERROR)
         traceback.print_exception(e)
         show_message("INIT ERR", config.Colors.RED, 16)
         return False
