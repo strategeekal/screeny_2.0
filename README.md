@@ -1,6 +1,64 @@
-# Pantallita 2.5.0
+# Pantallita 3.0 (In Development)
 
-A dual RGB matrix weather display system running on MatrixPortal S3, showing real-time weather, forecasts, stock prices with intraday charts, CTA transit arrivals, events, and scheduled activities for family use. Features built-in button control for easy stop/exit.
+A dual RGB matrix weather display system running on MatrixPortal S3, showing real-time weather, forecasts, stock prices with intraday charts, CTA transit arrivals, events, and scheduled activities for family use.
+
+**🚀 Currently undergoing major v3.0 refactoring** to eliminate pystack exhaustion issues through flat architecture design.
+
+---
+
+## 📍 Current Status: v3.0 Phase 1 Complete
+
+### ✅ Phase 1: Weather Display (STABLE - 8 hours tested)
+
+**Implementation:** Modular architecture with proper stack management
+- **Files:** `config.py`, `state.py`, `hardware.py`, `weather_api.py`, `display_weather.py`, `code_v3.py`
+- **Architecture:** Flat module structure (2-level stack depth vs 8+ in v2.5.0)
+- **Tested:** 8 hours continuous operation, 95 cycles, 24 weather fetches, 0 errors
+- **Memory:** Stable at 1,932,384 bytes free
+
+**Features Working:**
+- ✅ Weather fetching from AccuWeather (temperature in correct unit)
+- ✅ Icon display (64×32 full-screen BMPs)
+- ✅ Text alignment using anchor points (handles variable-width fonts)
+- ✅ Feels like temperature (right-aligned when different)
+- ✅ Feels shade temperature (right-aligned below feels when different)
+- ✅ Clock display (centered or right-aligned based on shade visibility)
+- ✅ UV bar (white, gaps every 3 pixels, 1 pixel = 1 UV index)
+- ✅ Humidity bar (white, gaps every 2 pixels, 1 pixel = 10% humidity)
+- ✅ Live clock updates (refreshes every second during display)
+- ✅ Timezone support with fallback
+- ✅ WiFi recovery
+- ✅ Button control (UP to stop)
+
+**Documentation:**
+- `REFACTOR_PLAN.md` - Overall v3.0 architecture strategy
+- `ARCHITECTURE_COMPARISON.md` - Why flat architecture is needed
+- `BOOTSTRAP_GUIDE.md` - CircuitPython 10 upgrade guide
+- `PHASE1_DEPLOYMENT.md` - Phase 1 deployment instructions
+- `TEXT_WIDTH_FIX.md` - Anchor point alignment documentation
+
+### 📋 Remaining Phases
+
+- **Phase 2:** Forecast display (12-hour forecast, 3-column layout)
+- **Phase 3:** Stock display (with intraday charts)
+- **Phase 4:** Events, schedules, transit displays
+- **Phase 5:** Production deployment and 24+ hour stability testing
+
+### 🔑 Key Architectural Changes in v3.0
+
+**Problem Solved:** v2.5.0's 6,175-line monolithic code constantly hit pystack exhaustion (25 levels in CP9, 32 in CP10)
+
+**Solution:** Flat architecture with inline rendering
+- **Stack depth:** 2 levels (main → show) vs 8+ levels in v2.5.0
+- **No helper functions** in display modules (everything inline)
+- **Direct module calls** from main loop (no nesting)
+- **Proper socket management** (always close responses, 2-second WiFi delay)
+- **Temperature fetched in correct unit** (Metric/Imperial from API, no conversion)
+- **Anchor point text alignment** (handles variable-width fonts automatically)
+
+---
+
+## 📦 v2.5.0 (Stable - Legacy)
 
 ## Overview
 
@@ -10,14 +68,18 @@ Pantallita displays weather information, 12-hour forecasts, stock market data, C
 
 - **Controller:** Adafruit MatrixPortal S3 (ESP32-S3, 8MB flash, 2MB SRAM)
 - **Displays:** 2× RGB LED matrices (64×32 pixels, 4-bit color depth)
-- **RTC:** DS3231 real-time clock module
+- **RTC:** DS3231 real-time clock module with CR2032 battery
 - **Buttons:** 2× built-in buttons on MatrixPortal S3 (UP/DOWN)
 - **Power:** 5V power supply
-- **Firmware:** Adafruit CircuitPython 9.2.8
+- **Firmware:**
+  - **v3.0:** Adafruit CircuitPython 10.0.1 (32 stack levels, 28% more than CP9)
+  - **v2.5.0:** Adafruit CircuitPython 9.2.8 (25 stack levels)
 
 ## Software Stack
 
-- **Language:** CircuitPython 9.2.8
+- **Language:**
+  - **v3.0:** CircuitPython 10.0.1
+  - **v2.5.0:** CircuitPython 9.2.8
 - **APIs:**
   - AccuWeather API (current conditions & 12-hour forecast)
   - Twelve Data API (real-time stock prices)
@@ -35,9 +97,30 @@ Pantallita displays weather information, 12-hour forecasts, stock market data, C
 
 ## Project Structure
 
+### v3.0 Modular Architecture
 ```
 screeny_2.0/
-├── code.py                    # Main program (~6200 lines)
+├── config.py                  # Configuration constants (zero runtime cost)
+├── state.py                   # Global state variables
+├── hardware.py                # Hardware init (display, RTC, WiFi, buttons)
+├── weather_api.py             # AccuWeather API integration
+├── display_weather.py         # Weather rendering (inline, no helpers)
+├── code_v3.py                 # Main entry point (Phase 1)
+├── settings.toml              # Environment variables (not in repo)
+├── fonts/
+│   ├── bigbit10-16.bdf       # Large font (10px wide, 16px tall)
+│   └── tinybit6-16.bdf       # Small font (6px wide, 16px tall)
+├── img/
+│   └── weather/              # Weather icons (1-44.bmp, 64×32 full-screen)
+└── lib/                      # CircuitPython 10 libraries
+    ├── adafruit_ticks.mpy    # CP10 requirement
+    └── ... (other libraries)
+```
+
+### v2.5.0 Monolithic Structure (Legacy)
+```
+screeny_2.0/
+├── code.py                    # Main program (~6,175 lines)
 ├── settings.toml              # Environment variables (not in repo)
 ├── events.csv                 # Local events database
 ├── schedules.csv              # Local schedules database
