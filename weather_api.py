@@ -7,18 +7,7 @@ import time
 
 import config
 import state
-
-# ============================================================================
-# LOGGING
-# ============================================================================
-
-def log(message, level=config.LogLevel.INFO):
-    """Simple logging"""
-    if isinstance(level, str):
-        level = config.LogLevel.INFO
-    if level <= config.CURRENT_LOG_LEVEL:
-        level_name = ["", "ERROR", "WARN", "INFO", "DEBUG", "VERBOSE"][level]
-        print(f"[WEATHER:{level_name}] {message}")
+import logger
 
 # ============================================================================
 # WEATHER FETCHING
@@ -35,19 +24,19 @@ def fetch_current():
     if state.last_weather_data and state.last_weather_time > 0:
         age = time.monotonic() - state.last_weather_time
         if age < config.Timing.WEATHER_CACHE_MAX_AGE:
-            log(f"Using cached weather data (age: {int(age)}s)", config.LogLevel.DEBUG)
+            logger.log(f"Using cached weather data (age: {int(age)}s)", config.LogLevel.DEBUG)
             return state.last_weather_data
 
     # Check if we have API credentials
     if not config.Env.ACCUWEATHER_KEY or not config.Env.ACCUWEATHER_LOCATION:
-        log("AccuWeather credentials not configured", config.LogLevel.ERROR)
+        logger.log("AccuWeather credentials not configured", config.LogLevel.ERROR)
         return None
 
     if not state.session:
-        log("No network session available", config.LogLevel.ERROR)
+        logger.log("No network session available", config.LogLevel.ERROR)
         return None
 
-    log("Fetching weather from AccuWeather...")
+    logger.log("Fetching weather from AccuWeather...")
 
     response = None
     try:
@@ -66,13 +55,13 @@ def fetch_current():
         # Add API key to URL
         url += f"&apikey={config.Env.ACCUWEATHER_KEY}"
 
-        log(f"Fetching from: {url[:60]}...", config.LogLevel.DEBUG)
+        logger.log(f"Fetching from: {url[:60]}...", config.LogLevel.DEBUG)
 
         # Fetch weather data
         response = state.session.get(url, timeout=10)
 
         if response.status_code != 200:
-            log(f"AccuWeather API returned {response.status_code}", config.LogLevel.ERROR)
+            logger.log(f"AccuWeather API returned {response.status_code}", config.LogLevel.ERROR)
             state.weather_fetch_errors += 1
             return state.last_weather_data  # Return cached data if available
 
@@ -81,7 +70,7 @@ def fetch_current():
 
         # AccuWeather returns array with single element
         if not data or len(data) == 0:
-            log("Empty response from AccuWeather", config.LogLevel.ERROR)
+            logger.log("Empty response from AccuWeather", config.LogLevel.ERROR)
             state.weather_fetch_errors += 1
             return state.last_weather_data
 
@@ -90,7 +79,7 @@ def fetch_current():
         # Extract temperature in correct unit (inline parsing)
         temp = weather.get("Temperature", {}).get(temp_unit, {}).get("Value")
         if temp is None:
-            log("Temperature not found in response", config.LogLevel.ERROR)
+            logger.log("Temperature not found in response", config.LogLevel.ERROR)
             state.weather_fetch_errors += 1
             return state.last_weather_data
 
@@ -136,7 +125,7 @@ def fetch_current():
             "condition": condition
         }
 
-        log(f"Weather fetched: {temp}° {condition}", config.LogLevel.INFO)
+        logger.log_weather(condition, temp, unit)
 
         # Update cache
         state.last_weather_data = weather_data
@@ -146,7 +135,7 @@ def fetch_current():
         return weather_data
 
     except Exception as e:
-        log(f"Weather fetch failed: {e}", config.LogLevel.ERROR)
+        logger.log(f"Weather fetch failed: {e}", config.LogLevel.ERROR)
         state.weather_fetch_errors += 1
         return state.last_weather_data  # Return cached data if available
 

@@ -198,16 +198,22 @@ def main():
 
     # Initialize hardware
     if not initialize():
-        log("Cannot continue - initialization failed", config.LogLevel.ERROR)
+        logger.log("Cannot continue - initialization failed", config.LogLevel.ERROR)
         time.sleep(10)
         return
 
     # Main display loop
     try:
+        # Set uptime baseline
+        state.start_time = time.monotonic()
+
         # Get baseline memory
         gc.collect()
-        state.last_memory_free = gc.mem_free()
-        log(f"Baseline memory: {state.last_memory_free} bytes free")
+        baseline = gc.mem_free()
+        state.baseline_memory = baseline
+        state.last_memory_free = baseline
+        state.low_watermark_memory = baseline
+        logger.log(f"Baseline memory: {baseline:,} bytes free")
 
         # Run display cycles
         while True:
@@ -216,31 +222,31 @@ def main():
             except KeyboardInterrupt:
                 raise  # Pass up to outer handler
             except Exception as e:
-                log(f"Display cycle error: {e}", config.LogLevel.ERROR)
+                logger.log(f"Display cycle error: {e}", config.LogLevel.ERROR)
                 traceback.print_exception(e)
                 # Show error briefly then continue
                 show_message("ERROR!", config.Colors.RED, 16)
                 time.sleep(5)
 
     except KeyboardInterrupt:
-        log("=== Weather display stopped by button press ===")
+        logger.log("=== Weather display stopped by button press ===")
         show_message("STOPPED", config.Colors.ORANGE, 16)
         time.sleep(2)
 
         # Final statistics
         gc.collect()
         final_memory = gc.mem_free()
-        log(f"Final memory: {final_memory} bytes free")
-        log(f"Total cycles: {state.cycle_count}")
-        log(f"Weather fetches: {state.weather_fetch_count}")
-        log(f"Weather errors: {state.weather_fetch_errors}")
+        logger.log(f"Final memory: {final_memory:,} bytes free")
+        logger.log(f"Total cycles: {state.cycle_count}")
+        logger.log(f"Weather fetches: {state.weather_fetch_count}")
+        logger.log(f"Weather errors: {state.weather_fetch_errors}")
 
-        # Calculate uptime
-        uptime_minutes = state.cycle_count * config.Timing.WEATHER_DISPLAY_DURATION / 60
-        log(f"Estimated uptime: {uptime_minutes:.1f} minutes")
+        # Log uptime with monotonic()
+        current_time = time.monotonic()
+        logger.log_uptime(state.start_time, current_time)
 
     except Exception as e:
-        log(f"Fatal error: {e}", config.LogLevel.ERROR)
+        logger.log(f"Fatal error: {e}", config.LogLevel.ERROR)
         traceback.print_exception(e)
         show_message("FATAL!", config.Colors.RED, 16)
         time.sleep(10)

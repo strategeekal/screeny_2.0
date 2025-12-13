@@ -19,6 +19,10 @@ def get_timestamp():
         str: Formatted timestamp or placeholder if RTC unavailable
     """
     try:
+        # Handle case where RTC is not yet initialized
+        if state.rtc is None:
+            return "[-------- --:--:--]"
+
         now = state.rtc.datetime
         return (f"[{now.tm_year:04d}-{now.tm_mon:02d}-{now.tm_mday:02d} "
                 f"{now.tm_hour:02d}:{now.tm_min:02d}:{now.tm_sec:02d}]")

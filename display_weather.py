@@ -10,18 +10,7 @@ from adafruit_display_shapes.rect import Rect
 
 import config
 import state
-
-# ============================================================================
-# LOGGING
-# ============================================================================
-
-def log(message, level=config.LogLevel.INFO):
-    """Simple logging"""
-    if isinstance(level, str):
-        level = config.LogLevel.INFO
-    if level <= config.CURRENT_LOG_LEVEL:
-        level_name = ["", "ERROR", "WARN", "INFO", "DEBUG", "VERBOSE"][level]
-        print(f"[DISPLAY:{level_name}] {message}")
+import logger
 
 # ============================================================================
 # TEXT ALIGNMENT NOTE
@@ -58,7 +47,7 @@ def show(weather_data, duration):
         duration: Display time in seconds
     """
 
-    log(f"Displaying weather: {weather_data['temp']}°", config.LogLevel.INFO)
+    logger.log(f"Displaying weather: {weather_data['temp']}°", config.LogLevel.INFO)
 
     # ========================================================================
     # CLEAR DISPLAY (Inline - fixed for CircuitPython)
@@ -85,7 +74,7 @@ def show(weather_data, duration):
         )
         state.main_group.append(tile_grid)
     except OSError as e:
-        log(f"Weather icon {icon_num} not found: {e}", config.LogLevel.WARN)
+        logger.log(f"Weather icon {icon_num} not found: {e}", config.LogLevel.WARNING)
 
     # ========================================================================
     # TEMPERATURE DATA
@@ -231,7 +220,7 @@ def show(weather_data, duration):
         # Check button inline (import hardware only when needed to avoid circular imports)
         import hardware
         if hardware.button_up_pressed():
-            log("UP button pressed during weather display", config.LogLevel.INFO)
+            logger.log("UP button pressed during weather display", config.LogLevel.INFO)
             raise KeyboardInterrupt
 
         time.sleep(0.1)
